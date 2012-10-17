@@ -1,0 +1,6 @@
+# Ignore unneeded files.
+*.pyc
+*~
+*.png
+last_code.cl
+*.npy

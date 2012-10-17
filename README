@@ -1,0 +1,7 @@
+An OpenCL raytracer.
+
+Requirements:
+	pyopencl
+	pygame (for visualization)
+	nympy
+	scipy
