@@ -16,6 +16,8 @@ brightness = 0.5
 quasirandom = True
 use_pygame = True
 interactive_opencl_context_selection = False
+samples_per_pixel = 2048
+Nbounces = 4
 
 #imgdim = (640,400)
 imgdim = (800,600)
@@ -142,7 +144,7 @@ objects += make_world_box( (3,5.1,2), (0,0,2) );
 
 Nobjects = len(objects)
 object_materials = Nobjects*[1]
-object_materials[0] = 2
+object_materials[0] = 6 #2
 object_materials[1] = 4
 object_materials[-2] = 3
 object_materials[-1] = 5
@@ -152,7 +154,9 @@ materials = [\
 	{ 'diffuse': ( 1, 1, 1),
 	  'emission':(0, 0, 0),
 	  'reflection':(0,0,0),
-	  'transparency': (0,0,0) }, 
+	  'transparency': (0,0,0),
+	  'ior': (1.0,) # Index Of Refraction
+	}, 
 	# --- Other materials
 	# 1: White diffuse
 	{ 'diffuse': ( 1, 1, 1) }, 
@@ -163,7 +167,9 @@ materials = [\
 	# 4: Warm yellow-orange light
 	{ 'diffuse': ( 1, 1, 1), 'emission':(4,2,.7) },
 	# 5: Sky (cold white-blue light)
-	{ 'diffuse': ( 1, 1, 1), 'emission':(.5,.5,.7) }]
+	{ 'diffuse': ( 1, 1, 1), 'emission':(.5,.5,.7) },
+	# 6: Glass
+	{ 'diffuse': (.1,.1,.1), 'transparency':(.7,.7,.7), 'reflection':(.2,.2,.2), 'ior':(1.6,)} ]
 
 
 camera_target = np.array(sphere.pos)
@@ -280,13 +286,13 @@ for i in range(len(objects)):
 	
 	trace_kernel += """
 	// call tracer
-	%s(pos, ray, last_normal, old_isec_dist, &new_isec_dist, inside == i);
+	%s(pos, ray, last_normal, old_isec_dist, &new_isec_dist, inside == i, lastwhichobject == i);
 	""" % tracer_name
 	
 	# TODO: handle non-hitting rays!
 	
 	trace_kernel += """
-	if (lastwhichobject != i && // cull self
+	if (//lastwhichobject != i && // cull self
 	    new_isec_dist > 0 &&
 	    new_isec_dist < old_isec_dist)
 	{
@@ -313,6 +319,7 @@ for i in range(len(objects)):
 	{
 		// call normal
 		%s(pos, p_normal);
+		if (inside == i) *p_normal = -*p_normal;
 	}
 	""" % obj.normal_kernel_name
 
@@ -384,31 +391,38 @@ def new_const_buffer(buf):
 	mf = cl.mem_flags
 	return cl.Buffer(acc.ctx, mf.READ_ONLY | mf.COPY_HOST_PTR, hostbuf=buf.astype(np.float32))
 	
-def new_mat_vec_buf(pname):
-	buf = np.zeros((Nobjects+1,4))
-	buf[0] = np.array(materials[0][pname]+(0,))
+def new_mat_buf(pname):
+	default = materials[0][pname]
+	if len(default) > 1:
+		w = 4
+		default += (0,)
+	else:
+		w = 1
+		
+	buf = np.zeros((Nobjects+1,w))
+	buf[0] = np.array(default)
 	for i in range(Nobjects):
 		if pname in materials[object_materials[i]]:
 			prop = materials[object_materials[i]][pname]
+			if w > 1: prop += (0,)
 		else:
-			prop = materials[0][pname]
-		buf[i+1] = np.array(prop+(0,))
+			prop = default
+		buf[i+1] = np.array(prop)
 	return new_const_buffer(buf)
 
-mat_diffuse = new_mat_vec_buf('diffuse')
-mat_emission = new_mat_vec_buf('emission')
-mat_reflection = new_mat_vec_buf('reflection')
-mat_transparency = new_mat_vec_buf('transparency')
+mat_diffuse = new_mat_buf('diffuse')
+mat_emission = new_mat_buf('emission')
+mat_reflection = new_mat_buf('reflection')
+mat_transparency = new_mat_buf('transparency')
+mat_ior = new_mat_buf('ior')
 vec_broadcast = new_const_buffer(np.zeros((4,)))
 
 # ---- Path tracing
 
 # Params
 cam = acc.make_vec3_array(cam)
-samples_per_pixel = 256
 N = cam.size / 4
 itr_per_refresh = 10
-Nbounces = 2
 luxury = 2
 imgshape = imgdim[::-1]
 caching = True
@@ -493,7 +507,8 @@ for j in xrange(samples_per_pixel):
 			cl.enqueue_copy(acc.queue, vec_broadcast, hostbuf)
 			prog_call('prob_select_ray', \
 				(whichobject, normal,ray,raycolor,inside), \
-				(mat_diffuse,mat_reflection,mat_transparency,rand_01,vec_broadcast))
+				(mat_diffuse,mat_reflection,mat_transparency,mat_ior,\
+				rand_01,vec_broadcast))
 		
 		prog_call('trace', (pos,ray,normal,old_isec_dist,whichobject,inside))
 		

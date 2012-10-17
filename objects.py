@@ -6,7 +6,8 @@ class Tracer:
 	__global const float3 *p_last_normal,
 	__global const float *p_old_isec_dist,
 	__global float *p_new_isec_dist,
-	__global const uint *p_inside""" # TODO: bool
+	__global const uint *p_inside,
+	__global const uint *p_origin_self""" # TODO: bool
 	
 	NORMAL_KERNEL_ARGUMENTS = """
 	__global const float3 *p_pos,
@@ -21,6 +22,7 @@ class Tracer:
 	const float3 last_normal = p_last_normal[gid];
 	const float old_isec_dist = p_old_isec_dist[gid];
 	const bool inside = p_inside[gid] != 0;
+	const bool origin_self = p_origin_self[gid] != 0;
 	p_new_isec_dist += gid;
 	"""
 	
@@ -38,7 +40,8 @@ class Tracer:
 	const float3 last_normal,
 	const float old_isec_dist,
 	__private float *p_new_isec_dist,
-	bool inside"""
+	bool inside,
+	bool origin_self"""
 	
 	NORMAL_STATIC_ARGUMENTS = """
 	const float3 pos,
@@ -77,10 +80,6 @@ class Tracer:
 		return self.kernel_code
 		
 
-class GidDebug(Tracer):
-	tracer_code = "*p_new_isec_dist = gid;"
-	normal_code = "*p_normal = *p_normal*0 + gid;"
-
 class Sphere(Tracer):
 	
 	def _params(self): return """
@@ -98,12 +97,14 @@ class Sphere(Tracer):
 	
 	float dist, discr, sqrdiscr;
 	
-	//bool inside = false;
+	if (origin_self && !inside)
+	{
+		return;
+		// no intersection
+	}
+	//if (inside) { *p_new_isec_dist = 0.1; return; }
 	
-	//if(dotp <= 0 && prev_isec.body==this) return false;
-	// TODO
-	
-	if (dotp <= 0)
+	if (dotp <= 0 && !inside)
 	{
 		// no intersection
 		return;
@@ -112,34 +113,14 @@ class Sphere(Tracer):
 	discr = dotp*dotp - psq + R2;
 	if(discr < 0) return;
 	
-	// TODO
-	/*if ( isec.dist > 0)
-	{
-		if (discr > 1.0)
-		{
-			if (dotp - discr > isec.dist ) return false;
-		}
-		else
-			if (dotp - 1.0 > isec.dist ) return false;
-	}*/
-
-	sqrdiscr = native_sqrt(discr); // TODO: fast/native/half sqrt
+	sqrdiscr = native_sqrt(discr);
 	dist = dotp - sqrdiscr;
 	
-	//if (dist < 0) dist += 2*sqrdiscr;
+	if (inside) dist = dotp + sqrdiscr;
+	else dist = dotp - sqrdiscr;
 	
-	// TODO
-	/*if(dist <= 0 || prev_isec.body==this)
-	{
-		inside = true;
-		dist += 2*sqrdiscr;
-	}*/
-
-	if(dist <= 0) return;
-	else
-	{
-		*p_new_isec_dist = dist;
-	}
+	if (dist <= 0) return;
+	*p_new_isec_dist = dist;
 	"""
 	
 	@property
@@ -160,11 +141,15 @@ class HalfSpace(Tracer):
 	
 	@property
 	def tracer_code(self): return self._params() + """
-	float slope = dot(ray,-normal);
-	float dist = dot(origin, normal)+h;
 	
-	dist = dist/slope;
-	if (dist > 0) *p_new_isec_dist = dist;
+	if (!origin_self)
+	{
+		float slope = dot(ray,-normal);
+		float dist = dot(origin, normal)+h;
+		
+		dist = dist/slope;
+		if (dist > 0) *p_new_isec_dist = dist;
+	}
 	"""
 	
 	@property
