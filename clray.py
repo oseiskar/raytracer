@@ -2,7 +2,6 @@ import numpy as np
 import pyopencl.clrandom as cl_random
 import pyopencl.clmath as cl_math
 import pyopencl as cl
-import pygame
 import time
 from scipy.misc import toimage
 
@@ -13,9 +12,10 @@ startup_time = time.time()
 
 # ------- General options
 
-independent_rays = False
-quasirandom = True
 brightness = 0.5
+quasirandom = True
+use_pygame = True
+interactive_opencl_context_selection = False
 
 #imgdim = (640,400)
 imgdim = (800,600)
@@ -27,22 +27,21 @@ imgdim = (800,600)
 pgwin = None
 def show_and_save_image( imgdata ):
 	
-	#np.save('out.raw.npy', imgdata)
-	
-	h,w = imgdata.shape[:2]
-	global pgwin
-	if not pgwin:
-		pgwin = pygame.display.set_mode((w,h))
-		pygame.display.set_caption("Raytracer") 
-		
 	ref = np.mean(imgdata)
 	imgdata = (np.clip(imgdata/ref*brightness, 0, 1)*255).astype(np.uint8)
+		
+	#np.save('out.raw.npy', imgdata)
+	if use_pygame:
+		import pygame
+		h,w = imgdata.shape[:2]
+		global pgwin
+		if not pgwin:
+			pgwin = pygame.display.set_mode((w,h))
+			pygame.display.set_caption("Raytracer") 
+		
+		pgwin.blit(pygame.surfarray.make_surface(imgdata.transpose((1,0,2))), (0,0))
+		pygame.display.update()
 	
-	#pygame.surfarray.blit_array(pgwin,imgdata)
-	
-	pgwin.blit(pygame.surfarray.make_surface(imgdata.transpose((1,0,2))), (0,0))
-	
-	pygame.display.update()
 	toimage(imgdata).save('out.png')
 	
 
@@ -335,7 +334,7 @@ cur_code_file.close()
 
 # ------------- Initialize CL
 
-acc = Accelerator()
+acc = Accelerator(interactive_opencl_context_selection)
 prog = cl.Program(acc.ctx, prog_code).build()
 
 # Utils
@@ -399,6 +398,7 @@ def new_mat_vec_buf(pname):
 mat_diffuse = new_mat_vec_buf('diffuse')
 mat_emission = new_mat_vec_buf('emission')
 mat_reflection = new_mat_vec_buf('reflection')
+mat_transparency = new_mat_vec_buf('transparency')
 vec_broadcast = new_const_buffer(np.zeros((4,)))
 
 # ---- Path tracing
@@ -433,9 +433,6 @@ img = acc.new_vec3_array(imgshape)
 whichobject = acc.new_array(imgshape, np.uint32, True)
 pos = acc.zeros_like(cam)
 ray = acc.zeros_like(pos)
-
-#mirrorray = acc.zeros_like(ray)
-#randomray = acc.zeros_like(ray)
 
 inside = acc.zeros_like(whichobject)
 
@@ -482,24 +479,21 @@ for j in xrange(samples_per_pixel):
 		
 		vec = (0,0,0) # dummy
 		if k!=0:
-			if independent_rays:
-				rnd.fill_normal(randomray)
-				prog_call('normalize_vecs', (ray,))
+			if quasirandom and k == 1:
+				vec = qdirs[j,:]
 			else:
-				if quasirandom and k == 1:
-					vec = qdirs[j,:]
-				else:
-					vec = normalize(np.random.normal(0,1,(3,)))
+				vec = normalize(np.random.normal(0,1,(3,)))
 			
 		vec = np.array(vec).astype(np.float32) 
 			
-		if not independent_rays:
-			rand_01 = np.float32(np.random.rand())
-			
-			if k != 0:
-				hostbuf = vec.astype(np.float32)
-				cl.enqueue_copy(acc.queue, vec_broadcast, hostbuf)
-				prog_call('prob_select_ray', (whichobject, normal,ray,raycolor,inside), (mat_diffuse,mat_reflection,rand_01,vec_broadcast))
+		rand_01 = np.float32(np.random.rand())
+		
+		if k != 0:
+			hostbuf = vec.astype(np.float32)
+			cl.enqueue_copy(acc.queue, vec_broadcast, hostbuf)
+			prog_call('prob_select_ray', \
+				(whichobject, normal,ray,raycolor,inside), \
+				(mat_diffuse,mat_reflection,mat_transparency,rand_01,vec_broadcast))
 		
 		prog_call('trace', (pos,ray,normal,old_isec_dist,whichobject,inside))
 		

@@ -4,10 +4,12 @@ import pyopencl as cl
 import pyopencl.array as cl_array
 
 class Accelerator:
-	"""some kind of wrapper for pyopencl"""
+	"""opencl initialization and some other stuff"""
 	
-	def __init__(self):
-		interactive = False
+	# OpenCL-related stuff is not well contained here (at the moment)
+	# which was the original idea
+	
+	def __init__(self,interactive=False):
 		self.ctx = cl.create_some_context(interactive)
 		prop = cl.command_queue_properties.PROFILING_ENABLE
 		self.queue = cl.CommandQueue(self.ctx, properties=prop)
