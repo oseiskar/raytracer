@@ -16,8 +16,9 @@ brightness = 0.5
 quasirandom = True
 use_pygame = True
 interactive_opencl_context_selection = False
-samples_per_pixel = 2048
-Nbounces = 4
+samples_per_pixel = 100000
+min_bounces = 3
+russian_roulette_prob = 0.4
 
 #imgdim = (640,400)
 imgdim = (800,600)
@@ -147,7 +148,7 @@ object_materials = Nobjects*[1]
 object_materials[0] = 6 #2
 object_materials[1] = 4
 object_materials[-2] = 3
-object_materials[-1] = 5
+#object_materials[-1] = 5
 
 materials = [\
 	# 0: "Air" / initial / default material
@@ -169,7 +170,7 @@ materials = [\
 	# 5: Sky (cold white-blue light)
 	{ 'diffuse': ( 1, 1, 1), 'emission':(.5,.5,.7) },
 	# 6: Glass
-	{ 'diffuse': (.1,.1,.1), 'transparency':(.7,.7,.7), 'reflection':(.2,.2,.2), 'ior':(1.6,)} ]
+	{ 'diffuse': (.1,.1,.1), 'transparency':(.7,.7,.7), 'reflection':(.2,.2,.2), 'ior':(1.5,)} ]
 
 
 camera_target = np.array(sphere.pos)
@@ -487,8 +488,18 @@ for j in xrange(samples_per_pixel):
 	
 	inside.fill(0)
 	
-	for k in xrange(kbegin,Nbounces+1):
-	
+	k = kbegin
+	while True:
+	#for k in xrange(kbegin,min_bounces+1):
+		
+		#if k == min_bounces+1: break
+		if k > min_bounces:
+			rand_01 = np.random.rand()
+			if rand_01 < russian_roulette_prob:
+				raycolor *= 1.0/(1-russian_roulette_prob)
+			else:
+				break
+		
 		old_isec_dist.fill(100) # TODO
 		
 		vec = (0,0,0) # dummy
@@ -528,11 +539,13 @@ for j in xrange(samples_per_pixel):
 			memcpy(firstray, ray)
 			memcpy(directlight,img)
 			img.fill(0)
+			
+		k += 1
 	
 	img += directlight # TODO in-place?
 	
 	tcur = time.time()
-	print '%d/%d'%(j+1,samples_per_pixel),"time per image:", (tcur-t0), "total:", (tcur-startup_time)
+	print '%d/%d'%(j+1,samples_per_pixel),"time per image:", (tcur-t0), "total:", (tcur-startup_time), "k=%d"%k
 	
 	if j % itr_per_refresh == 0 or j==samples_per_pixel-1:
 		show_and_save_image( img.get().astype(np.float32)[...,0:3] )
