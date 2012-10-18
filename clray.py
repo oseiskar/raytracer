@@ -3,7 +3,6 @@ import pyopencl.clrandom as cl_random
 import pyopencl.clmath as cl_math
 import pyopencl as cl
 import time
-from scipy.misc import toimage
 
 from accelerator import Accelerator
 from objects import *
@@ -12,13 +11,17 @@ startup_time = time.time()
 
 # ------- General options
 
-brightness = 0.5
-quasirandom =True
 use_pygame = True
+use_scipy_misc_pil_image = True
+output_raw_data = True
+
+brightness = 0.5
+quasirandom = False
 interactive_opencl_context_selection = False
-samples_per_pixel = 256
+samples_per_pixel = 10256
 min_bounces = 2
-russian_roulette_prob = -1 #0.4
+russian_roulette_prob = .4
+#russian_roulette_prob = -1
 
 #imgdim = (640,400)
 imgdim = (800,600)
@@ -30,10 +33,11 @@ imgdim = (800,600)
 pgwin = None
 def show_and_save_image( imgdata ):
 	
+	if output_raw_data:
+		np.save('out.raw.npy', imgdata)
+	
 	ref = np.mean(imgdata)
 	imgdata = (np.clip(imgdata/ref*brightness, 0, 1)*255).astype(np.uint8)
-		
-	np.save('out.raw.npy', imgdata)
 	
 	if use_pygame:
 		import pygame
@@ -46,7 +50,9 @@ def show_and_save_image( imgdata ):
 		pgwin.blit(pygame.surfarray.make_surface(imgdata.transpose((1,0,2))), (0,0))
 		pygame.display.update()
 	
-	toimage(imgdata).save('out.png')
+	if use_scipy_misc_pil_image:
+		from scipy.misc import toimage
+		toimage(imgdata).save('out.png')
 	
 
 # ------- Numpy utils
@@ -177,7 +183,7 @@ object_materials = Nobjects*[1]
 object_materials[0] = 6 #2
 object_materials[1] = 4
 object_materials[-2] = 3
-object_materials[-1] = 5
+#object_materials[-1] = 5
 
 materials = [\
 	# 0: "Air" / initial / default material
@@ -406,7 +412,7 @@ N = cam.size / 4
 itr_per_refresh = 10
 luxury = 2
 imgshape = imgdim[::-1]
-caching = False
+caching = True
 
 prog_call = prog_caller(N)
 def memcpy(dst,src): cl.enqueue_copy(acc.queue, dst.data, src.data)
@@ -451,24 +457,23 @@ for j in xrange(samples_per_pixel):
 	
 	if j==0 or not caching:
 		
-		# TODO: quasi random...
-		sx = np.float32(np.random.rand())
-		sy = np.float32(np.random.rand())
-		
-		overlap = 0.0
-		thetax = (sx-0.5)*pixel_angle*(1.0+overlap)
-		thetay = (sy-0.5)*pixel_angle*(1.0+overlap)
-		
-		tilt = rotmat_tilt_camera(thetax,thetay)
-		mat = np.dot(np.dot(rotmat,tilt),rotmat.transpose())
-		mat4 = np.zeros((4,4))
-		mat4[0:3,0:3] = mat
-		
-		cl.enqueue_copy(acc.queue, vec_broadcast,  mat4.astype(np.float32))
-		prog_call('subsample_transform_camera', (cam,ray,), (vec_broadcast,))
-		
-		###
-		#memcpy(ray, cam)
+		if caching: memcpy(ray, cam)
+		else:
+			# TODO: quasi random...
+			sx = np.float32(np.random.rand())
+			sy = np.float32(np.random.rand())
+			
+			overlap = 0.0
+			thetax = (sx-0.5)*pixel_angle*(1.0+overlap)
+			thetay = (sy-0.5)*pixel_angle*(1.0+overlap)
+			
+			tilt = rotmat_tilt_camera(thetax,thetay)
+			mat = np.dot(np.dot(rotmat,tilt),rotmat.transpose())
+			mat4 = np.zeros((4,4))
+			mat4[0:3,0:3] = mat
+			
+			cl.enqueue_copy(acc.queue, vec_broadcast,  mat4.astype(np.float32))
+			prog_call('subsample_transform_camera', (cam,ray,), (vec_broadcast,))
 		
 		fill_vec(pos, camera_pos)
 		whichobject.fill(0)
@@ -509,14 +514,16 @@ for j in xrange(samples_per_pixel):
 				vec = normalize(np.random.normal(0,1,(3,)))
 			
 		vec = np.array(vec).astype(np.float32) 
-			
 		rand_01 = np.float32(np.random.rand())
 		
 		if k != 0:
-			hostbuf = vec.astype(np.float32)
+			hostbuf = np.zeros((3,4), dtype=np.float32)
+			hostbuf[0,:3] = vec
+			hostbuf[1,:3] = light.pos
+			hostbuf[2,0] = light.R
 			cl.enqueue_copy(acc.queue, vec_broadcast, hostbuf)
 			prog_call('prob_select_ray', \
-				(whichobject, normal,ray,raycolor,inside), \
+				(whichobject, normal,pos,ray,raycolor,inside), \
 				(mat_diffuse,mat_reflection,mat_transparency,mat_ior,\
 				rand_01,vec_broadcast))
 		
@@ -541,7 +548,7 @@ for j in xrange(samples_per_pixel):
 			
 		k += 1
 	
-	img += directlight # TODO in-place?
+	img += directlight
 	
 	tcur = time.time()
 	print '%d/%d'%(j+1,samples_per_pixel),"time per image:", (tcur-t0), "total:", (tcur-startup_time), "k=%d"%k

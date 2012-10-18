@@ -33,6 +33,7 @@ __kernel void subsample_transform_camera(
 __kernel void prob_select_ray(
 		global const uint *value_array,
 		global float3 *normal,
+		global const float3 *pos,
 		global float3 *ray,
 		global float3 *color,
 		global uint *inside,
@@ -56,11 +57,49 @@ __kernel void prob_select_ray(
 	{
 	    cur_mult /= cur_prob;
 	    
-	    // Diffuse
-	    r = *rvec;
+	    // diffuse importance sampling
+	    const float3 light_pos = rvec[1];
+	    const float light_r = rvec[2].x;
+	    const float light_dist = distance(pos[gid],light_pos);
+	    const float3 light_ray = *rvec * light_r + light_pos - pos[gid];
 	    
-	    // Reflect (negation) to outside
-	    if (dot(n,r) < 0) r = -r;
+	    float select_prob = 0.5;
+	        
+	    if (light_dist > light_r * 3 && dot(n,light_ray) > 0) // 3 is a magic constant
+	    {
+	        // this is an "about" value
+	        const float surfr = asin(light_r/light_dist);
+	        const float fraction = surfr*surfr / (4 * light_dist*light_dist);
+	        
+	        const float select_prob = 0.4;
+	        
+	        if (p/cur_prob < select_prob)
+	        {
+	            cur_mult /= select_prob;
+	            cur_mult *= fraction * 4 * M_PI;
+	            
+	            // TODO: cosine weighted on the light sphere
+	            r = fast_normalize(light_ray);
+	        }
+	        else
+	        {
+	            cur_mult /= (1.0 - select_prob);
+	            
+	            // Diffuse
+	            r = *rvec;
+	            
+	            // Reflect (negation) to outside
+	            if (dot(n,r) < 0) r = -r;
+	        }
+	    }
+	    else
+	    {
+	        // Diffuse
+	        r = *rvec;
+	        
+	        // Reflect (negation) to outside
+	        if (dot(n,r) < 0) r = -r;
+	    }
 	}
 	else
 	{
