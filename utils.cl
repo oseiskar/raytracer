@@ -33,7 +33,8 @@ __kernel void subsample_transform_camera(
 __kernel void prob_select_ray(
 		global const uint *value_array,
 		global float3 *normal,
-		global const float3 *pos,
+		global float *last_distance,
+		global float3 *pos,
 		global float3 *ray,
 		global float3 *color,
 		global uint *inside,
@@ -41,143 +42,139 @@ __kernel void prob_select_ray(
 		constant float3 *reflecivity,
 		constant float3 *transparency,
 		constant float *ior,
+		constant float3 *vs,
 		float p,
 		constant float3 *rvec)
 {
 	const int gid = get_global_id(0);
 	uint id = value_array[gid];
 	
-	float3 cur_col = diffuse[id];
-	float cur_prob = (cur_col.x+cur_col.y+cur_col.z)/3;
+	float3 cur_col = vs[inside[gid]];
+	float cur_prob = 0;
 	float cur_mult = 1.0;
 	float3 r = ray[gid];
 	float3 n = normal[gid];
 	
+	const float alpha = (cur_col.x+cur_col.y+cur_col.z)/3 * 3.0;
+	
+	if (alpha > 0) cur_prob = 1.0-exp(-alpha*last_distance[gid]);
+	
 	if (p < cur_prob)
 	{
-	    cur_mult /= cur_prob;
+	    // (sub-surface) scattering
 	    
-	    // diffuse importance sampling
-	    const float3 light_pos = rvec[1];
-	    const float light_r = rvec[2].x;
-	    const float light_dist = distance(pos[gid],light_pos);
-	    const float3 light_ray = *rvec * light_r + light_pos - pos[gid];
+	    //cur_col = (float3)(1,1,1);
 	    
-	    float select_prob = 0.5;
-	        
-	    if (light_dist > light_r * 3 && dot(n,light_ray) > 0) // 3 is a magic constant
-	    {
-	        // this is an "about" value
-	        const float surfr = asin(light_r/light_dist);
-	        const float fraction = surfr*surfr / (4 * light_dist*light_dist);
-	        
-	        const float select_prob = 0.4;
-	        
-	        if (p/cur_prob < select_prob)
-	        {
-	            cur_mult /= select_prob;
-	            cur_mult *= fraction * 4 * M_PI;
-	            
-	            // TODO: cosine weighted on the light sphere
-	            r = fast_normalize(light_ray);
-	        }
-	        else
-	        {
-	            cur_mult /= (1.0 - select_prob);
-	            
-	            // Diffuse
-	            r = *rvec;
-	            
-	            // Reflect (negation) to outside
-	            if (dot(n,r) < 0) r = -r;
-	        }
-	    }
-	    else
-	    {
-	        // Diffuse
-	        r = *rvec;
-	        
-	        // Reflect (negation) to outside
-	        if (dot(n,r) < 0) r = -r;
-	    }
+	    r = *rvec;
+	    
+	    //cur_mult /= cur_prob; // TODO ?
+	    float d = (p/cur_prob)*last_distance[gid];  //-log(p) / alpha;
+	    
+	    pos[gid] -= (last_distance[gid]-d) * r;
+	    
+	    // TODO: color
+	    cur_col /= alpha;
+	    
+	    //cur_mult = last_distance[gid];
 	}
 	else
 	{
-	    p -= cur_prob;
-	    cur_mult /= (1.0 - cur_prob);
+	    //p -= cur_prob;
+	    //cur_mult /= (1.0 - cur_prob);
 	    
-	    cur_col = reflecivity[id];
+	    cur_col = diffuse[id];
 	    cur_prob = (cur_col.x+cur_col.y+cur_col.z)/3;
-	    
+	
 	    if (p < cur_prob)
 	    {
 	        cur_mult /= cur_prob;
+	       
+	        // Diffuse
+	        r = *rvec;
+	            
+	        // Reflect (negation) to outside
+	        if (dot(n,r) < 0) r = -r;
 	        
-	        // Reflection
-	        r -= 2*dot(r,n) * n;
 	    }
 	    else
 	    {
 	        p -= cur_prob;
 	        cur_mult /= (1.0 - cur_prob);
 	        
-	        cur_col = transparency[id];
+	        cur_col = reflecivity[id];
 	        cur_prob = (cur_col.x+cur_col.y+cur_col.z)/3;
 	        
 	        if (p < cur_prob)
 	        {
 	            cur_mult /= cur_prob;
 	            
-	            // Refraction / Transparency
-	            
-	            float dotp = dot(r,n);
-	            if (dotp > 0) { n = -n; dotp = -dotp; }
-	                    
-	            float nfrac = 0;
-	            
-	            if (inside[gid] == value_array[gid]) // Leaving
-	            {
-	                nfrac = ior[id]/ior[0];
-	                inside[gid] = 0; // TODO: parent
-	            }
-	            else // going in
-	            {
-	                nfrac = ior[0]/ior[id];
-	                inside[gid] = value_array[gid];
-	            }
-	            
-	            if (nfrac != 1)
-	            {
-	                float cos2t =1-nfrac*nfrac*(1-dotp*dotp);
-	                
-	                if (cos2t < 0)
-	                {
-	                    // Total reflection
-	                    
-	                    r -= 2*dotp * n;
-	                    
-	                    cur_col = (float3)(1,1,1);
-	                    cur_mult *= cur_prob;
-	                    
-	                    if (inside[gid] == value_array[gid]) inside[gid] = 0;
-	                    else inside[gid] = value_array[gid];
-	                }
-	                else
-	                {
-	                    // Refraction
-	                    r = normalize(r*nfrac + n*(-dotp*nfrac-sqrt(cos2t)));
-	                }
-	            }
-	            // else leave r intact
-	            
-	            if (dot(n,r) < 0) n = -n;
-	            normal[gid] = n;
-
+	            // Reflection
+	            r -= 2*dot(r,n) * n;
 	        }
 	        else
 	        {
-	            // Assumed absorption
-	            cur_col = 0;
+	            p -= cur_prob;
+	            cur_mult /= (1.0 - cur_prob);
+	            
+	            cur_col = transparency[id];
+	            cur_prob = (cur_col.x+cur_col.y+cur_col.z)/3;
+	            
+	            if (p < cur_prob)
+	            {
+	                cur_mult /= cur_prob;
+	                cur_mult /= 0.6; // TODO!
+	                
+	                // Refraction / Transparency
+	                
+	                float dotp = dot(r,n);
+	                if (dotp > 0) { n = -n; dotp = -dotp; }
+	                        
+	                float nfrac = 0;
+	                
+	                if (inside[gid] == value_array[gid]) // Leaving
+	                {
+	                    nfrac = ior[id]/ior[0];
+	                    inside[gid] = 0; // TODO: parent
+	                }
+	                else // going in
+	                {
+	                    nfrac = ior[0]/ior[id];
+	                    inside[gid] = value_array[gid];
+	                }
+	                
+	                if (nfrac != 1)
+	                {
+	                    float cos2t =1-nfrac*nfrac*(1-dotp*dotp);
+	                    
+	                    if (cos2t < 0)
+	                    {
+	                        // Total reflection
+	                        
+	                        r -= 2*dotp * n;
+	                        
+	                        cur_col = (float3)(1,1,1);
+	                        cur_mult *= cur_prob;
+	                        
+	                        if (inside[gid] == value_array[gid]) inside[gid] = 0;
+	                        else inside[gid] = value_array[gid];
+	                    }
+	                    else
+	                    {
+	                        // Refraction
+	                        r = normalize(r*nfrac + n*(-dotp*nfrac-sqrt(cos2t)));
+	                    }
+	                }
+	                // else leave r intact
+	                
+	                if (dot(n,r) < 0) n = -n;
+	                normal[gid] = n;
+
+	            }
+	            else
+	            {
+	                // Assumed absorption
+	                cur_col = 0;
+	            }
 	        }
 	    }
 	}

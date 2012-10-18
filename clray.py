@@ -18,8 +18,8 @@ output_raw_data = True
 brightness = 0.5
 quasirandom = False
 interactive_opencl_context_selection = False
-samples_per_pixel = 10256
-min_bounces = 2
+samples_per_pixel = 100256
+min_bounces = 1
 russian_roulette_prob = .4
 #russian_roulette_prob = -1
 
@@ -174,16 +174,16 @@ sphere = Sphere( (0,2,1.5), 1.5 )
 light = Sphere( (-3,0,2), 0.5 )
 objects = []
 objects.append(sphere)
-objects.append(light)
+#objects.append(light)
 objects += make_world_box( (3,5.1,2), (0,0,2) );
 #objects += [HalfSpace( ( 0, 0, 1), 1.5),  HalfSpace( ( 0, 0, -1), 3)]
 
 Nobjects = len(objects)
 object_materials = Nobjects*[1]
-object_materials[0] = 6 #2
-object_materials[1] = 4
+object_materials[0] = 7 #6 #2
+#object_materials[1] = 4
 object_materials[-2] = 3
-#object_materials[-1] = 5
+object_materials[-1] = 5
 
 materials = [\
 	# 0: "Air" / initial / default material
@@ -191,7 +191,8 @@ materials = [\
 	  'emission':(0, 0, 0),
 	  'reflection':(0,0,0),
 	  'transparency': (0,0,0),
-	  'ior': (1.0,) # Index Of Refraction
+	  'ior': (1.0,), # Index Of Refraction
+	  'vs': (0,0,0)
 	}, 
 	# --- Other materials
 	# 1: White diffuse
@@ -205,7 +206,10 @@ materials = [\
 	# 5: Sky (cold white-blue light)
 	{ 'diffuse': ( 1, 1, 1), 'emission':(.5,.5,.7) },
 	# 6: Glass
-	{ 'diffuse': (.1,.1,.1), 'transparency':(.7,.7,.7), 'reflection':(.2,.2,.2), 'ior':(1.5,)} ]
+	{ 'diffuse': (.1,.1,.1), 'transparency':(.7,.7,.7), 'reflection':(.2,.2,.2), 'ior':(1.5,)},
+	# 7: Wax
+	{ 'diffuse': (.0,.0,.0), 'transparency':(1.,1.,1.), 'vs':(0,.03,0)}
+	]
 
 
 camera_target = np.array(sphere.pos)
@@ -400,6 +404,7 @@ mat_diffuse = new_mat_buf('diffuse')
 mat_emission = new_mat_buf('emission')
 mat_reflection = new_mat_buf('reflection')
 mat_transparency = new_mat_buf('transparency')
+mat_vs = new_mat_buf('vs')
 mat_ior = new_mat_buf('ior')
 max_broadcast_vecs = 4
 vec_broadcast = new_const_buffer(np.zeros((max_broadcast_vecs,4)))
@@ -412,7 +417,7 @@ N = cam.size / 4
 itr_per_refresh = 10
 luxury = 2
 imgshape = imgdim[::-1]
-caching = True
+caching = False
 
 prog_call = prog_caller(N)
 def memcpy(dst,src): cl.enqueue_copy(acc.queue, dst.data, src.data)
@@ -519,12 +524,12 @@ for j in xrange(samples_per_pixel):
 		if k != 0:
 			hostbuf = np.zeros((3,4), dtype=np.float32)
 			hostbuf[0,:3] = vec
-			hostbuf[1,:3] = light.pos
-			hostbuf[2,0] = light.R
+			#hostbuf[1,:3] = light.pos
+			#hostbuf[2,0] = light.R
 			cl.enqueue_copy(acc.queue, vec_broadcast, hostbuf)
 			prog_call('prob_select_ray', \
-				(whichobject, normal,pos,ray,raycolor,inside), \
-				(mat_diffuse,mat_reflection,mat_transparency,mat_ior,\
+				(whichobject, normal,old_isec_dist,pos,ray,raycolor,inside), \
+				(mat_diffuse,mat_reflection,mat_transparency,mat_ior,mat_vs,\
 				rand_01,vec_broadcast))
 		
 		prog_call('trace', (pos,ray,normal,old_isec_dist,whichobject,inside))
