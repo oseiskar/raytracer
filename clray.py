@@ -13,12 +13,12 @@ startup_time = time.time()
 # ------- General options
 
 brightness = 0.5
-quasirandom = True
+quasirandom =True
 use_pygame = True
 interactive_opencl_context_selection = False
-samples_per_pixel = 100000
-min_bounces = 3
-russian_roulette_prob = 0.4
+samples_per_pixel = 256
+min_bounces = 2
+russian_roulette_prob = -1 #0.4
 
 #imgdim = (640,400)
 imgdim = (800,600)
@@ -33,7 +33,8 @@ def show_and_save_image( imgdata ):
 	ref = np.mean(imgdata)
 	imgdata = (np.clip(imgdata/ref*brightness, 0, 1)*255).astype(np.uint8)
 		
-	#np.save('out.raw.npy', imgdata)
+	np.save('out.raw.npy', imgdata)
+	
 	if use_pygame:
 		import pygame
 		h,w = imgdata.shape[:2]
@@ -57,6 +58,20 @@ def normalize(vecs):
 	lens.shape += (1,)
 	return vecs / lens
 	
+def rotmat_tilt_camera(xa, ya):
+	
+	rm2d = lambda a : np.array([[np.cos(a), -np.sin(a)],[np.sin(a),np.cos(a)]])
+	
+	
+	rot3dy = np.identity(3)
+	rot3dy[1:,1:] = rm2d(ya)
+	
+	rot3dx = np.identity(3)
+	
+	rot3dx[[[0],[2]],[0,2]] = rm2d(xa)
+	
+	return np.dot(rot3dy, rot3dx)
+
 def camera_rotmat(direction, up=(0,0,1)):
 	
 	direction = np.array(direction)
@@ -69,29 +84,43 @@ def camera_rotmat(direction, up=(0,0,1)):
 	
 	return normalize(rotmat).transpose()
 	
-def camera(wh, wfov=60, direction=(0,1,0), up=(0,0,1)):
+def camera(wh, flat=False, wfov=60, direction=(0,1,0), up=(0,0,1)):
 	
 	w,h = wh
-	
-	aspect = float(h)/w
-	ra = np.tan(wfov/180.0*np.pi * 0.5)
+	wfov = wfov/180.0*np.pi
+	aspect = h / float(w)
+	hfov = wfov * aspect
 	
 	rotmat = camera_rotmat(direction, up)
 	
-	xr = np.linspace(-ra,ra,w)
-	yr = np.linspace(-ra*aspect,ra*aspect,h)
-	X,Y = np.meshgrid(xr,yr)
-	Z = np.ones(X.shape)
+	#tilt = rotmat_tilt_camera(0.3,0.4)
+	#rotmat = np.dot(rotmat, tilt)
+	
+	if flat:
+		ra = np.tan(wfov * 0.5)
+		xr = np.linspace(-ra,ra,w)
+		yr = np.linspace(-ra*aspect,ra*aspect,h)
+		X,Y = np.meshgrid(xr,yr)
+		Z = np.ones(X.shape)
+	else:
+		pixel_angle = float(wfov)/w;
+		xa = (np.arange(0,w)+0.5)*pixel_angle - wfov/2.0
+		ya = (np.arange(0,h)+0.5)*pixel_angle - hfov/2.0
+		Xa,Ya = np.meshgrid(xa,ya)
+		
+		X = np.sin(Xa)*np.cos(Ya)
+		Z = np.cos(Xa)*np.cos(Ya)
+		Y = np.sin(Ya)
 	
 	N = w*h
 	vecs = np.dstack((X,Y,Z))
 	vecs = np.reshape(vecs, (N,3)).transpose()
-	
 	vecs = np.dot(rotmat, vecs).transpose()
-	
 	vecs = np.reshape(vecs, (h,w,3))
 	
-	return normalize(vecs)
+	if flat: vecs = normalize(vecs)
+	return vecs
+
 
 def quasi_random_direction_sample(n, hemisphere=True):
 	"""
@@ -148,7 +177,7 @@ object_materials = Nobjects*[1]
 object_materials[0] = 6 #2
 object_materials[1] = 4
 object_materials[-2] = 3
-#object_materials[-1] = 5
+object_materials[-1] = 5
 
 materials = [\
 	# 0: "Air" / initial / default material
@@ -177,11 +206,14 @@ camera_target = np.array(sphere.pos)
 camera_pos = np.array((1,-5,2))
 camera_fov = 60
 camera_dir = camera_target - camera_pos
-cam = camera(imgdim, camera_fov, camera_dir)
+flat_camera = False
+cam = camera(imgdim, flat_camera, camera_fov, camera_dir)
 
-fovx = np.tan(camera_fov*0.5 / 180 * np.pi)
-fovy = fovx * float(imgdim[1])/imgdim[0]
+#fovx = np.tan(camera_fov*0.5 / 180 * np.pi)
+#fovy = fovx * float(imgdim[1])/imgdim[0]
 rotmat = camera_rotmat(camera_dir)
+fovx_rad = camera_fov / 180.0 * np.pi
+pixel_angle = fovx_rad / imgdim[0]
 
 # ------------- make OpenCL code
 
@@ -189,60 +221,7 @@ kernels = set([obj.make_kernel(False) for obj in objects])
 
 utils = open('utils.cl', 'r').read()
 
-dynutils = """
-__kernel void camera_ray(
-		global const float3 *pos,
-		global float3 *ray,
-		global float *dist)
-{
-	const int gid = get_global_id(0);
-	const float3 campos = (float3)%s;
-	float3 raaaa = campos - pos[gid];
-	float l = length(raaaa);
-	dist[gid] = l;
-	ray[gid] = raaaa/l;
-}
-		
-__kernel void to_camera_vec(
-		global const float3 *pos,
-		global const float3 *last_normal,
-		global const float3 *camray,
-		global const float3 *color,
-		global const float *mul,
-		global float3 *img)
-{
-	const int gid = get_global_id(0);
-	
-	const float3
-		campos = (float3)%s,
-		camx = (float3)%s,
-		camy = (float3)%s,
-		camz = (float3)%s;
-	
-	const int imgw = %s, imgh = %s;
-	const float fovx = %s, fovy = %s;
-	
-	if (mul[gid] > 0)
-	{
-		float3 rel = pos[gid]-campos;
-		float x = dot(rel, camx), y = dot(rel, camy), z = dot(rel,camz);
-		if (z > 0)
-		{
-			x = x / z;
-			y = y / z;
-			int imgx = (int)(((x / fovx) + 1)*0.5 * imgw);
-			int imgy = (int)(((y / fovy) + 1)*0.5 * imgh);
-			if (imgx >= 0 && imgx < imgw && imgy >= 0 && imgy < imgh)
-			{
-				img[imgy * imgw + imgx] +=
-					color[gid] * (mul[gid] * dot(last_normal[gid],camray[gid]));
-			}
-		}
-	}
-}
-""" % (tuple(camera_pos), tuple(camera_pos), \
-	   tuple(rotmat[:,0]), tuple(rotmat[:,1]), tuple(rotmat[:,2]), \
-	   imgdim[0], imgdim[1], fovx, fovy)
+dynutils = ""
 	   
 trace_kernel = """
 __kernel void trace(
@@ -416,7 +395,8 @@ mat_emission = new_mat_buf('emission')
 mat_reflection = new_mat_buf('reflection')
 mat_transparency = new_mat_buf('transparency')
 mat_ior = new_mat_buf('ior')
-vec_broadcast = new_const_buffer(np.zeros((4,)))
+max_broadcast_vecs = 4
+vec_broadcast = new_const_buffer(np.zeros((max_broadcast_vecs,4)))
 
 # ---- Path tracing
 
@@ -426,7 +406,7 @@ N = cam.size / 4
 itr_per_refresh = 10
 luxury = 2
 imgshape = imgdim[::-1]
-caching = True
+caching = False
 
 prog_call = prog_caller(N)
 def memcpy(dst,src): cl.enqueue_copy(acc.queue, dst.data, src.data)
@@ -470,7 +450,26 @@ for j in xrange(samples_per_pixel):
 	t0 = time.time()
 	
 	if j==0 or not caching:
-		memcpy(ray, cam)
+		
+		# TODO: quasi random...
+		sx = np.float32(np.random.rand())
+		sy = np.float32(np.random.rand())
+		
+		overlap = 0.0
+		thetax = (sx-0.5)*pixel_angle*(1.0+overlap)
+		thetay = (sy-0.5)*pixel_angle*(1.0+overlap)
+		
+		tilt = rotmat_tilt_camera(thetax,thetay)
+		mat = np.dot(np.dot(rotmat,tilt),rotmat.transpose())
+		mat4 = np.zeros((4,4))
+		mat4[0:3,0:3] = mat
+		
+		cl.enqueue_copy(acc.queue, vec_broadcast,  mat4.astype(np.float32))
+		prog_call('subsample_transform_camera', (cam,ray,), (vec_broadcast,))
+		
+		###
+		#memcpy(ray, cam)
+		
 		fill_vec(pos, camera_pos)
 		whichobject.fill(0)
 		normal.fill(0)
