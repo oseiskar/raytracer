@@ -19,8 +19,8 @@ brightness = 0.5
 quasirandom = False
 interactive_opencl_context_selection = False
 samples_per_pixel = 100256
-min_bounces = 1
-russian_roulette_prob = .4
+min_bounces = 3
+russian_roulette_prob = .3
 #russian_roulette_prob = -1
 
 #imgdim = (640,400)
@@ -174,16 +174,16 @@ sphere = Sphere( (0,2,1.5), 1.5 )
 light = Sphere( (-3,0,2), 0.5 )
 objects = []
 objects.append(sphere)
-#objects.append(light)
+objects.append(light)
 objects += make_world_box( (3,5.1,2), (0,0,2) );
 #objects += [HalfSpace( ( 0, 0, 1), 1.5),  HalfSpace( ( 0, 0, -1), 3)]
 
 Nobjects = len(objects)
 object_materials = Nobjects*[1]
-object_materials[0] = 7 #6 #2
-#object_materials[1] = 4
+object_materials[0] = 6 #2
+object_materials[1] = 4
 object_materials[-2] = 3
-object_materials[-1] = 5
+#object_materials[-1] = 5
 
 materials = [\
 	# 0: "Air" / initial / default material
@@ -196,19 +196,19 @@ materials = [\
 	}, 
 	# --- Other materials
 	# 1: White diffuse
-	{ 'diffuse': ( 1, 1, 1) }, 
+	{ 'diffuse': ( 0.8, 0.8, 0.8) }, 
 	# 2: Mirror
-	{ 'diffuse': (.2,.2,.2), 'reflection':(.8,.8,.8) },
+	{ 'diffuse': (.2,.2,.2), 'reflection':(.7,.7,.7) },
 	# 3: Red diffuse
 	{ 'diffuse': (.7,.2,.2) }, 
 	# 4: Warm yellow-orange light
 	{ 'diffuse': ( 1, 1, 1), 'emission':(4,2,.7) },
 	# 5: Sky (cold white-blue light)
-	{ 'diffuse': ( 1, 1, 1), 'emission':(.5,.5,.7) },
+	{ 'diffuse': ( 0, 0, 0), 'emission':(.5,.5,.7) },
 	# 6: Glass
-	{ 'diffuse': (.1,.1,.1), 'transparency':(.7,.7,.7), 'reflection':(.2,.2,.2), 'ior':(1.5,)},
+	{ 'diffuse': (.1,.2,.1), 'transparency':(.3,.7,.3), 'reflection':(.1,.2,.1), 'ior':(1.5,)},
 	# 7: Wax
-	{ 'diffuse': (.0,.0,.0), 'transparency':(1.,1.,1.), 'vs':(0,.03,0)}
+	{ 'diffuse': (.0,.0,.0), 'transparency':(1.,1.,1.), 'vs':(0,5.8,0)}
 	]
 
 

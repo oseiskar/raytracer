@@ -99,7 +99,7 @@ __kernel void prob_select_ray(
 	    else
 	    {
 	        p -= cur_prob;
-	        cur_mult /= (1.0 - cur_prob);
+	        //cur_mult /= (1.0 - cur_prob);
 	        
 	        cur_col = reflecivity[id];
 	        cur_prob = (cur_col.x+cur_col.y+cur_col.z)/3;
@@ -114,7 +114,7 @@ __kernel void prob_select_ray(
 	        else
 	        {
 	            p -= cur_prob;
-	            cur_mult /= (1.0 - cur_prob);
+	            //cur_mult /= (1.0 - cur_prob);
 	            
 	            cur_col = transparency[id];
 	            cur_prob = (cur_col.x+cur_col.y+cur_col.z)/3;
@@ -122,7 +122,8 @@ __kernel void prob_select_ray(
 	            if (p < cur_prob)
 	            {
 	                cur_mult /= cur_prob;
-	                cur_mult /= 0.6; // TODO!
+	                
+	                cur_mult /= 0.7; //(1.0 - 0.3); // TODO!
 	                
 	                // Refraction / Transparency
 	                
