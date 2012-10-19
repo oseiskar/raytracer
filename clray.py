@@ -23,8 +23,8 @@ min_bounces = 3
 russian_roulette_prob = .3
 #russian_roulette_prob = -1
 
-#imgdim = (640,400)
-imgdim = (800,600)
+imgdim = (640,400)
+#imgdim = (800,600)
 #imgdim = (1024,768)
 
 
@@ -180,7 +180,7 @@ objects += make_world_box( (3,5.1,2), (0,0,2) );
 
 Nobjects = len(objects)
 object_materials = Nobjects*['default']
-object_materials[0] = 'glass'
+object_materials[0] = 'wax'
 object_materials[1] = 'light'
 object_materials[-2] = 'red'
 object_materials[-1] = 'sky'
@@ -196,7 +196,7 @@ materials = {\
 	}, 
 	# --- Other materials
 'white':
-	{ 'diffuse': ( 0.8, 0.8, 0.8) }, 
+	{ 'diffuse': ( .8, .8, .8) }, 
 'mirror':
 	{ 'diffuse': (.2,.2,.2), 'reflection':(.7,.7,.7) },
 'red':
@@ -208,9 +208,8 @@ materials = {\
 'glass':
 	{ 'diffuse': (.1,.2,.1), 'transparency':(.3,.7,.3), 'reflection':(.1,.2,.1), 'ior':(1.5,)},
 'wax':
-	{ 'diffuse': (.0,.0,.0), 'transparency':(1.,1.,1.), 'vs':(0,5.8,0)}
+	{ 'diffuse': (.0,.0,.0), 'transparency':(1.,1.,1.), 'vs':(0,.01,0)}
 }
-
 
 camera_target = np.array(sphere.pos)
 camera_pos = np.array((1,-5,2))
@@ -229,10 +228,10 @@ pixel_angle = fovx_rad / imgdim[0]
 
 kernels = set([obj.make_kernel(False) for obj in objects])
 
-utils = open('utils.cl', 'r').read()
+utils = open('utils.cl', 'r').read() # static code
 
-dynutils = ""
-	   
+
+# ------------- make tracer kernel (finds intersections)
 trace_kernel = """
 __kernel void trace(
 	__global float3 *p_pos,
@@ -320,9 +319,18 @@ trace_kernel += """
 }
 """
 
-prog_code = dynutils + utils
+# ------------- shader kernel
+
+shader_kernel_params = """
+#define RUSSIAN_ROULETTE_PROB %s
+""" % russian_roulette_prob
+
+shader_kernel = shader_kernel_params + open('shader.cl', 'r').read()
+
+prog_code = utils
 prog_code += "\n".join(list(kernels))
 prog_code += trace_kernel
+prog_code += shader_kernel
 
 cur_code_file = open('last_code.cl', 'w')
 cur_code_file.write(prog_code)
