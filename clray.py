@@ -208,7 +208,7 @@ materials = {\
 'glass':
 	{ 'diffuse': (.1,.2,.1), 'transparency':(.3,.7,.3), 'reflection':(.1,.2,.1), 'ior':(1.5,)},
 'wax':
-	{ 'diffuse': (.0,.0,.0), 'transparency':(1.,1.,1.), 'vs':(0,.01,0)}
+	{ 'diffuse': (.0,.0,.0), 'transparency':(1.,1.,1.), 'vs':(0,10.5,0)}
 }
 
 camera_target = np.array(sphere.pos)
@@ -451,7 +451,7 @@ ray = acc.zeros_like(pos)
 inside = acc.zeros_like(whichobject)
 
 normal = acc.zeros_like(pos)
-old_isec_dist = acc.zeros_like(img)
+isec_dist = acc.zeros_like(img)
 
 raycolor = acc.zeros_like(img)
 curcolor = acc.zeros_like(raycolor)
@@ -504,6 +504,7 @@ for j in xrange(samples_per_pixel):
 		# TODO: firstinside
 	
 	inside.fill(0)
+	isec_dist.fill(0) # TODO
 	
 	k = kbegin
 	while True:
@@ -517,7 +518,6 @@ for j in xrange(samples_per_pixel):
 			else:
 				break
 		
-		old_isec_dist.fill(100) # TODO
 		
 		vec = (0,0,0) # dummy
 		if k!=0:
@@ -536,11 +536,13 @@ for j in xrange(samples_per_pixel):
 			#hostbuf[2,0] = light.R
 			cl.enqueue_copy(acc.queue, vec_broadcast, hostbuf)
 			prog_call('prob_select_ray', \
-				(whichobject, normal,old_isec_dist,pos,ray,raycolor,inside), \
+				(whichobject, normal,isec_dist,pos,ray,raycolor,inside), \
 				(mat_diffuse,mat_reflection,mat_transparency,mat_ior,mat_vs,\
 				rand_01,vec_broadcast))
 		
-		prog_call('trace', (pos,ray,normal,old_isec_dist,whichobject,inside))
+		isec_dist.fill(100) # TODO
+		
+		prog_call('trace', (pos,ray,normal,isec_dist,whichobject,inside))
 		
 		memcpy(curcolor, raycolor)
 		

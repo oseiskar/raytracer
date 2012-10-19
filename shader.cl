@@ -32,27 +32,28 @@ __kernel void prob_select_ray(
 	
 	if (p < cur_prob)
 	{
-	    // (sub-surface) scattering
+	    // --- (sub-surface) scattering
 	    
-	    //cur_col = (float3)(1,1,1);
-	    
-	    r = *rvec;
-	    
-	    //cur_mult /= cur_prob; // TODO ?
-	    float d = (p/cur_prob)*last_distance[gid];  //-log(p) / alpha;
-	    
+	    // "derivation":
+	    //    p < 1.0-exp(-alpha*dist)
+	    //   (1-p) > exp(-alpha*dist)
+	    //   log(1-p) > -alpha*dist
+	    //   -log(1-p) < alpha*dist
+	    //   dist > -log(1-p)/alpha
+	    float d = -log(1.0 - p) / alpha;
+	    //float d = (p/cur_prob)*last_distance[gid]; 
+	  
 	    pos[gid] -= (last_distance[gid]-d) * r;
-	    
-	    // TODO: color
+	    //last_distance[gid] = d;
+	    r = *rvec;
 	    cur_col /= alpha;
-	    
-	    //cur_mult = last_distance[gid];
 	}
 	else
 	{
 	    // no reweighting here
 	    
 	    //p -= cur_prob;
+	    //cur_mult /= (1.0 - cur_prob);
 	    //cur_mult /= (1.0 - cur_prob);
 	    
 	    cur_col = diffuse[id];
@@ -62,7 +63,7 @@ __kernel void prob_select_ray(
 	    {
 	        cur_mult /= cur_prob;
 	       
-	        // Diffuse
+	        // --- Diffuse
 	        r = *rvec;
 	            
 	        // Reflect (negation) to outside
@@ -80,7 +81,7 @@ __kernel void prob_select_ray(
 	        {
 	            cur_mult /= cur_prob;
 	            
-	            // Reflection
+	            // --- Reflection
 	            r -= 2*dot(r,n) * n;
 	        }
 	        else
@@ -95,9 +96,9 @@ __kernel void prob_select_ray(
 	                cur_mult /= cur_prob;
 	                
 	                // TODO: fix this bias somewhere else...
-	                cur_mult /= (1.0 - RUSSIAN_ROULETTE_PROB);
+	                cur_mult /= 1.0 - RUSSIAN_ROULETTE_PROB;
 	                
-	                // Refraction / Transparency
+	                // --- Refraction / Transparency
 	                
 	                float dotp = dot(r,n);
 	                if (dotp > 0) { n = -n; dotp = -dotp; }
@@ -146,7 +147,7 @@ __kernel void prob_select_ray(
 	            }
 	            else
 	            {
-	                // Assumed absorption
+	                // --- Assumed absorption
 	                cur_col = 0;
 	            }
 	        }
