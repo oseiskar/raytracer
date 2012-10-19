@@ -179,14 +179,14 @@ objects += make_world_box( (3,5.1,2), (0,0,2) );
 #objects += [HalfSpace( ( 0, 0, 1), 1.5),  HalfSpace( ( 0, 0, -1), 3)]
 
 Nobjects = len(objects)
-object_materials = Nobjects*[1]
-object_materials[0] = 6 #2
-object_materials[1] = 4
-object_materials[-2] = 3
-#object_materials[-1] = 5
+object_materials = Nobjects*['default']
+object_materials[0] = 'glass'
+object_materials[1] = 'light'
+object_materials[-2] = 'red'
+object_materials[-1] = 'sky'
 
-materials = [\
-	# 0: "Air" / initial / default material
+materials = {\
+'default': # "Air" / initial / default material
 	{ 'diffuse': ( 1, 1, 1),
 	  'emission':(0, 0, 0),
 	  'reflection':(0,0,0),
@@ -195,21 +195,21 @@ materials = [\
 	  'vs': (0,0,0)
 	}, 
 	# --- Other materials
-	# 1: White diffuse
+'white':
 	{ 'diffuse': ( 0.8, 0.8, 0.8) }, 
-	# 2: Mirror
+'mirror':
 	{ 'diffuse': (.2,.2,.2), 'reflection':(.7,.7,.7) },
-	# 3: Red diffuse
+'red':
 	{ 'diffuse': (.7,.2,.2) }, 
-	# 4: Warm yellow-orange light
+'light':
 	{ 'diffuse': ( 1, 1, 1), 'emission':(4,2,.7) },
-	# 5: Sky (cold white-blue light)
+'sky':
 	{ 'diffuse': ( 0, 0, 0), 'emission':(.5,.5,.7) },
-	# 6: Glass
+'glass':
 	{ 'diffuse': (.1,.2,.1), 'transparency':(.3,.7,.3), 'reflection':(.1,.2,.1), 'ior':(1.5,)},
-	# 7: Wax
+'wax':
 	{ 'diffuse': (.0,.0,.0), 'transparency':(1.,1.,1.), 'vs':(0,5.8,0)}
-	]
+}
 
 
 camera_target = np.array(sphere.pos)
@@ -382,7 +382,7 @@ def new_const_buffer(buf):
 	return cl.Buffer(acc.ctx, mf.READ_ONLY | mf.COPY_HOST_PTR, hostbuf=buf.astype(np.float32))
 	
 def new_mat_buf(pname):
-	default = materials[0][pname]
+	default = materials['default'][pname]
 	if len(default) > 1:
 		w = 4
 		default += (0,)
