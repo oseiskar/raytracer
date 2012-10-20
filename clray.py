@@ -15,7 +15,7 @@ use_pygame = True
 use_scipy_misc_pil_image = True
 output_raw_data = True
 
-brightness = 0.5
+brightness = 0.7
 quasirandom = False
 interactive_opencl_context_selection = False
 samples_per_pixel = 200256
@@ -169,7 +169,7 @@ def make_world_box( dims, center=(0,0,0) ):
 		HalfSpace( ( 0, 0, 1), dims[2]-center[2] ), \
 		HalfSpace( ( 0, 0,-1), dims[2]+center[2] )]
 
-sphere = Sphere( (0,2,1.5), 1.5 )
+sphere = Sphere( (0,2,1.0), 1.0 )
 #light = Sphere( (-4,0,0), 1.5 )
 light = Sphere( (-3,-1,2), 0.5 )
 #light = Sphere( (-2.5,5,2), 0.5 )
@@ -182,22 +182,22 @@ objects.append(sphere)
 #objects.append(ImplicitSurface((0,0,1.5),equation, 0.5))
 objects.append(light)
 objects.append(HalfSpace( tuple(normalize(np.array((-1,-1,-2)))), 5 ))
-objects.append(Sphere( (1.8,1,.5), .5 ))
-objects.append(Sphere( (-0.9,-0.4,.5), .5 ))
+objects.append(Sphere( (1.5,1,.5), .5 ))
+objects.append(Sphere( (-0.7,-0.8,.5), .5 ))
 objects += make_world_box( (3,5,2), (0,0,2) );
 #objects += [HalfSpace( ( 0, 0, 1), 1.5),  HalfSpace( ( 0, 0, -1), 3)]
 
 
 Nobjects = len(objects)
 object_materials = Nobjects*['white']
-object_materials[0] = 'white'
+object_materials[0] = 'green'
 object_materials[1] = 'light'
 object_materials[2] = 'sky'
 object_materials[3] = 'mirror'
 object_materials[4] = 'glass'
 object_materials[-2] = 'red'
 #object_materials[-1] = 'sky'
-object_materials[-1] = 'red'
+object_materials[-1] = 'white'
 
 materials = {\
 'default': # "Air" / initial / default material
@@ -220,14 +220,14 @@ materials = {\
 'sky':
 	{ 'diffuse': ( 0, 0, 0), 'emission':(.5,.5,.7) },
 'glass':
-	{ 'diffuse': (.1,.2,.1), 'transparency':(.3,.7,.3), 'reflection':(.1,.2,.1), 'ior':(1.5,)},
+	{ 'diffuse': (.1,.1,.1), 'transparency':(.7,.7,.7), 'reflection':(.2,.2,.2), 'ior':(1.5,)},
 'wax':
 	{ 'diffuse': (0.3,0.5,0), 'reflection': (.2,.2,.0), 'transparency':(1.,1.,1.), 'vs':(.02,.04,.02), 'ior':(1.02,)},
 'green':
-	{ 'diffuse': (0.,1.,0)}
+	{ 'diffuse': (0.4,0.9,0.4)}
 }
 
-camera_target = np.array((0,2,1.4))
+camera_target = np.array((0,2,0.5))
 camera_pos = np.array((1,-5,2))
 camera_fov = 60
 camera_dir = camera_target - camera_pos
