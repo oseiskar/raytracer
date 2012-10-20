@@ -229,7 +229,7 @@ materials = {\
 
 camera_target = np.array((0,2,0.5))
 camera_pos = np.array((1,-5,2))
-camera_fov = 60
+camera_fov = 50
 camera_dir = camera_target - camera_pos
 flat_camera = False
 cam = camera(imgdim, flat_camera, camera_fov, camera_dir)

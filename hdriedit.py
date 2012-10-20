@@ -1,5 +1,6 @@
 
-import sys, numpy, pygame, time
+import sys, numpy, pygame, time, scipy
+import scipy.ndimage
 from scipy.misc import toimage
 
 if len(sys.argv)==1:
@@ -19,8 +20,38 @@ print "assuming an image of size %d x %d" % (w,h)
 
 ref = 1.0
 
-def show_img(data,ref,do_save=True):
-	imgdata = (numpy.clip(data*ref, 0, 1)*255).astype(numpy.uint8)
+def flares(imgdata):
+	visiblerange = numpy.clip(imgdata,0,1)
+	overexposure = imgdata - visiblerange
+	
+	sigma = 1.0
+	
+	for c in xrange(3):
+		overexposure[:,:,c] = \
+		  scipy.ndimage.filters.gaussian_filter(overexposure[:,:,c], sigma)
+		  
+	imgdata = visiblerange + overexposure
+	
+	visiblerange = numpy.clip(imgdata,0,2)
+	overexposure = imgdata - visiblerange
+	
+	l = 100
+	kernel = numpy.arange(0,l, dtype=numpy.float32)
+	kernel = numpy.exp(-kernel * 0.2)
+	kernel = numpy.concatenate((kernel[-1:1:-1],kernel))
+	kernel /= kernel.sum()
+	
+	overexposure = scipy.ndimage.filters.convolve1d(overexposure, kernel, 0, None, 'constant', 0, 0)
+	
+	imgdata = visiblerange + overexposure
+	return imgdata
+
+def show_img(data,ref,do_flares=False,do_save=True):
+	
+	imgdata = data*ref
+	if do_flares: imgdata = flares(imgdata)
+	
+	imgdata = (numpy.clip(imgdata, 0, 1)*255).astype(numpy.uint8)
 	
 	global pgwin
 	if not pgwin:
@@ -30,13 +61,38 @@ def show_img(data,ref,do_save=True):
 	pgwin.blit(pygame.surfarray.make_surface(imgdata.transpose((1,0,2))), (0,0))
 	pygame.display.update()
 	
-	if do_save: toimage(imgdata).save('out.png')
+	if do_save: toimage(imgdata).save('out-24bit.png')
 
 ref = 1.0
+do_flares = False
+show_img(data,ref,do_flares,False)
+
+print """-----------
+Valid commans are:
+  [any number]
+	(for example 0.1, 2, 0.9234)
+	show and output an image whose brightness (gamma value) has been
+	multiplied by that number (e.g. 2 outputs an image that is "two times
+	brighter" than the image corresponding to 1)
+	
+  sweep (or s)
+	display the image using various brightnesses
+
+  flares (or f)
+	toggle flares (affect over-exposure)
+
+  CTRL-D (or any unrecognized input)
+	quit / crash :)
+
+The first and second of the above output an image named 'out-24bit.png'
+-----------
+"""
 
 while True:
 	
-	if ref == "sweep":
+	cmd = raw_input("cmd: ").strip()
+	
+	if cmd == "sweep" or cmd == "s":
 		Nsteps = 200
 		log_min = -5
 		log_max = 2
@@ -45,12 +101,15 @@ while True:
 		
 		for v in vals:
 			print v
-			show_img(data,v,False)
+			show_img(data,v,False,False)
 			time.sleep(0.01)
-	else:
-		ref = float(ref)
-		show_img(data,ref,True)
 		
-	ref = raw_input("brightness: ").strip()
+	elif cmd == "flares" or cmd == "f":
+		do_flares = do_flares == False
+		print "flares %s" % do_flares
+		show_img(data,ref,do_flares,True)
+	else:
+		ref = float(cmd)
+		show_img(data,ref,do_flares,True)
 
 #print mat
