@@ -18,13 +18,13 @@ output_raw_data = True
 brightness = 0.5
 quasirandom = False
 interactive_opencl_context_selection = False
-samples_per_pixel = 100256
-min_bounces = 3
+samples_per_pixel = 200256
+min_bounces = 2
 russian_roulette_prob = .3
 #russian_roulette_prob = -1
 
-imgdim = (640,400)
-#imgdim = (800,600)
+#imgdim = (640,400)
+imgdim = (800,600)
 #imgdim = (1024,768)
 
 
@@ -170,20 +170,34 @@ def make_world_box( dims, center=(0,0,0) ):
 		HalfSpace( ( 0, 0,-1), dims[2]+center[2] )]
 
 sphere = Sphere( (0,2,1.5), 1.5 )
-#light = Sphere( (0,0,4), 1 )
-light = Sphere( (-3,0,2), 0.5 )
+#light = Sphere( (-4,0,0), 1.5 )
+light = Sphere( (-3,-1,2), 0.5 )
+#light = Sphere( (-2.5,5,2), 0.5 )
+#light = HalfSpace( tuple(normalize(np.array((1,1,2)))), -5 )
+#light = Sphere( (0,0,0.5), 0.5 )
 objects = []
 objects.append(sphere)
+#equation='x**2 + y**2 + z**2 - 1.5**2'
+#equation='x**4 - 5*x**2 + y**4 - 5*y**2 + z**4 - 5*z**2 + 11.8'
+#objects.append(ImplicitSurface((0,0,1.5),equation, 0.5))
 objects.append(light)
-objects += make_world_box( (3,5.1,2), (0,0,2) );
+objects.append(HalfSpace( tuple(normalize(np.array((-1,-1,-2)))), 5 ))
+objects.append(Sphere( (1.8,1,.5), .5 ))
+objects.append(Sphere( (-0.9,-0.4,.5), .5 ))
+objects += make_world_box( (3,5,2), (0,0,2) );
 #objects += [HalfSpace( ( 0, 0, 1), 1.5),  HalfSpace( ( 0, 0, -1), 3)]
 
+
 Nobjects = len(objects)
-object_materials = Nobjects*['default']
-object_materials[0] = 'wax'
+object_materials = Nobjects*['white']
+object_materials[0] = 'white'
 object_materials[1] = 'light'
+object_materials[2] = 'sky'
+object_materials[3] = 'mirror'
+object_materials[4] = 'glass'
 object_materials[-2] = 'red'
-object_materials[-1] = 'sky'
+#object_materials[-1] = 'sky'
+object_materials[-1] = 'red'
 
 materials = {\
 'default': # "Air" / initial / default material
@@ -192,7 +206,7 @@ materials = {\
 	  'reflection':(0,0,0),
 	  'transparency': (0,0,0),
 	  'ior': (1.0,), # Index Of Refraction
-	  'vs': (0,0,0)
+	  'vs': (0,0,0) #(0.1,0.1,0.1) # "fog"
 	}, 
 	# --- Other materials
 'white':
@@ -200,7 +214,7 @@ materials = {\
 'mirror':
 	{ 'diffuse': (.2,.2,.2), 'reflection':(.7,.7,.7) },
 'red':
-	{ 'diffuse': (.7,.2,.2) }, 
+	{ 'diffuse': (.7,.4,.4) }, 
 'light':
 	{ 'diffuse': ( 1, 1, 1), 'emission':(4,2,.7) },
 'sky':
@@ -208,10 +222,12 @@ materials = {\
 'glass':
 	{ 'diffuse': (.1,.2,.1), 'transparency':(.3,.7,.3), 'reflection':(.1,.2,.1), 'ior':(1.5,)},
 'wax':
-	{ 'diffuse': (.0,.0,.0), 'transparency':(1.,1.,1.), 'vs':(0,10.5,0)}
+	{ 'diffuse': (0.3,0.5,0), 'reflection': (.2,.2,.0), 'transparency':(1.,1.,1.), 'vs':(.02,.04,.02), 'ior':(1.02,)},
+'green':
+	{ 'diffuse': (0.,1.,0)}
 }
 
-camera_target = np.array(sphere.pos)
+camera_target = np.array((0,2,1.4))
 camera_pos = np.array((1,-5,2))
 camera_fov = 60
 camera_dir = camera_target - camera_pos
@@ -384,6 +400,7 @@ def prog_caller(N):
 # ------------- Parameter arrays
 
 # Materials
+fog = False
 
 def new_const_buffer(buf):
 	mf = cl.mem_flags
@@ -406,6 +423,10 @@ def new_mat_buf(pname):
 		else:
 			prop = default
 		buf[i+1] = np.array(prop)
+	
+	if pname == 'vs' and buf.sum() != 0:
+		fog = True
+		print "fog"
 	return new_const_buffer(buf)
 
 mat_diffuse = new_mat_buf('diffuse')
@@ -492,6 +513,7 @@ for j in xrange(samples_per_pixel):
 		whichobject.fill(0)
 		normal.fill(0)
 		raycolor.fill(1)
+		curcolor.fill(0)
 		kbegin = 0
 	else:
 		# cached first intersection
@@ -511,13 +533,15 @@ for j in xrange(samples_per_pixel):
 	#for k in xrange(kbegin,min_bounces+1):
 		
 		#if k == min_bounces+1: break
+		r_prob = 1
 		if k > min_bounces:
 			rand_01 = np.random.rand()
 			if rand_01 < russian_roulette_prob:
-				raycolor *= 1.0/(1-russian_roulette_prob)
+				r_prob = 1.0/(1-russian_roulette_prob)
 			else:
 				break
-		
+				
+		#inside.fill(0)
 		
 		vec = (0,0,0) # dummy
 		if k!=0:
@@ -536,20 +560,16 @@ for j in xrange(samples_per_pixel):
 			#hostbuf[2,0] = light.R
 			cl.enqueue_copy(acc.queue, vec_broadcast, hostbuf)
 			prog_call('prob_select_ray', \
-				(whichobject, normal,isec_dist,pos,ray,raycolor,inside), \
-				(mat_diffuse,mat_reflection,mat_transparency,mat_ior,mat_vs,\
+				(img,whichobject, normal,isec_dist,pos,ray,raycolor,inside), \
+				(mat_emission, mat_diffuse,mat_reflection,mat_transparency,mat_ior,mat_vs,\
 				rand_01,vec_broadcast))
-		
-		isec_dist.fill(100) # TODO
-		
-		prog_call('trace', (pos,ray,normal,isec_dist,whichobject,inside))
+				
+		raycolor *= r_prob
 		
 		memcpy(curcolor, raycolor)
 		
-		# TODO: ridicilously slow, move somewhere else
-		prog_call('mult_by_param_vec_vec', (whichobject, curcolor), (mat_emission,))
-		
-		img += curcolor # TODO in-place?
+		isec_dist.fill(100) # TODO
+		prog_call('trace', (pos,ray,normal,isec_dist,whichobject,inside))
 		
 		if j==0 and k==0 and caching:
 			# cache first intersection
@@ -564,6 +584,10 @@ for j in xrange(samples_per_pixel):
 		k += 1
 	
 	img += directlight
+	
+	if not fog:
+		prog_call('mult_by_param_vec_vec', (whichobject, curcolor), (mat_emission,))
+		img += curcolor
 	
 	tcur = time.time()
 	print '%d/%d'%(j+1,samples_per_pixel),"time per image:", (tcur-t0), "total:", (tcur-startup_time), "k=%d"%k

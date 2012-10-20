@@ -2,13 +2,15 @@
 //      RUSSIAN_ROULETTE_PROB
 
 __kernel void prob_select_ray(
-		global const uint *value_array,
+		global float3 *img,
+		global uint *value_array,
 		global float3 *normal,
 		global float *last_distance,
 		global float3 *pos,
 		global float3 *ray,
 		global float3 *color,
 		global uint *inside,
+		constant float3 *emission,
 		constant float3 *diffuse,
 		constant float3 *reflecivity,
 		constant float3 *transparency,
@@ -32,7 +34,7 @@ __kernel void prob_select_ray(
 	
 	if (p < cur_prob)
 	{
-	    // --- (sub-surface) scattering
+	    // --- (sub-surface) scattering / fog
 	    
 	    // "derivation":
 	    //    p < 1.0-exp(-alpha*dist)
@@ -45,11 +47,13 @@ __kernel void prob_select_ray(
 	  
 	    pos[gid] -= (last_distance[gid]-d) * r;
 	    //last_distance[gid] = d;
+	    value_array[gid] = 0; // not on any surface
 	    r = *rvec;
 	    cur_col /= alpha;
 	}
 	else
 	{
+	    img[gid] += emission[id]*color[gid];
 	    // no reweighting here
 	    
 	    //p -= cur_prob;

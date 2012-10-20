@@ -132,6 +132,107 @@ class Sphere(Tracer):
 		self.pos = pos
 		self.R = R
 
+class ImplicitSurface(Tracer):
+	
+	def __init__(self, center, eq, scale):
+		
+		import sympy
+		import sympy.core.numbers
+		
+		x,y,z = sympy.symbols('x y z')
+		
+		scale = 1.0/scale
+		
+		eq = sympy.sympify(eq).subs([\
+			(x,scale*(x-center[0])),
+			(y,scale*(y-center[1])),
+			(z,scale*(z-center[2]))])
+		
+		gx = sympy.diff(eq,x)
+		gy = sympy.diff(eq,y)
+		gz = sympy.diff(eq,z)
+		
+		# Must replace some expressions to make it OpenCL
+		class Printer(sympy.printing.str.StrPrinter):
+			def _print_Pow(self, expr):
+				base = expr.args[0]
+				exponent = expr.args[1]
+				f = "pow"
+				if exponent.is_integer:
+					# pown was really slow on my gpu...
+					n = int(exponent)
+					if n > 0:
+						base_str = "("+str(base)+")"
+						return "("+('*'.join([base_str]*n))+")" 
+					
+				return "%s(%s,%s)" % (f, str(base), str(exponent))
+		
+		sympy.Basic.__str__ = lambda self: Printer().doprint(self)
+		
+		#print eq
+		#print gx
+		#print gy
+		#print gz
+		
+		x.name = 'p.x'
+		y.name = 'p.y'
+		z.name = 'p.z'
+		
+		f_str = str(eq)
+		d_str = "((%s) * ray.x + (%s) * ray.y + (%s) * ray.z)" % (gx,gy,gz)
+		
+		self.tracer_code = """
+		
+		const int N_SEARCH_STEPS = 100;
+		const int N_REFINE_STEPS = 10;
+		float step = old_isec_dist/N_SEARCH_STEPS; // bad idea?
+		float3 p = origin;
+		float d = 0, d1, d0, f, df;
+		int i=0;
+		
+		for( i=0; i < N_SEARCH_STEPS; i++ )
+		{
+			f = %s;
+			if (f < 0)
+			{
+				break;
+			}
+			if (d > old_isec_dist) return;
+			
+			d += step;
+			p += ray*step;
+		}
+		if (i == N_SEARCH_STEPS) return;
+		
+		// binary search
+		d1 = d;
+		d0 = d-step;
+		
+		for( i=0; i < N_REFINE_STEPS; i++ )
+		{
+			d = (d1+d0)/2;
+			p = ray*d + origin;
+			f = %s;
+			
+			if (f < 0) d1 = d;
+			else d0 = d;
+			
+			//df = %s;
+		}
+		
+		*p_new_isec_dist = d;
+		
+		""" % (f_str,f_str,d_str);
+		
+		x.name = 'pos.x'
+		y.name = 'pos.y'
+		z.name = 'pos.z'
+		self.normal_code = """
+		*p_normal = fast_normalize((float3)(%s, %s, %s));
+		""" % (gx,gy,gz)
+		
+		print self.tracer_code
+
 class HalfSpace(Tracer):
 		
 	def _params(self): return """
