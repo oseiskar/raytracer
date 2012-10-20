@@ -237,7 +237,13 @@ class ImplicitSurface(Tracer):
 		#z.name = 'p.z'
 		
 		f_str = str(eq)
-		d_str = "" #"((%s) * ray.x + (%s) * ray.y + (%s) * ray.z)" % (gx,gy,gz)
+		d_str = """
+			ia_add(
+				ia_add(
+					ia_mul_exact(%s,ray.x),
+					ia_mul_exact(%s,ray.y)),
+				ia_mul_exact(%s,ray.z))
+		""" % (gx,gy,gz)
 		
 		self.tracer_code = """
 		
@@ -246,14 +252,14 @@ class ImplicitSurface(Tracer):
 		const float TARGET_EPS = 0.001;
 		const float FRACTION = 0.5;
 		
-		ia_type x, y, z, f;
+		ia_type x, y, z, f, df;
 		
 		ia_type cur_ival = ia_new(0,old_isec_dist);
 		float step;
 		
-		if (old_isec_dist <= 0) return; // TODO: fix somewhere else...?
-		if (origin_self) return;
-		
+		//if (old_isec_dist <= 0) return; // TODO: fix somewhere else...?
+		//if (origin_self) return;
+
 		for( i=0; i < MAX_ITER; i++ )
 		{
 			x = ia_add_exact(ia_mul_exact(cur_ival, ray.x), origin.x);
@@ -267,35 +273,40 @@ class ImplicitSurface(Tracer):
 			
 			step = ia_len(cur_ival);
 			
-			if (ia_begin(f) < 0) // contains zero (assumed)
+			if (ia_contains_zero(f))
 			{
+				
 				if (step < TARGET_EPS || i == MAX_ITER-1)
 				{
-					*p_new_isec_dist = ia_center(cur_ival);
+					step = ia_center(cur_ival);
+					if (step < old_isec_dist)
+						*p_new_isec_dist = step;
 					return;
 				}
 				
-				// Subdivide
+				if (origin_self)
+				{
+					df = %s;
+				}
 				
-				step *= FRACTION;
-				ia_end(cur_ival) = ia_begin(cur_ival) + step;
-				continue;
+				if ( !origin_self || (ia_begin(df)<0) != inside )
+				{
+					// Subdivide
+					step *= FRACTION;
+					ia_end(cur_ival) = ia_begin(cur_ival) + step;
+					continue;
+				}
 			}
-			else
-			{
-				// Step forward
-				step /= FRACTION;
-				cur_ival = ia_new(ia_end(cur_ival),ia_end(cur_ival) + step);
-			}
+			
+			// Step forward
+			step /= FRACTION;
+			cur_ival = ia_new(ia_end(cur_ival),ia_end(cur_ival)+step);
 		}
-		
-		//df = %s;
-		
 		""" % (f_str,d_str);
 		
 		sympy.Basic.__str__ = lambda self: Printer().doprint(self)
 		
-		print eq
+		#print eq
 		
 		x.name = 'pos.x'
 		y.name = 'pos.y'
@@ -304,7 +315,7 @@ class ImplicitSurface(Tracer):
 		*p_normal = fast_normalize((float3)(%s, %s, %s));
 		""" % (gx,gy,gz)
 		
-		print self.tracer_code
+		#print self.tracer_code
 
 class HalfSpace(Tracer):
 		

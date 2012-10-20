@@ -19,9 +19,9 @@ brightness = 0.7
 quasirandom = False
 interactive_opencl_context_selection = False
 samples_per_pixel = 200256
-min_bounces = 2
-#russian_roulette_prob = .3
-russian_roulette_prob = -1
+min_bounces = 3
+russian_roulette_prob = .3
+#russian_roulette_prob = -1
 
 imgdim = (640,400)
 #imgdim = (800,600)
@@ -196,7 +196,7 @@ object_materials = Nobjects*['white']
 object_materials[4] = 'red'
 object_materials[5] = 'sky'
 
-object_materials[-2] = 'green'
+object_materials[-2] = 'glass'
 object_materials[-1] = 'light'
 
 materials = {\
@@ -220,14 +220,14 @@ materials = {\
 'sky':
 	{ 'diffuse': ( 0, 0, 0), 'emission':(.5,.5,.7) },
 'glass':
-	{ 'diffuse': (.1,.1,.1), 'transparency':(.7,.7,.7), 'reflection':(.2,.2,.2), 'ior':(1.5,)},
+	{ 'diffuse': (.1,.1,.1), 'transparency':(.4,.7,.4), 'reflection':(.2,.2,.2), 'ior':(1.5,)},
 'wax':
 	{ 'diffuse': (0.3,0.5,0), 'reflection': (.2,.2,.0), 'transparency':(1.,1.,1.), 'vs':(.02,.04,.02), 'ior':(1.02,)},
 'green':
 	{ 'diffuse': (0.4,0.9,0.4)}
 }
 
-camera_target = np.array((0,2,1.5))
+camera_target = np.array((0,2,1.0))
 camera_pos = np.array((1,-5,2))
 camera_fov = 60
 camera_dir = camera_target - camera_pos
