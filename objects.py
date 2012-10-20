@@ -102,7 +102,6 @@ class Sphere(Tracer):
 		return;
 		// no intersection
 	}
-	//if (inside) { *p_new_isec_dist = 0.1; return; }
 	
 	if (dotp <= 0 && !inside)
 	{
@@ -248,39 +247,43 @@ class ImplicitSurface(Tracer):
 		self.tracer_code = """
 		
 		int i=0;
-		const int MAX_ITER = 300;
+		const int MAX_ITER = 500;
 		const float TARGET_EPS = 0.001;
 		const float FRACTION = 0.5;
+		const float SELF_MAX_BEGIN_STEP = 0.01;
 		
 		ia_type x, y, z, f, df;
 		
 		ia_type cur_ival = ia_new(0,old_isec_dist);
 		float step;
+		int steps_since_subdiv = 0;
 		
 		//if (old_isec_dist <= 0) return; // TODO: fix somewhere else...?
-		//if (origin_self) return;
+		if (origin_self)
+		{
+			ia_end(cur_ival) = SELF_MAX_BEGIN_STEP;
+		}
 
 		for( i=0; i < MAX_ITER; i++ )
 		{
+			if (ia_begin(cur_ival) >= old_isec_dist) return;
+			if (ia_end(cur_ival) > old_isec_dist) ia_end(cur_ival) = old_isec_dist;
+			
 			x = ia_add_exact(ia_mul_exact(cur_ival, ray.x), origin.x);
 			y = ia_add_exact(ia_mul_exact(cur_ival, ray.y), origin.y);
 			z = ia_add_exact(ia_mul_exact(cur_ival, ray.z), origin.z);
 			
 			f = %s;
 			
-			if (ia_begin(cur_ival) >= old_isec_dist) return;
-			//if (ia_end(cur_ival) > old_isec_dist) ia_end(cur_ival) = old_isec_dist;
-			
 			step = ia_len(cur_ival);
 			
 			if (ia_contains_zero(f))
+			//if (ia_begin(f) < 0)
 			{
-				
 				if (step < TARGET_EPS || i == MAX_ITER-1)
 				{
 					step = ia_center(cur_ival);
-					if (step < old_isec_dist)
-						*p_new_isec_dist = step;
+					*p_new_isec_dist = step;
 					return;
 				}
 				
@@ -294,12 +297,14 @@ class ImplicitSurface(Tracer):
 					// Subdivide
 					step *= FRACTION;
 					ia_end(cur_ival) = ia_begin(cur_ival) + step;
+					steps_since_subdiv = 0;
 					continue;
 				}
 			}
+			steps_since_subdiv++;
 			
 			// Step forward
-			step /= FRACTION;
+			if (steps_since_subdiv > 1) step /= FRACTION;
 			cur_ival = ia_new(ia_end(cur_ival),ia_end(cur_ival)+step);
 		}
 		""" % (f_str,d_str);
