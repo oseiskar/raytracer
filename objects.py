@@ -165,64 +165,137 @@ class ImplicitSurface(Tracer):
 						base_str = "("+str(base)+")"
 						return "("+('*'.join([base_str]*n))+")" 
 					
-				return "%s(%s,%s)" % (f, str(base), str(exponent))
+				return "%s(%s,%s)" % (f, base, exponent)
 		
-		sympy.Basic.__str__ = lambda self: Printer().doprint(self)
+		# Print as an interval arithmetic macro expression
+		class IAPrinter(sympy.printing.str.StrPrinter):
+			
+			"""
+			def _print_Add(self, expr):
+				a = expr.args[0]
+				b = expr.args[1]
+				
+				if len(expr.args) > 2:
+				
+				print expr.args
+				
+				if b.is_number: a,b = b,a
+				
+				if a.is_number:
+					assert(not b.is_number)
+					return "ia_add_exact(%s,%s)" % (b,a)
+				else:
+					return "ia_add(%s,%s)" % (a,b)
+			
+			def _print_Sub(self,expr):
+				a = expr.args[0]
+				b = expr.args[1]
+				
+				if b.is_number:
+					assert(not a.is_number)
+					return "ia_add_exact(%s,%s)" % (a,-b)
+				
+				if a.is_number:
+					assert(not a.is_number)
+					return "ia_add_exact(ia_neg(%s),%s)" % (b,a)
+				
+				return "ia_sub(%s,%s)" % (a,b)
+			"""
+			
+			def _print_Pow(self, expr):
+				base = expr.args[0]
+				exponent = expr.args[1]
+				return "ia_pow%d(%s)" % (int(exponent), base)
+				
+			def _print_Mul(self, expr):
+				a = expr.args[0]
+				b = expr.args[1]
+				
+				if b.is_number: a,b = b,a
+					
+				if a.is_number:
+					assert(not b.is_number)
+					#if b.is_number: return "((%s)*(%s))" % (a,b)
+					if a >= 0:
+						return "ia_mul_pos_exact(%s,%s)" % (b,a)
+					else:
+						return "ia_mul_neg_exact(%s,%s)" % (b,a)
+				else:
+					return "ia_mul(%s,%s)" % (a,b)
+					
+					
+		
+		sympy.Basic.__str__ = lambda self: IAPrinter().doprint(self)
 		
 		#print eq
 		#print gx
 		#print gy
 		#print gz
 		
-		x.name = 'p.x'
-		y.name = 'p.y'
-		z.name = 'p.z'
+		#x.name = 'p.x'
+		#y.name = 'p.y'
+		#z.name = 'p.z'
 		
 		f_str = str(eq)
-		d_str = "((%s) * ray.x + (%s) * ray.y + (%s) * ray.z)" % (gx,gy,gz)
+		d_str = "" #"((%s) * ray.x + (%s) * ray.y + (%s) * ray.z)" % (gx,gy,gz)
 		
 		self.tracer_code = """
 		
-		const int N_SEARCH_STEPS = 100;
-		const int N_REFINE_STEPS = 10;
-		float step = old_isec_dist/N_SEARCH_STEPS; // bad idea?
-		float3 p = origin;
-		float d = 0, d1, d0, f, df;
 		int i=0;
+		const int MAX_ITER = 300;
+		const float TARGET_EPS = 0.001;
+		const float FRACTION = 0.5;
 		
-		for( i=0; i < N_SEARCH_STEPS; i++ )
+		ia_type x, y, z, f;
+		
+		ia_type cur_ival = ia_new(0,old_isec_dist);
+		float step;
+		
+		if (old_isec_dist <= 0) return; // TODO: fix somewhere else...?
+		if (origin_self) return;
+		
+		for( i=0; i < MAX_ITER; i++ )
 		{
+			x = ia_add_exact(ia_mul_exact(cur_ival, ray.x), origin.x);
+			y = ia_add_exact(ia_mul_exact(cur_ival, ray.y), origin.y);
+			z = ia_add_exact(ia_mul_exact(cur_ival, ray.z), origin.z);
+			
 			f = %s;
-			if (f < 0)
+			
+			if (ia_begin(cur_ival) >= old_isec_dist) return;
+			//if (ia_end(cur_ival) > old_isec_dist) ia_end(cur_ival) = old_isec_dist;
+			
+			step = ia_len(cur_ival);
+			
+			if (ia_begin(f) < 0) // contains zero (assumed)
 			{
-				break;
+				if (step < TARGET_EPS || i == MAX_ITER-1)
+				{
+					*p_new_isec_dist = ia_center(cur_ival);
+					return;
+				}
+				
+				// Subdivide
+				
+				step *= FRACTION;
+				ia_end(cur_ival) = ia_begin(cur_ival) + step;
+				continue;
 			}
-			if (d > old_isec_dist) return;
-			
-			d += step;
-			p += ray*step;
-		}
-		if (i == N_SEARCH_STEPS) return;
-		
-		// binary search
-		d1 = d;
-		d0 = d-step;
-		
-		for( i=0; i < N_REFINE_STEPS; i++ )
-		{
-			d = (d1+d0)/2;
-			p = ray*d + origin;
-			f = %s;
-			
-			if (f < 0) d1 = d;
-			else d0 = d;
-			
-			//df = %s;
+			else
+			{
+				// Step forward
+				step /= FRACTION;
+				cur_ival = ia_new(ia_end(cur_ival),ia_end(cur_ival) + step);
+			}
 		}
 		
-		*p_new_isec_dist = d;
+		//df = %s;
 		
-		""" % (f_str,f_str,d_str);
+		""" % (f_str,d_str);
+		
+		sympy.Basic.__str__ = lambda self: Printer().doprint(self)
+		
+		print eq
 		
 		x.name = 'pos.x'
 		y.name = 'pos.y'

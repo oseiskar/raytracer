@@ -20,11 +20,11 @@ quasirandom = False
 interactive_opencl_context_selection = False
 samples_per_pixel = 200256
 min_bounces = 2
-russian_roulette_prob = .3
-#russian_roulette_prob = -1
+#russian_roulette_prob = .3
+russian_roulette_prob = -1
 
-#imgdim = (640,400)
-imgdim = (800,600)
+imgdim = (640,400)
+#imgdim = (800,600)
 #imgdim = (1024,768)
 
 
@@ -169,35 +169,35 @@ def make_world_box( dims, center=(0,0,0) ):
 		HalfSpace( ( 0, 0, 1), dims[2]-center[2] ), \
 		HalfSpace( ( 0, 0,-1), dims[2]+center[2] )]
 
+
+
+objects = []
+objects += make_world_box( (3,5,2), (0,0,2) );
+#objects += [HalfSpace( ( 0, 0, 1), 1.5),  HalfSpace( ( 0, 0, -1), 3)]
+
+#objects.append(HalfSpace( tuple(normalize(np.array((-1,-1,-2)))), 5 ))
+#objects.append(Sphere( (1.5,1,.5), .5 ))
+#objects.append(Sphere( (-0.7,-0.8,.5), .5 ))
 sphere = Sphere( (0,2,1.0), 1.0 )
 #light = Sphere( (-4,0,0), 1.5 )
 light = Sphere( (-3,-1,2), 0.5 )
 #light = Sphere( (-2.5,5,2), 0.5 )
 #light = HalfSpace( tuple(normalize(np.array((1,1,2)))), -5 )
 #light = Sphere( (0,0,0.5), 0.5 )
-objects = []
-objects.append(sphere)
-#equation='x**2 + y**2 + z**2 - 1.5**2'
-#equation='x**4 - 5*x**2 + y**4 - 5*y**2 + z**4 - 5*z**2 + 11.8'
-#objects.append(ImplicitSurface((0,0,1.5),equation, 0.5))
-objects.append(light)
-objects.append(HalfSpace( tuple(normalize(np.array((-1,-1,-2)))), 5 ))
-objects.append(Sphere( (1.5,1,.5), .5 ))
-objects.append(Sphere( (-0.7,-0.8,.5), .5 ))
-objects += make_world_box( (3,5,2), (0,0,2) );
-#objects += [HalfSpace( ( 0, 0, 1), 1.5),  HalfSpace( ( 0, 0, -1), 3)]
+#objects.append(sphere)
+#equation='x**2 + y**2 + z**2 - 1.0**2'
+equation='x**4 - 5*x**2 + y**4 - 5*y**2 + z**4 - 5*z**2 + 11.8'
+objects.append(ImplicitSurface((0,1,1.0),equation, 0.5))
 
+objects.append(light)
 
 Nobjects = len(objects)
 object_materials = Nobjects*['white']
-object_materials[0] = 'green'
-object_materials[1] = 'light'
-object_materials[2] = 'sky'
-object_materials[3] = 'mirror'
-object_materials[4] = 'glass'
-object_materials[-2] = 'red'
-#object_materials[-1] = 'sky'
-object_materials[-1] = 'white'
+object_materials[4] = 'red'
+object_materials[5] = 'sky'
+
+object_materials[-2] = 'green'
+object_materials[-1] = 'light'
 
 materials = {\
 'default': # "Air" / initial / default material
@@ -227,9 +227,9 @@ materials = {\
 	{ 'diffuse': (0.4,0.9,0.4)}
 }
 
-camera_target = np.array((0,2,0.5))
+camera_target = np.array((0,2,1.5))
 camera_pos = np.array((1,-5,2))
-camera_fov = 50
+camera_fov = 60
 camera_dir = camera_target - camera_pos
 flat_camera = False
 cam = camera(imgdim, flat_camera, camera_fov, camera_dir)
