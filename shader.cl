@@ -17,7 +17,8 @@ __kernel void prob_select_ray(
 		constant float *ior,
 		constant float3 *vs,
 		float p,
-		constant float3 *rvec)
+		constant float3 *rvec,
+		uint depth)
 {
 	const int gid = get_global_id(0);
 	uint id = value_array[gid];
@@ -73,6 +74,10 @@ __kernel void prob_select_ray(
 	        // Reflect (negation) to outside
 	        if (dot(n,r) < 0) r = -r;
 	        
+	        //if (depth == 1)
+	        {
+	            cur_mult *= 2.0 * dot(n,r);
+	        }
 	    }
 	    else
 	    {

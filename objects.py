@@ -133,7 +133,7 @@ class Sphere(Tracer):
 
 class ImplicitSurface(Tracer):
 	
-	def __init__(self, center, eq, scale):
+	def __init__(self, center, eq, scale, bndR):
 		
 		import sympy
 		import sympy.core.numbers
@@ -244,7 +244,42 @@ class ImplicitSurface(Tracer):
 				ia_mul_exact(%s,ray.z))
 		""" % (gx,gy,gz)
 		
-		self.tracer_code = """
+		
+		if bndR:
+			bndR *= scale
+		
+			self.tracer_code = """
+			// Bounding sphere intersection
+			const float R2 = %s;
+			const float3 center = (float3)%s;
+			float3 rel = center - origin;
+			float dotp = dot(ray, rel);
+			float psq = dot(rel, rel);
+			
+			bool inside_bnd = psq < R2;
+			
+			if (dotp <= 0 && !inside_bnd)
+			{
+				// no intersection
+				return;
+			}
+			
+			const float discr = dotp*dotp - psq + R2;
+			if(discr < 0) return;
+			const float sqrdiscr = native_sqrt(discr);
+			
+			ia_type cur_ival = ia_new(dotp - sqrdiscr, dotp + sqrdiscr);
+			ia_end(cur_ival) = min(ia_end(cur_ival),old_isec_dist);
+			ia_begin(cur_ival) = max(ia_begin(cur_ival),0.0);
+			if (ia_end(cur_ival) <= ia_begin(cur_ival)) return;
+			
+			""" % (bndR**2, tuple(center))
+		else:
+			self.tracer_code = """
+			ia_type cur_ival = ia_new(0,old_isec_dist);
+			"""
+		
+		self.tracer_code += """
 		
 		int i=0;
 		const int MAX_ITER = 500;
@@ -254,11 +289,9 @@ class ImplicitSurface(Tracer):
 		
 		ia_type x, y, z, f, df;
 		
-		ia_type cur_ival = ia_new(0,old_isec_dist);
 		float step;
 		int steps_since_subdiv = 0;
 		
-		//if (old_isec_dist <= 0) return; // TODO: fix somewhere else...?
 		if (origin_self)
 		{
 			ia_end(cur_ival) = SELF_MAX_BEGIN_STEP;

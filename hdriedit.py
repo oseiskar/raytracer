@@ -19,6 +19,7 @@ h,w = data.shape[:2]
 print "assuming an image of size %d x %d" % (w,h)
 
 ref = 1.0
+gamma = 1.8
 
 def flares(imgdata):
 	visiblerange = numpy.clip(imgdata,0,1)
@@ -49,6 +50,7 @@ def flares(imgdata):
 def show_img(data,ref,do_flares=False,do_save=True):
 	
 	imgdata = data*ref
+	imgdata = numpy.power(imgdata, 1.0/gamma)
 	if do_flares: imgdata = flares(imgdata)
 	
 	imgdata = (numpy.clip(imgdata, 0, 1)*255).astype(numpy.uint8)
@@ -71,9 +73,12 @@ print """-----------
 Valid commans are:
   [any number]
 	(for example 0.1, 2, 0.9234)
-	show and output an image whose brightness (gamma value) has been
-	multiplied by that number (e.g. 2 outputs an image that is "two times
-	brighter" than the image corresponding to 1)
+	show and output an image whose brightness has been multiplied by that
+	number (e.g. 2 outputs an image that is "two times brighter" than the image
+	corresponding to 1)
+	
+  gamma [number] (or g [number])
+	set gamma correction value (default %s)
 	
   sweep (or s)
 	display the image using various brightnesses
@@ -86,11 +91,12 @@ Valid commans are:
 
 The first and second of the above output an image named 'out-24bit.png'
 -----------
-"""
+""" % gamma
 
 while True:
 	
-	cmd = raw_input("cmd: ").strip()
+	line = raw_input("cmd: ").split()
+	cmd = line[0]
 	
 	if cmd == "sweep" or cmd == "s":
 		Nsteps = 200
@@ -103,13 +109,16 @@ while True:
 			print v
 			show_img(data,v,False,False)
 			time.sleep(0.01)
-		
-	elif cmd == "flares" or cmd == "f":
-		do_flares = do_flares == False
-		print "flares %s" % do_flares
-		show_img(data,ref,do_flares,True)
 	else:
-		ref = float(cmd)
+		if cmd == "flares" or cmd == "f":
+			do_flares = do_flares == False
+			print "flares %s" % do_flares
+		elif cmd == "gamma" or cmd == "g":
+			gamma = float(line[1])
+		elif cmd == "brightness" or cmd == "b":
+			ref = float(line[1])
+		else:
+			ref = float(cmd)
 		show_img(data,ref,do_flares,True)
 
 #print mat

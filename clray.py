@@ -15,14 +15,16 @@ use_pygame = True
 use_scipy_misc_pil_image = True
 output_raw_data = True
 
-brightness = 0.5
-quasirandom = False
+brightness = 0.3
+gamma = 1.8
+tent_filter = True
+quasirandom = True
 interactive_opencl_context_selection = False
-samples_per_pixel = 200256
+samples_per_pixel = 100000
 min_bounces = 2
 russian_roulette_prob = .3
 #russian_roulette_prob = -1
-max_bounces = 7
+max_bounces = 6
 
 #imgdim = (640,400)
 imgdim = (800,600)
@@ -38,7 +40,9 @@ def show_and_save_image( imgdata ):
 		np.save('out.raw.npy', imgdata)
 	
 	ref = np.mean(imgdata)
-	imgdata = (np.clip(imgdata/ref*brightness, 0, 1)*255).astype(np.uint8)
+	imgdata = np.clip(imgdata/ref*brightness, 0, 1)
+	imgdata = np.power(imgdata, 1.0/gamma)
+	imgdata = (imgdata*255).astype(np.uint8)
 	
 	if use_pygame:
 		import pygame
@@ -175,23 +179,27 @@ def make_world_box( dims, center=(0,0,0) ):
 objects = []
 objects += make_world_box( (3,5,2), (0,0,2) );
 
-#sphere = Sphere( (0,2,1.0), 1.0 )
-#objects.append(sphere)
+objects.append(Sphere( (-0.2,2.5,1.2), 1.2 ))
+objects.append(Sphere( (-0.7,-0.8,.4), .4 ))
+
+#objects.append(Sphere( (0,2,1.0), 1.0 ))
 
 objects.append(HalfSpace( tuple(normalize(np.array((-1,-1,-2)))), 5 ))
 
 #equation='x**2 + y**2 + z**2 - 1.0**2'
 equation='x**4 - 5*x**2 + y**4 - 5*y**2 + z**4 - 5*z**2 + 11.8'
-objects.append(ImplicitSurface((0.2,1.5,1.0),equation, 0.5))
+objects.append(ImplicitSurface((1.8,0.2,0.5),equation, 0.25, 4))
 
 light = Sphere( (-3,-1,2), 0.5 )
 objects.append(light)
 
 Nobjects = len(objects)
 object_materials = Nobjects*['white']
-object_materials[4] = 'green'
-#object_materials[5] = 'sky'
+object_materials[4] = 'red'
+object_materials[5] = 'white'
 
+object_materials[-5] = 'green'
+object_materials[-4] = 'glass'
 object_materials[-3] = 'sky'
 object_materials[-2] = 'mirror'
 object_materials[-1] = 'light'
@@ -217,16 +225,16 @@ materials = {\
 'sky':
 	{ 'diffuse': ( 0, 0, 0), 'emission':tuple(np.array((.5,.5,.7))*0.7) },
 'glass':
-	{ 'diffuse': (.1,.1,.1), 'transparency':(.4,.7,.4), 'reflection':(.2,.2,.2), 'ior':(1.5,)},
+	{ 'diffuse': (.1,.1,.1), 'transparency':(.35,.35,.6), 'reflection':(.2,.2,.3), 'ior':(1.5,)},
 'wax':
 	{ 'diffuse': (0.3,0.5,0), 'reflection': (.2,.2,.0), 'transparency':(1.,1.,1.), 'vs':(.02,.04,.02), 'ior':(1.02,)},
 'green':
 	{ 'diffuse': (0.4,0.9,0.4)}
 }
 
-camera_target = np.array((0,2,0.4))
-camera_pos = np.array((2,-3,3.5))
-camera_fov = 60
+camera_target = np.array((0,2,0.5))
+camera_pos = np.array((1,-5,2))
+camera_fov = 55
 camera_dir = camera_target - camera_pos
 flat_camera = False
 cam = camera(imgdim, flat_camera, camera_fov, camera_dir)
@@ -494,6 +502,16 @@ for j in xrange(samples_per_pixel):
 			sx = np.float32(np.random.rand())
 			sy = np.float32(np.random.rand())
 			
+			# Tent filter as in smallpt
+			if tent_filter:
+				def tent_filter_transformation(x):
+					x *= 2
+					if x < 1: return np.sqrt(x)-1
+					else: return 1-np.sqrt(2-x)
+				
+				sx = tent_filter_transformation(sx)
+				sy = tent_filter_transformation(sy)
+			
 			overlap = 0.0
 			thetax = (sx-0.5)*pixel_angle*(1.0+overlap)
 			thetay = (sy-0.5)*pixel_angle*(1.0+overlap)
@@ -531,7 +549,7 @@ for j in xrange(samples_per_pixel):
 		
 		#if k == min_bounces+1: break
 		r_prob = 1
-		if k > min_bounces:
+		if k >= min_bounces:
 			rand_01 = np.random.rand()
 			if rand_01 < russian_roulette_prob and k < max_bounces:
 				r_prob = 1.0/(1-russian_roulette_prob)
@@ -559,7 +577,7 @@ for j in xrange(samples_per_pixel):
 			prog_call('prob_select_ray', \
 				(img,whichobject, normal,isec_dist,pos,ray,raycolor,inside), \
 				(mat_emission, mat_diffuse,mat_reflection,mat_transparency,mat_ior,mat_vs,\
-				rand_01,vec_broadcast))
+				rand_01,vec_broadcast,np.uint32(k)))
 				
 		raycolor *= r_prob
 		
