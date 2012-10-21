@@ -14,7 +14,7 @@ scene.materials['sky'] = {
 scene.get_object('floor').material = 'red' # red floor
 scene.get_object('ceiling').material = 'white'  # white ceiling
 
-scene.objects.append( Object(HalfSpace( tuple(normalize(np.array((-1,-1,-2)))), 5 ), 'sky') )
+scene.objects.append( Object(HalfSpace( (-1,-1,-2), 5 ), 'sky') )
 
 scene.objects.append( Object(Sphere( (-0.2,2.5,1.2), 1.2 ), 'green') )
 scene.objects.append( Object(Sphere( (-0.7,-0.8,.4), .4 ), 'glass') )

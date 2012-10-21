@@ -40,7 +40,7 @@ class Scene:
 			raise KeyError("Multiple objects in the scene are called '%s'" % name)
 	
 	def delete_objects(self,name):
-		self.objects = [obj for obj in self.objects if obj.name != name]
+		self.objects[:] = [obj for obj in self.objects if obj.name != name]
 	
 	def get_camera_rays(self):
 		return utils.camera_rays(self.image_size, self.camera_flat_ccd, \

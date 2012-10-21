@@ -21,7 +21,7 @@ itr_per_refresh = 10
 caching = False
 
 # ------- Import scene
-scene_filename = "devscene"
+scene_filename = "scene-dev"
 if len(sys.argv) > 1:
 	scene_filename = sys.argv[1]
 

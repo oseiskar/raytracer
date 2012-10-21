@@ -1,4 +1,7 @@
 
+from utils import normalize
+import numpy
+
 class Tracer:
 	TRACE_KERNEL_ARGUMENTS = """
 	__global const float3 *p_origin,
@@ -381,5 +384,5 @@ class HalfSpace(Tracer):
 	"""
 	
 	def __init__(self, normal, h):
-		self.normal_vec = normal
+		self.normal_vec = tuple(normalize(numpy.array(normal)))
 		self.h = h
