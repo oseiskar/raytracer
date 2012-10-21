@@ -133,7 +133,7 @@ class Sphere(Tracer):
 
 class ImplicitSurface(Tracer):
 	
-	def __init__(self, center, eq, scale, bndR):
+	def __init__(self, eq, center=(0,0,0), scale=1, bndR=None):
 		
 		import sympy
 		import sympy.core.numbers
@@ -383,4 +383,3 @@ class HalfSpace(Tracer):
 	def __init__(self, normal, h):
 		self.normal_vec = normal
 		self.h = h
-
