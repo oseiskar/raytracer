@@ -15,7 +15,7 @@ startup_time = time.time()
 use_pygame = True
 use_scipy_misc_pil_image = True
 output_raw_data = True
-interactive_opencl_context_selection = False
+interactive_opencl_context_selection = True
 
 itr_per_refresh = 10
 caching = False
@@ -463,7 +463,15 @@ for j in xrange(scene.samples_per_pixel):
 		img += curcolor
 	
 	tcur = time.time()
-	print '%d/%d'%(j+1,scene.samples_per_pixel),"time per image:", (tcur-t0), "total:", (tcur-startup_time), "k=%d"%k
+	elapsed = (tcur-startup_time)
+	samples_done = j+1
+	samples_per_second = float(j+1) / elapsed
+	samples_left = scene.samples_per_pixel - samples_done
+	eta = samples_left / samples_per_second
+	print '%d/%d,'%(samples_done,scene.samples_per_pixel), "depth: %d,"%k,
+	print "s/sample: %.3f," % (tcur-t0),
+	print "elapsed: %.2f s," % (tcur-startup_time),
+	print "eta: %.1f min" % (eta/60.0)
 	
 	if j % itr_per_refresh == 0 or j==scene.samples_per_pixel-1:
 		show_and_save_image( img.get().astype(np.float32)[...,0:3] )

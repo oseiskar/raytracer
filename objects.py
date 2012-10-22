@@ -172,38 +172,6 @@ class ImplicitSurface(Tracer):
 		# Print as an interval arithmetic macro expression
 		class IAPrinter(sympy.printing.str.StrPrinter):
 			
-			"""
-			def _print_Add(self, expr):
-				a = expr.args[0]
-				b = expr.args[1]
-				
-				if len(expr.args) > 2:
-				
-				print expr.args
-				
-				if b.is_number: a,b = b,a
-				
-				if a.is_number:
-					assert(not b.is_number)
-					return "ia_add_exact(%s,%s)" % (b,a)
-				else:
-					return "ia_add(%s,%s)" % (a,b)
-			
-			def _print_Sub(self,expr):
-				a = expr.args[0]
-				b = expr.args[1]
-				
-				if b.is_number:
-					assert(not a.is_number)
-					return "ia_add_exact(%s,%s)" % (a,-b)
-				
-				if a.is_number:
-					assert(not a.is_number)
-					return "ia_add_exact(ia_neg(%s),%s)" % (b,a)
-				
-				return "ia_sub(%s,%s)" % (a,b)
-			"""
-			
 			def _print_Pow(self, expr):
 				base = expr.args[0]
 				exponent = expr.args[1]
@@ -273,7 +241,7 @@ class ImplicitSurface(Tracer):
 			
 			ia_type cur_ival = ia_new(dotp - sqrdiscr, dotp + sqrdiscr);
 			ia_end(cur_ival) = min(ia_end(cur_ival),old_isec_dist);
-			ia_begin(cur_ival) = max(ia_begin(cur_ival),0.0);
+			ia_begin(cur_ival) = max(ia_begin(cur_ival),0.0f);
 			if (ia_end(cur_ival) <= ia_begin(cur_ival)) return;
 			
 			""" % (bndR**2, tuple(center))

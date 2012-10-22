@@ -4,22 +4,28 @@ import scipy.ndimage
 from scipy.misc import toimage
 
 if len(sys.argv)==1:
-	fn = raw_input("file name: ").strip()
+	fns = [raw_input("file name: ").strip()]
 else:
-	fn = sys.argv[1]
+	fns = sys.argv[1:]
 
-data = numpy.load(fn)
-pgwin = None
+data = None
+for fn in fns:
+	d = numpy.load(fn)
 
-print "opened numpy matrix of size "+str(data.shape)
+	print "opened numpy matrix of size "+str(d.shape)
+	
+	if data == None: data = d
+	else: data += d
+
 mean = data.mean()
 data /= mean
 print "mean value %s (now normalized to 1.0)" % mean
 h,w = data.shape[:2]
 print "assuming an image of size %d x %d" % (w,h)
-
+	
 ref = 1.0
 gamma = 1.8
+pgwin = None
 
 def flares(imgdata):
 	visiblerange = numpy.clip(imgdata,0,1)
