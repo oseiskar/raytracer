@@ -15,7 +15,7 @@ startup_time = time.time()
 use_pygame = True
 use_scipy_misc_pil_image = True
 output_raw_data = True
-interactive_opencl_context_selection = True
+interactive_opencl_context_selection = False
 
 itr_per_refresh = 10
 caching = False

@@ -18,10 +18,10 @@ class Scene:
 	@staticmethod
 	def make_world_box( material, dims, center=(0,0,0) ):
 		return [\
-			Object(HalfSpace( ( 1, 0, 0), dims[0]-center[0] ), material), \
-			Object(HalfSpace( (-1, 0, 0), dims[0]+center[0] ), material), \
-			Object(HalfSpace( ( 0, 1, 0), dims[1]-center[1] ), material), \
-			Object(HalfSpace( ( 0,-1, 0), dims[1]+center[1] ), material), \
+			Object(HalfSpace( ( 1, 0, 0), dims[0]-center[0] ), material, 'wall'), \
+			Object(HalfSpace( (-1, 0, 0), dims[0]+center[0] ), material, 'wall'), \
+			Object(HalfSpace( ( 0, 1, 0), dims[1]-center[1] ), material, 'wall'), \
+			Object(HalfSpace( ( 0,-1, 0), dims[1]+center[1] ), material, 'wall'), \
 			Object(HalfSpace( ( 0, 0, 1), dims[2]-center[2] ), material, 'floor'), \
 			Object(HalfSpace( ( 0, 0,-1), dims[2]+center[2] ), material, 'ceiling')]
 	
@@ -41,6 +41,9 @@ class Scene:
 	
 	def delete_objects(self,name):
 		self.objects[:] = [obj for obj in self.objects if obj.name != name]
+	
+	def direct_camera_towards(self, target):
+		self.camera_direction = np.array(target)-np.array(self.camera_position)
 	
 	def get_camera_rays(self):
 		return utils.camera_rays(self.image_size, self.camera_flat_ccd, \
@@ -98,12 +101,12 @@ class Scene:
 		self.objects.append(Object(Sphere( (-3,-1,2), 0.5 ), 'light', 'light'))
 		
 		# --- Camera
-		camera_target = (0,2,0.5)
 		self.camera_up = (0,0,1)
 		self.camera_position = (1,-5,2)
 		self.camera_fov = 55 # Field-of-view angle (horizontal)
-		self.camera_direction = np.array(camera_target) - np.array(self.camera_position)
 		self.camera_flat_ccd = False
+		camera_target = (0,2,0.5)
+		self.direct_camera_towards(camera_target)
 		
 
 scene = Scene()

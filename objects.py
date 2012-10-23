@@ -253,7 +253,7 @@ class ImplicitSurface(Tracer):
 		self.tracer_code += """
 		
 		int i=0;
-		const int MAX_ITER = 500;
+		const int MAX_ITER = 1500;
 		const float TARGET_EPS = 0.001;
 		const float FRACTION = 0.5;
 		const float SELF_MAX_BEGIN_STEP = 0.01;
