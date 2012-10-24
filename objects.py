@@ -130,9 +130,49 @@ class Sphere(Tracer):
 	*p_normal = (pos - center) * invR;
 	"""
 	
+	@staticmethod
+	def get_bounding_volume_code(center, R, minvar, maxvar):
+		if R == None:
+			code = """
+			%s = 0.0f;
+			%s = old_isec_dist;
+			""" % (minvar, maxvar)
+		else:
+			code =  """
+			{
+			// Bounding sphere intersection
+			
+			const float R2 = %s;
+			const float3 center = (float3)%s;
+			float3 rel = center - origin;
+			float dotp = dot(ray, rel);
+			float psq = dot(rel, rel);
+			""" % (R**2, tuple(center))
+			
+			code += """
+			bool inside_bnd = psq < R2;
+			
+			if (dotp <= 0 && !inside_bnd) return;
+			
+			const float discr = dotp*dotp - psq + R2;
+			if(discr < 0) return;
+			const float sqrdiscr = native_sqrt(discr);
+			
+			%s = max(dotp-sqrdiscr,0.0f);
+			%s = min(dotp+sqrdiscr,old_isec_dist);
+			""" % (minvar,maxvar)
+			
+			code += """
+			if (%s <= %s) return;
+			}
+			"""  % (maxvar, minvar)
+		
+		return code
+	
 	def __init__(self, pos, R):
 		self.pos = pos
 		self.R = R
+
 
 class ImplicitSurface(Tracer):
 	# The equation defining the surface must be positive outside the object
@@ -216,39 +256,10 @@ class ImplicitSurface(Tracer):
 		old_ptr = sympy.Basic.__str__
 		sympy.Basic.__str__ = lambda self: IAPrinter().doprint(self)
 		
-		if bndR:
-			bndR *= self.scale
+		self.tracer_code = "ia_type cur_ival;"
 		
-			self.tracer_code = """
-			// Bounding sphere intersection
-			const float R2 = %s;
-			const float3 center = (float3)%s;
-			float3 rel = center - origin;
-			float dotp = dot(ray, rel);
-			float psq = dot(rel, rel);
-			
-			bool inside_bnd = psq < R2;
-			
-			if (dotp <= 0 && !inside_bnd)
-			{
-				// no intersection
-				return;
-			}
-			
-			const float discr = dotp*dotp - psq + R2;
-			if(discr < 0) return;
-			const float sqrdiscr = native_sqrt(discr);
-			
-			ia_type cur_ival = ia_new(dotp - sqrdiscr, dotp + sqrdiscr);
-			ia_end(cur_ival) = min(ia_end(cur_ival),old_isec_dist);
-			ia_begin(cur_ival) = max(ia_begin(cur_ival),0.0f);
-			if (ia_end(cur_ival) <= ia_begin(cur_ival)) return;
-			
-			""" % (bndR**2, tuple(self.center))
-		else:
-			self.tracer_code = """
-			ia_type cur_ival = ia_new(0,old_isec_dist);
-			"""
+		self.tracer_code += Sphere.get_bounding_volume_code(\
+			self.center, bndR*self.scale, 'ia_begin(cur_ival)', 'ia_end(cur_ival)');
 		
 		self.tracer_code += """
 		
@@ -347,6 +358,164 @@ class ImplicitSurface(Tracer):
 		return """
 		*p_normal = fast_normalize((float3)(%s, %s, %s));
 		""" % (self.gx,self.gy,self.gz)
+
+
+
+class QuaternionJuliaSet2(Tracer):
+	
+	def __init__(self, c, julia_itr, *args, **argd):
+		self.c = c
+		self.julia_itr = julia_itr
+		
+		self.tracer_code = """
+				ia_type x, y, z, f, df;
+		
+		float step;
+		int steps_since_subdiv = 0;
+		
+		if (origin_self)
+		{
+			ia_end(cur_ival) = SELF_MAX_BEGIN_STEP;
+		}
+
+		for( i=0; i < MAX_ITER; i++ )
+		{
+			if (ia_begin(cur_ival) >= old_isec_dist) return;
+			if (ia_end(cur_ival) > old_isec_dist) ia_end(cur_ival) = old_isec_dist;
+			
+			x = ia_add_exact(ia_mul_exact(cur_ival, ray.x), origin.x);
+			y = ia_add_exact(ia_mul_exact(cur_ival, ray.y), origin.y);
+			z = ia_add_exact(ia_mul_exact(cur_ival, ray.z), origin.z);
+			
+			%s
+			
+			step = ia_len(cur_ival);
+			
+			if (ia_contains_zero(f))
+			//if (ia_begin(f) < 0)
+			{
+				if (step < TARGET_EPS || i == MAX_ITER-1)
+				{
+					step = ia_center(cur_ival);
+					*p_new_isec_dist = step;
+					return;
+				}
+				
+				if (origin_self)
+				{
+					%s
+				}
+				
+				if ( !origin_self || (ia_begin(df)<0) != inside )
+				{
+					// Subdivide
+					step *= FRACTION;
+					ia_end(cur_ival) = ia_begin(cur_ival) + step;
+					steps_since_subdiv = 0;
+					continue;
+				}
+			}
+			steps_since_subdiv++;
+			
+			// Step forward
+			if (steps_since_subdiv > 1) step /= FRACTION;
+			cur_ival = ia_new(ia_end(cur_ival),ia_end(cur_ival)+step);
+		}
+		"""
+	
+	def compute_normal_code(self):
+		return """
+		
+		float qr = pos.x - %s;
+		float qi = pos.y - %s;
+		float qj = pos.z - %s;
+		float qk = 0;
+		qr /= %s;
+		qi /= %s;
+		qj /= %s;
+		
+		float3
+			gr = (float3)(1,0,0),
+			gi = (float3)(0,1,0),
+			gj = (float3)(0,0,1),
+			gk = (float3)(0,0,0),
+			gr1, gi1, gj1, gk1;
+			
+		/*float drdx=1, drdy=0, drdz=0,
+		      didx=0, didy=1, didz=0,
+		      djdx=0, djdy=0, djdz=1,
+		      dkdx=0, dkdy=0, dkdz=0;
+		
+		float drdx1, drdy1, drdz1,
+		      didx1, didy1, didz1,
+		      djdx1, djdy1, djdz1,
+		      dkdx1, dkdy1, dkdz1;*/
+		
+		const float cr = %s, ci = %s, cj = %s, ck = %s;
+		float qr1;
+		
+		for (int iii=0; iii<%d; ++iii)
+		{
+			// Derivative chain rule...
+			
+			/*drdx1 = 2*(drdx*qr - didx*qi - djdx*qj - dkdx*qk);
+			drdy1 = 2*(drdy*qr - didy*qi - djdy*qj - dkdy*qk);
+			drdz1 = 2*(drdz*qr - didz*qi - djdz*qj - dkdz*qk);
+			
+			didx1 = 2*(drdx*qi + didx*qr);
+			didy1 = 2*(drdy*qi + didy*qr);
+			didy1 = 2*(drdz*qi + didz*qr);
+			
+			djdx1 = 2*(drdx*qj + djdx*qr);
+			djdy1 = 2*(drdy*qj + djdy*qr);
+			djdy1 = 2*(drdz*qj + djdz*qr);
+		
+			dkdx1 = 2*(drdx*qk + dkdx*qr);
+			dkdy1 = 2*(drdy*qk + dkdy*qr);
+			dkdy1 = 2*(drdz*qk + dkdz*qr);*/
+			
+			gr1 = 2*(qr*gr - qi*gi - qj*gj - qk*gk);
+			gi1 = 2*(gr*qi + qr*gi);
+			gj1 = 2*(gr*qj + qr*gj);
+			gk1 = 2*(gr*qk + qr*gk);
+			
+			// Quaternion operation z -> z^2 + c
+			qr1 = qr*qr - qi*qi - qj*qj - qk*qk + cr;
+			qi = 2 * qr*qi + ci;
+			qj = 2 * qr*qj + cj;
+			qk = 2 * qr*qk + ck;
+			qr = qr1;
+			
+			gr = gr1;
+			gi = gi1;
+			gj = gj1;
+			gk = gk1;
+			
+			/*drdx=drdx1; drdy=drdy1; drdz=drdz1;
+			didx=didx1; didy=didy1; didz=didz1;
+			djdx=djdx1; djdy=djdy1; djdz=djdz1;
+			dkdx=dkdx1; dkdy=dkdy1; dkdz=dkdz1;*/
+		}
+		
+		/*float dx = 2*(qr*drdx + qi*didx + qj*djdx + qk*dkdx);
+		float dy = 2*(qr*drdy + qi*didy + qj*djdy + qk*dkdy);
+		float dz = 2*(qr*drdz + qi*didz + qj*djdz + qk*dkdz);*/
+		
+		//const float3 grad = gr*qr;
+		float3 grad = fast_normalize(2*(qr*gr + qi*gi + qj*gj + qk*gk));
+		
+		if (all(isfinite(grad))) *p_normal = grad;
+		else *p_normal = (float3)(1,0,0);
+		
+		//const float l = length(grad);
+		//if (l==0) *p_normal = (1,0,0);
+		//else *p_normal = grad/l;
+		//*p_normal = (float3)(1,0,0);
+		//*p_normal = fast_normalize((float3)(1,gr.x*gr.x*0.001,0));
+		
+		//*p_normal = fast_normalize((float3)(dx, dy, dz));
+		""" % (self.center+tuple([self.scale]*3)+self.c+(self.julia_itr,))
+
 
 class QuaternionJuliaSet(ImplicitSurface):
 	
