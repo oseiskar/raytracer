@@ -39,10 +39,10 @@ chair_eq = chair_eq.replace('k', K).replace('a', A).replace('b', B)
 #eq = tanglecube_eq
 #impsurf = ImplicitSurface(eq, center=(0,0,0.5), scale=0.25, bndR=4, max_itr=1500, precision=0.001)
 
-impsurf = QuaternionJuliaSet(
-	c=(-0.5, 0.4, -0.5, -0.1), julia_itr=5,
-	center=(0,0,1), scale=0.7, bndR = 1.5,
-	max_itr=1000, precision=0.001)
+impsurf = QuaternionJuliaSet2(
+	c=(-0.5, 0.4, -0.5, -0.1), julia_itr=7,
+	center=(0,0,1), scale=1, bndR = 1.5,
+	max_itr=2000, precision=0.0001)
 
 scene.objects.append( Object( impsurf, 'white' ) )
 

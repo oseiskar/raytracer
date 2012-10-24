@@ -363,76 +363,73 @@ class ImplicitSurface(Tracer):
 
 class QuaternionJuliaSet2(Tracer):
 	
-	def __init__(self, c, julia_itr, *args, **argd):
+	def __init__(self, c, julia_itr, **kwargs):
 		self.c = c
 		self.julia_itr = julia_itr
+		self.bndR = 1.5
+		self.center = (0,0,0)
+		self.max_itr = 100
+		self.precision = 0.001
+		for (k,v) in kwargs.items(): setattr(self, k, v)
 		
 		self.tracer_code = """
-				ia_type x, y, z, f, df;
+		if (origin_self) return; // ------------- remember to remove this
 		
-		float step;
-		int steps_since_subdiv = 0;
+		float trace_begin, trace_end;
+		"""
 		
-		if (origin_self)
-		{
-			ia_end(cur_ival) = SELF_MAX_BEGIN_STEP;
-		}
-
+		self.tracer_code += Sphere.get_bounding_volume_code(\
+			self.center, self.bndR, 'trace_begin', 'trace_end');
+		
+		self.tracer_code += """
+		
+		int i=0;
+		const int MAX_ITER = %d;
+		const float TARGET_EPS = %s;
+		""" % (self.max_itr, self.precision)
+		
+		self.tracer_code += """
+		float step, dist;
+		const float4 c = (float4)%s;
+		dist = trace_begin;
+		float3 pos = trace_begin * ray + origin - (float3)%s;
+		""" % (self.c,self.center)
+		
+		self.tracer_code += """
 		for( i=0; i < MAX_ITER; i++ )
 		{
-			if (ia_begin(cur_ival) >= old_isec_dist) return;
-			if (ia_end(cur_ival) > old_isec_dist) ia_end(cur_ival) = old_isec_dist;
+			float4 q = (float4)(pos,0), q1, qd = (float4)(1,0,0,0);
 			
-			x = ia_add_exact(ia_mul_exact(cur_ival, ray.x), origin.x);
-			y = ia_add_exact(ia_mul_exact(cur_ival, ray.y), origin.y);
-			z = ia_add_exact(ia_mul_exact(cur_ival, ray.z), origin.z);
-			
-			%s
-			
-			step = ia_len(cur_ival);
-			
-			if (ia_contains_zero(f))
-			//if (ia_begin(f) < 0)
+			for (int iii=0; iii<%d; ++iii)
 			{
-				if (step < TARGET_EPS || i == MAX_ITER-1)
-				{
-					step = ia_center(cur_ival);
-					*p_new_isec_dist = step;
-					return;
-				}
-				
-				if (origin_self)
-				{
-					%s
-				}
-				
-				if ( !origin_self || (ia_begin(df)<0) != inside )
-				{
-					// Subdivide
-					step *= FRACTION;
-					ia_end(cur_ival) = ia_begin(cur_ival) + step;
-					steps_since_subdiv = 0;
-					continue;
-				}
+				qd = 2*quaternion_mult(q,qd);
+				q = quaternion_square(q) + c;
 			}
-			steps_since_subdiv++;
 			
-			// Step forward
-			if (steps_since_subdiv > 1) step /= FRACTION;
-			cur_ival = ia_new(ia_end(cur_ival),ia_end(cur_ival)+step);
+			// The magic distance estimate formula, see the 1989 article:
+			// Hart, Sandin, Kauffman, "Ray Tracing Deterministic 3-D Fractals"
+			
+			float l = length(q);
+			step = 0.5 * l * log(l) / length(qd);
+			dist += step;
+			
+			if (step < TARGET_EPS)
+			{
+				*p_new_isec_dist = dist;
+				return;
+			}
+			if (dist > trace_end) return;
+			
+			pos += step * ray;
 		}
-		"""
-	
-	def compute_normal_code(self):
-		return """
+		""" % self.julia_itr
+		
+		self.normal_code = """
 		
 		float qr = pos.x - %s;
 		float qi = pos.y - %s;
 		float qj = pos.z - %s;
 		float qk = 0;
-		qr /= %s;
-		qi /= %s;
-		qj /= %s;
 		
 		float3
 			gr = (float3)(1,0,0),
@@ -440,40 +437,13 @@ class QuaternionJuliaSet2(Tracer):
 			gj = (float3)(0,0,1),
 			gk = (float3)(0,0,0),
 			gr1, gi1, gj1, gk1;
-			
-		/*float drdx=1, drdy=0, drdz=0,
-		      didx=0, didy=1, didz=0,
-		      djdx=0, djdy=0, djdz=1,
-		      dkdx=0, dkdy=0, dkdz=0;
-		
-		float drdx1, drdy1, drdz1,
-		      didx1, didy1, didz1,
-		      djdx1, djdy1, djdz1,
-		      dkdx1, dkdy1, dkdz1;*/
 		
 		const float cr = %s, ci = %s, cj = %s, ck = %s;
 		float qr1;
 		
 		for (int iii=0; iii<%d; ++iii)
 		{
-			// Derivative chain rule...
-			
-			/*drdx1 = 2*(drdx*qr - didx*qi - djdx*qj - dkdx*qk);
-			drdy1 = 2*(drdy*qr - didy*qi - djdy*qj - dkdy*qk);
-			drdz1 = 2*(drdz*qr - didz*qi - djdz*qj - dkdz*qk);
-			
-			didx1 = 2*(drdx*qi + didx*qr);
-			didy1 = 2*(drdy*qi + didy*qr);
-			didy1 = 2*(drdz*qi + didz*qr);
-			
-			djdx1 = 2*(drdx*qj + djdx*qr);
-			djdy1 = 2*(drdy*qj + djdy*qr);
-			djdy1 = 2*(drdz*qj + djdz*qr);
-		
-			dkdx1 = 2*(drdx*qk + dkdx*qr);
-			dkdy1 = 2*(drdy*qk + dkdy*qr);
-			dkdy1 = 2*(drdz*qk + dkdz*qr);*/
-			
+			// Derivative chain rule
 			gr1 = 2*(qr*gr - qi*gi - qj*gj - qk*gk);
 			gi1 = 2*(gr*qi + qr*gi);
 			gj1 = 2*(gr*qj + qr*gj);
@@ -490,31 +460,13 @@ class QuaternionJuliaSet2(Tracer):
 			gi = gi1;
 			gj = gj1;
 			gk = gk1;
-			
-			/*drdx=drdx1; drdy=drdy1; drdz=drdz1;
-			didx=didx1; didy=didy1; didz=didz1;
-			djdx=djdx1; djdy=djdy1; djdz=djdz1;
-			dkdx=dkdx1; dkdy=dkdy1; dkdz=dkdz1;*/
 		}
-		
-		/*float dx = 2*(qr*drdx + qi*didx + qj*djdx + qk*dkdx);
-		float dy = 2*(qr*drdy + qi*didy + qj*djdy + qk*dkdy);
-		float dz = 2*(qr*drdz + qi*didz + qj*djdz + qk*dkdz);*/
-		
-		//const float3 grad = gr*qr;
 		float3 grad = fast_normalize(2*(qr*gr + qi*gi + qj*gj + qk*gk));
 		
 		if (all(isfinite(grad))) *p_normal = grad;
 		else *p_normal = (float3)(1,0,0);
-		
-		//const float l = length(grad);
-		//if (l==0) *p_normal = (1,0,0);
-		//else *p_normal = grad/l;
-		//*p_normal = (float3)(1,0,0);
-		//*p_normal = fast_normalize((float3)(1,gr.x*gr.x*0.001,0));
-		
-		//*p_normal = fast_normalize((float3)(dx, dy, dz));
-		""" % (self.center+tuple([self.scale]*3)+self.c+(self.julia_itr,))
+		""" % (self.center+self.c+(self.julia_itr,))
+	
 
 
 class QuaternionJuliaSet(ImplicitSurface):

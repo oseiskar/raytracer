@@ -52,6 +52,25 @@ ia_type ia_pow4(ia_type a)
 // TODO: write more of these dynamically
 
 
+// quaternion multiplication routines from
+// http://users.cms.caltech.edu/~keenan/project_qjulia.html
+
+float4 quaternion_mult( float4 q1, float4 q2 )
+{
+   float4 r;
+   r.x = q1.x*q2.x - dot( q1.yzw, q2.yzw );
+   r.yzw = q1.x*q2.yzw + q2.x*q1.yzw + cross( q1.yzw, q2.yzw );
+   return r;
+}
+
+float4 quaternion_square( float4 q )
+{
+   float4 r;
+   r.x = q.x*q.x - dot( q.yzw, q.yzw );
+   r.yzw = 2*q.x*q.yzw;
+   return r;
+}
+
 
 __kernel void fill_vec_broadcast(global float3 *a, constant float3 *v)
 {
