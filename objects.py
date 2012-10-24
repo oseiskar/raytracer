@@ -135,24 +135,31 @@ class Sphere(Tracer):
 		self.R = R
 
 class ImplicitSurface(Tracer):
+	# The equation defining the surface must be positive outside the object
+	# (multiply eq. by -1 if things do not work)
 	
-	def __init__(self, eq, center=(0,0,0), scale=1, bndR=None):
+	def __init__(self, eq,
+				center=(0,0,0), scale=1.0, bndR=None,
+				max_itr=1000, precision=0.001):
 		
 		import sympy
 		import sympy.core.numbers
 		
 		x,y,z = sympy.symbols('x y z')
 		
-		scale = 1.0/scale
+		self.eq = sympy.sympify(eq).subs([\
+			(x,((x-center[0])/scale)),
+			(y,((y-center[1])/scale)),
+			(z,((z-center[2])/scale))])
 		
-		eq = sympy.sympify(eq).subs([\
-			(x,scale*(x-center[0])),
-			(y,scale*(y-center[1])),
-			(z,scale*(z-center[2]))])
+		self.gx = sympy.diff(self.eq,x)
+		self.gy = sympy.diff(self.eq,y)
+		self.gz = sympy.diff(self.eq,z)
 		
-		gx = sympy.diff(eq,x)
-		gy = sympy.diff(eq,y)
-		gz = sympy.diff(eq,z)
+		#print eq
+		#print gx
+		#print gy
+		#print gz
 		
 		# Must replace some expressions to make it OpenCL
 		class Printer(sympy.printing.str.StrPrinter):
@@ -177,44 +184,34 @@ class ImplicitSurface(Tracer):
 				exponent = expr.args[1]
 				return "ia_pow%d(%s)" % (int(exponent), base)
 				
-			def _print_Mul(self, expr):
-				a = expr.args[0]
-				b = expr.args[1]
+			
+			def _print_mul_rec(self,args):
+				
+				a = args[0]
+				b = args[1]
 				
 				if b.is_number: a,b = b,a
-					
-				if a.is_number:
-					assert(not b.is_number)
-					#if b.is_number: return "((%s)*(%s))" % (a,b)
-					if a >= 0:
-						return "ia_mul_pos_exact(%s,%s)" % (b,a)
-					else:
-						return "ia_mul_neg_exact(%s,%s)" % (b,a)
+				
+				if len(args) > 2:
+					bstr = self._print_mul_rec(args[1:])
 				else:
-					return "ia_mul(%s,%s)" % (a,b)
-					
-					
+					bstr = str(b)
+				
+				if a.is_number:	
+					if b.is_number: return "((%s)*(%s))" % (a,b)
+					if a >= 0:
+						return "ia_mul_pos_exact(%s,%s)" % (bstr,a)
+					else:
+						return "ia_mul_neg_exact(%s,%s)" % (bstr,a)
+				else:
+					return "ia_mul(%s,%s)" % (a,bstr)
+			
+			def _print_Mul(self, expr):
+				return self._print_mul_rec(expr.args)
+				
 		
+		old_ptr = sympy.Basic.__str__
 		sympy.Basic.__str__ = lambda self: IAPrinter().doprint(self)
-		
-		#print eq
-		#print gx
-		#print gy
-		#print gz
-		
-		#x.name = 'p.x'
-		#y.name = 'p.y'
-		#z.name = 'p.z'
-		
-		f_str = str(eq)
-		d_str = """
-			ia_add(
-				ia_add(
-					ia_mul_exact(%s,ray.x),
-					ia_mul_exact(%s,ray.y)),
-				ia_mul_exact(%s,ray.z))
-		""" % (gx,gy,gz)
-		
 		
 		if bndR:
 			bndR *= scale
@@ -253,11 +250,13 @@ class ImplicitSurface(Tracer):
 		self.tracer_code += """
 		
 		int i=0;
-		const int MAX_ITER = 1500;
-		const float TARGET_EPS = 0.001;
+		const int MAX_ITER = %d;
+		const float TARGET_EPS = %s;
 		const float FRACTION = 0.5;
 		const float SELF_MAX_BEGIN_STEP = 0.01;
+		""" % (max_itr, precision)
 		
+		self.tracer_code += """
 		ia_type x, y, z, f, df;
 		
 		float step;
@@ -277,7 +276,7 @@ class ImplicitSurface(Tracer):
 			y = ia_add_exact(ia_mul_exact(cur_ival, ray.y), origin.y);
 			z = ia_add_exact(ia_mul_exact(cur_ival, ray.z), origin.z);
 			
-			f = %s;
+			%s
 			
 			step = ia_len(cur_ival);
 			
@@ -293,7 +292,7 @@ class ImplicitSurface(Tracer):
 				
 				if (origin_self)
 				{
-					df = %s;
+					%s
 				}
 				
 				if ( !origin_self || (ia_begin(df)<0) != inside )
@@ -311,20 +310,63 @@ class ImplicitSurface(Tracer):
 			if (steps_since_subdiv > 1) step /= FRACTION;
 			cur_ival = ia_new(ia_end(cur_ival),ia_end(cur_ival)+step);
 		}
-		""" % (f_str,d_str);
-		
-		sympy.Basic.__str__ = lambda self: Printer().doprint(self)
+		""" % (self.compute_f_code(), self.compute_df_code());
 		
 		#print eq
+		#print gx
+		#print gy
+		#print gz
+		
+		sympy.Basic.__str__ = lambda self: Printer().doprint(self)
 		
 		x.name = 'pos.x'
 		y.name = 'pos.y'
 		z.name = 'pos.z'
-		self.normal_code = """
-		*p_normal = fast_normalize((float3)(%s, %s, %s));
-		""" % (gx,gy,gz)
+		self.normal_code = self.compute_normal_code()
+		
+		sympy.Basic.__str__ = old_ptr
 		
 		#print self.tracer_code
+		
+	def compute_f_code(self):
+		return "f = %s;" % self.eq
+	
+	def compute_df_code(self):
+		return """
+			df = ia_add(
+				ia_add(
+					ia_mul_exact(%s,ray.x),
+					ia_mul_exact(%s,ray.y)),
+				ia_mul_exact(%s,ray.z));
+		""" % (self.gx,self.gy,self.gz)
+	
+	def compute_normal_code(self):
+		return """
+		*p_normal = fast_normalize((float3)(%s, %s, %s));
+		""" % (self.gx,self.gy,self.gz)
+
+class QuaternionJuliaSet(ImplicitSurface):
+	
+	def __init__(c, julia_itr, *args, **argd):
+		ImplicitSurface.__init__(self,"0", *args, **argd)
+	
+	def compute_f_code(self):
+		return "f = %s;" % self.eq
+	
+	def compute_df_code(self):
+		return """
+			df = ia_add(
+				ia_add(
+					ia_mul_exact(%s,ray.x),
+					ia_mul_exact(%s,ray.y)),
+				ia_mul_exact(%s,ray.z));
+		""" % (self.gx,self.gy,self.gz)
+	
+	def compute_normal_code(self):
+		return """
+		*p_normal = fast_normalize((float3)(%s, %s, %s));
+		""" % (self.gx,self.gy,self.gz)
+		
 
 class HalfSpace(Tracer):
 		
