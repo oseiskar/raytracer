@@ -142,15 +142,18 @@ class ImplicitSurface(Tracer):
 				center=(0,0,0), scale=1.0, bndR=None,
 				max_itr=1000, precision=0.001):
 		
+		self.center = center
+		self.scale = scale
+		
 		import sympy
 		import sympy.core.numbers
 		
 		x,y,z = sympy.symbols('x y z')
 		
 		self.eq = sympy.sympify(eq).subs([\
-			(x,((x-center[0])/scale)),
-			(y,((y-center[1])/scale)),
-			(z,((z-center[2])/scale))])
+			(x,((x-self.center[0])/self.scale)),
+			(y,((y-self.center[1])/self.scale)),
+			(z,((z-self.center[2])/self.scale))])
 		
 		self.gx = sympy.diff(self.eq,x)
 		self.gy = sympy.diff(self.eq,y)
@@ -214,7 +217,7 @@ class ImplicitSurface(Tracer):
 		sympy.Basic.__str__ = lambda self: IAPrinter().doprint(self)
 		
 		if bndR:
-			bndR *= scale
+			bndR *= self.scale
 		
 			self.tracer_code = """
 			// Bounding sphere intersection
@@ -241,7 +244,7 @@ class ImplicitSurface(Tracer):
 			ia_begin(cur_ival) = max(ia_begin(cur_ival),0.0f);
 			if (ia_end(cur_ival) <= ia_begin(cur_ival)) return;
 			
-			""" % (bndR**2, tuple(center))
+			""" % (bndR**2, tuple(self.center))
 		else:
 			self.tracer_code = """
 			ia_type cur_ival = ia_new(0,old_isec_dist);
@@ -347,25 +350,142 @@ class ImplicitSurface(Tracer):
 
 class QuaternionJuliaSet(ImplicitSurface):
 	
-	def __init__(c, julia_itr, *args, **argd):
-		ImplicitSurface.__init__(self,"0", *args, **argd)
+	def __init__(self, c, julia_itr, *args, **argd):
+		self.c = c
+		self.julia_itr = julia_itr
+		ImplicitSurface.__init__(self, "x^2 + y^2 + z^2 - 1", *args, **argd)
+		
+		self.tracer_code = """
+		if (origin_self) return;
+		""" + self.tracer_code
 	
 	def compute_f_code(self):
+		
+		return """
+		ia_type qr = x - %s;
+		ia_type qi = y - %s;
+		ia_type qj = z - %s;
+		qr /= %s;
+		qi /= %s;
+		qj /= %s;
+		ia_type qk = ia_new(0,0);
+		
+		const float cr = %s, ci = %s, cj = %s, ck = %s;
+		ia_type qr1;
+		
+		for (int iii=0; iii<%d; ++iii)
+		{
+			// Quaternion operation z -> z^2 + c
+			// lazy... "should" use ia_add
+			qr1 = ia_sub(ia_pow2(qr), ia_pow2(qi)+ia_pow2(qj)+ia_pow2(qk))+cr;
+			qi = 2 * ia_mul(qr,qi) + ci;
+			qj = 2 * ia_mul(qr,qj) + cj;
+			qk = 2 * ia_mul(qr,qk) + ck;
+			qr = qr1;
+		}
+		
+		f = ia_pow2(qr)+ia_pow2(qi)+ia_pow2(qj)+ia_pow2(qk) - 4.0;
+		""" % (self.center+tuple([self.scale]*3)+self.c+(self.julia_itr,))
+		
 		return "f = %s;" % self.eq
 	
 	def compute_df_code(self):
 		return """
-			df = ia_add(
-				ia_add(
-					ia_mul_exact(%s,ray.x),
-					ia_mul_exact(%s,ray.y)),
-				ia_mul_exact(%s,ray.z));
-		""" % (self.gx,self.gy,self.gz)
+			df = 1;
+		"""
 	
 	def compute_normal_code(self):
 		return """
-		*p_normal = fast_normalize((float3)(%s, %s, %s));
-		""" % (self.gx,self.gy,self.gz)
+		
+		float qr = pos.x - %s;
+		float qi = pos.y - %s;
+		float qj = pos.z - %s;
+		float qk = 0;
+		qr /= %s;
+		qi /= %s;
+		qj /= %s;
+		
+		float3
+			gr = (float3)(1,0,0),
+			gi = (float3)(0,1,0),
+			gj = (float3)(0,0,1),
+			gk = (float3)(0,0,0),
+			gr1, gi1, gj1, gk1;
+			
+		/*float drdx=1, drdy=0, drdz=0,
+		      didx=0, didy=1, didz=0,
+		      djdx=0, djdy=0, djdz=1,
+		      dkdx=0, dkdy=0, dkdz=0;
+		
+		float drdx1, drdy1, drdz1,
+		      didx1, didy1, didz1,
+		      djdx1, djdy1, djdz1,
+		      dkdx1, dkdy1, dkdz1;*/
+		
+		const float cr = %s, ci = %s, cj = %s, ck = %s;
+		float qr1;
+		
+		for (int iii=0; iii<%d; ++iii)
+		{
+			// Derivative chain rule...
+			
+			/*drdx1 = 2*(drdx*qr - didx*qi - djdx*qj - dkdx*qk);
+			drdy1 = 2*(drdy*qr - didy*qi - djdy*qj - dkdy*qk);
+			drdz1 = 2*(drdz*qr - didz*qi - djdz*qj - dkdz*qk);
+			
+			didx1 = 2*(drdx*qi + didx*qr);
+			didy1 = 2*(drdy*qi + didy*qr);
+			didy1 = 2*(drdz*qi + didz*qr);
+			
+			djdx1 = 2*(drdx*qj + djdx*qr);
+			djdy1 = 2*(drdy*qj + djdy*qr);
+			djdy1 = 2*(drdz*qj + djdz*qr);
+		
+			dkdx1 = 2*(drdx*qk + dkdx*qr);
+			dkdy1 = 2*(drdy*qk + dkdy*qr);
+			dkdy1 = 2*(drdz*qk + dkdz*qr);*/
+			
+			gr1 = 2*(qr*gr - qi*gi - qj*gj - qk*gk);
+			gi1 = 2*(gr*qi + qr*gi);
+			gj1 = 2*(gr*qj + qr*gj);
+			gk1 = 2*(gr*qk + qr*gk);
+			
+			// Quaternion operation z -> z^2 + c
+			qr1 = qr*qr - qi*qi - qj*qj - qk*qk + cr;
+			qi = 2 * qr*qi + ci;
+			qj = 2 * qr*qj + cj;
+			qk = 2 * qr*qk + ck;
+			qr = qr1;
+			
+			gr = gr1;
+			gi = gi1;
+			gj = gj1;
+			gk = gk1;
+			
+			/*drdx=drdx1; drdy=drdy1; drdz=drdz1;
+			didx=didx1; didy=didy1; didz=didz1;
+			djdx=djdx1; djdy=djdy1; djdz=djdz1;
+			dkdx=dkdx1; dkdy=dkdy1; dkdz=dkdz1;*/
+		}
+		
+		/*float dx = 2*(qr*drdx + qi*didx + qj*djdx + qk*dkdx);
+		float dy = 2*(qr*drdy + qi*didy + qj*djdy + qk*dkdy);
+		float dz = 2*(qr*drdz + qi*didz + qj*djdz + qk*dkdz);*/
+		
+		//const float3 grad = gr*qr;
+		float3 grad = fast_normalize(2*(qr*gr + qi*gi + qj*gj + qk*gk));
+		
+		if (all(isfinite(grad))) *p_normal = grad;
+		else *p_normal = (float3)(1,0,0);
+		
+		//const float l = length(grad);
+		//if (l==0) *p_normal = (1,0,0);
+		//else *p_normal = grad/l;
+		//*p_normal = (float3)(1,0,0);
+		//*p_normal = fast_normalize((float3)(1,gr.x*gr.x*0.001,0));
+		
+		//*p_normal = fast_normalize((float3)(dx, dy, dz));
+		""" % (self.center+tuple([self.scale]*3)+self.c+(self.julia_itr,))
 		
 
 class HalfSpace(Tracer):

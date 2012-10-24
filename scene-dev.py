@@ -33,18 +33,28 @@ chair_eq = chair_eq.replace('k', K).replace('a', A).replace('b', B)
 #eq = sympy.sympify(chair_eq) + tanglecube_eq*0.03
 #impsurf = ImplicitSurface(eq, center=(0,0,1), scale=0.2, bndR=6, max_itr=1000, precision=0.001)
 
-eq = sympy.sympify(chair_eq)
-impsurf = ImplicitSurface(eq, center=(0,0,1), scale=0.2, bndR=6, max_itr=1000, precision=0.0001)
+#eq = sympy.sympify(chair_eq)
+#impsurf = ImplicitSurface(eq, center=(0,0,1), scale=0.2, bndR=6, max_itr=1000, precision=0.0001)
 
 #eq = tanglecube_eq
 #impsurf = ImplicitSurface(eq, center=(0,0,0.5), scale=0.25, bndR=4, max_itr=1500, precision=0.001)
+
+impsurf = QuaternionJuliaSet(
+	c=(-0.5, 0.4, -0.5, -0.1), julia_itr=5,
+	center=(0,0,1), scale=0.7, bndR = 1.5,
+	max_itr=1000, precision=0.001)
+
 scene.objects.append( Object( impsurf, 'white' ) )
 
 scene.image_size = (640,400)
+#scene.image_size = (320,200)
 
 scene.samples_per_pixel = 10000
 scene.camera_position = (2,3,3.5)
-scene.direct_camera_towards((0,0,0.5))
+scene.direct_camera_towards((0,0,1))
 scene.camera_fov = 60
+
+scene.min_bounces = scene.max_bounces = 2
+
 #scene.min_bounces = 4
 #scene.max_bounces = 6
