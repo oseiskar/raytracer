@@ -28,22 +28,23 @@ scene.get_object('floor').material = 'green'
 #impsurf = ImplicitSurface(eq, center=(0,0,0.5), scale=0.25, bndR=4, max_itr=1500, precision=0.001)
 
 impsurf = QuaternionJuliaSet2(
-	c=(-0.5, 0.4, -0.5, -0.1), julia_itr=7,
-	center=(0,0,1), scale=1, bndR = 1.5, max_step=0.1,
+	c=(-0.5, 0.4, -0.5, -0.1), julia_itr=5,
+	center=(0,0,1), scale=1, bndR = 1.5, #max_step=0.1,
 	max_itr=2000, precision=0.00001)
 
 scene.objects.append( Object( impsurf, 'white' ) )
 
-scene.image_size = (800,600)
+#scene.image_size = (1024,768)
+#scene.image_size = (800,600)
 #scene.image_size = (640,400)
-#scene.image_size = (320,200)
+scene.image_size = (320,200)
 
 scene.samples_per_pixel = 10000
 scene.camera_position = (-2,-3,1)
 scene.direct_camera_towards((0,0,0.9))
 scene.camera_fov = 60
 
-scene.min_bounces = scene.max_bounces = 2
+#scene.min_bounces = scene.max_bounces = 2
 
 #scene.min_bounces = 4
 #scene.max_bounces = 6

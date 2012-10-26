@@ -304,12 +304,13 @@ class ImplicitSurface(Tracer):
 					return;
 				}
 				
-				if (origin_self)
+				//if (origin_self)
 				{
 					%s
 				}
 				
-				if ( !origin_self || (ia_begin(df)<0) != inside )
+				//if ( !origin_self || (ia_begin(df)<0) != inside )
+				if ( (ia_begin(df)<0) != inside )
 				{
 					// Subdivide
 					step *= FRACTION;
@@ -374,7 +375,7 @@ class QuaternionJuliaSet2(Tracer):
 		for (k,v) in kwargs.items(): setattr(self, k, v)
 		
 		self.tracer_code = """
-		//if (origin_self) return; // ------------- remember to remove this
+		if (origin_self) return; // ------------- remember to remove this
 		
 		float trace_begin, trace_end;
 		"""
@@ -388,6 +389,7 @@ class QuaternionJuliaSet2(Tracer):
 		const int MAX_ITER = %d;
 		const float TARGET_EPS = %s;
 		const float MAX_STEP = %s;
+		const float ESCAPE_RADIUS = 2.0f;
 		""" % (self.max_itr, self.precision, self.max_step)
 		
 		self.tracer_code += """
@@ -429,6 +431,7 @@ class QuaternionJuliaSet2(Tracer):
 				
 			}
 			
+			float ql2 = dot(q,q);
 			float ds = 2*(q.x*gr + q.y*gi + q.z*gj + q.w*gk);
 			
 			// The magic distance estimate formula, see the 1989 article:
@@ -436,18 +439,28 @@ class QuaternionJuliaSet2(Tracer):
 			float l = length(q);
 			step = 0.5 * l * log(l) / length(qd);
 			step = min(step, MAX_STEP);
-			dist += step;
 			
 			if (step < TARGET_EPS)
 			{
 				if (!origin_self || ds < 0)
 				{ 
-					*p_new_isec_dist = dist;
+					*p_new_isec_dist = dist + step;
 					return;
 				}
+				else
+				{
+					step = TARGET_EPS;
+				}
 			}
-			if (dist > trace_end) return;
+			/*if (ql2 < ESCAPE_RADIUS*ESCAPE_RADIUS)
+			{
+				*p_new_isec_dist = dist;
+				return;
+			}*/
 			
+			dist += step;
+			
+			if (dist > trace_end) return;
 			pos += step * ray;
 		}
 		""" % self.julia_itr
@@ -532,7 +545,7 @@ class QuaternionJuliaSet(ImplicitSurface):
 		
 		return "f = %s;" % self.eq
 	
-	def compute_df_code(self):
+	def compute_df_code(self): # TODO
 		return """
 			df = 1;
 		"""
@@ -554,16 +567,6 @@ class QuaternionJuliaSet(ImplicitSurface):
 			gj = (float3)(0,0,1),
 			gk = (float3)(0,0,0),
 			gr1, gi1, gj1, gk1;
-			
-		/*float drdx=1, drdy=0, drdz=0,
-		      didx=0, didy=1, didz=0,
-		      djdx=0, djdy=0, djdz=1,
-		      dkdx=0, dkdy=0, dkdz=0;
-		
-		float drdx1, drdy1, drdz1,
-		      didx1, didy1, didz1,
-		      djdx1, djdy1, djdz1,
-		      dkdx1, dkdy1, dkdz1;*/
 		
 		const float cr = %s, ci = %s, cj = %s, ck = %s;
 		float qr1;
@@ -571,22 +574,6 @@ class QuaternionJuliaSet(ImplicitSurface):
 		for (int iii=0; iii<%d; ++iii)
 		{
 			// Derivative chain rule...
-			
-			/*drdx1 = 2*(drdx*qr - didx*qi - djdx*qj - dkdx*qk);
-			drdy1 = 2*(drdy*qr - didy*qi - djdy*qj - dkdy*qk);
-			drdz1 = 2*(drdz*qr - didz*qi - djdz*qj - dkdz*qk);
-			
-			didx1 = 2*(drdx*qi + didx*qr);
-			didy1 = 2*(drdy*qi + didy*qr);
-			didy1 = 2*(drdz*qi + didz*qr);
-			
-			djdx1 = 2*(drdx*qj + djdx*qr);
-			djdy1 = 2*(drdy*qj + djdy*qr);
-			djdy1 = 2*(drdz*qj + djdz*qr);
-		
-			dkdx1 = 2*(drdx*qk + dkdx*qr);
-			dkdy1 = 2*(drdy*qk + dkdy*qr);
-			dkdy1 = 2*(drdz*qk + dkdz*qr);*/
 			
 			gr1 = 2*(qr*gr - qi*gi - qj*gj - qk*gk);
 			gi1 = 2*(gr*qi + qr*gi);
@@ -604,16 +591,7 @@ class QuaternionJuliaSet(ImplicitSurface):
 			gi = gi1;
 			gj = gj1;
 			gk = gk1;
-			
-			/*drdx=drdx1; drdy=drdy1; drdz=drdz1;
-			didx=didx1; didy=didy1; didz=didz1;
-			djdx=djdx1; djdy=djdy1; djdz=djdz1;
-			dkdx=dkdx1; dkdy=dkdy1; dkdz=dkdz1;*/
 		}
-		
-		/*float dx = 2*(qr*drdx + qi*didx + qj*djdx + qk*dkdx);
-		float dy = 2*(qr*drdy + qi*didy + qj*djdy + qk*dkdy);
-		float dz = 2*(qr*drdz + qi*didz + qj*djdz + qk*dkdz);*/
 		
 		//const float3 grad = gr*qr;
 		float3 grad = fast_normalize(2*(qr*gr + qi*gi + qj*gj + qk*gk));
