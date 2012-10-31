@@ -56,52 +56,7 @@ def show_and_save_image( imgdata ):
 		from scipy.misc import toimage
 		toimage(imgdata).save('out.png')
 
-# ------- Numpy utils
-
-def rotmat_tilt_camera(xa, ya):
-	
-	rm2d = lambda a : np.array([[np.cos(a), -np.sin(a)],[np.sin(a),np.cos(a)]])
-	
-	rot3dy = np.identity(3)
-	rot3dy[1:,1:] = rm2d(ya)
-	
-	rot3dx = np.identity(3)
-	
-	rot3dx[[[0],[2]],[0,2]] = rm2d(xa)
-	
-	return np.dot(rot3dy, rot3dx)
-	
-
-def quasi_random_direction_sample(n, hemisphere=True):
-	"""
-	"Vogel's method / Fermat's spiral",
-	adapted from http://blog.marmakoide.org/?p=1
-	
-	It appears that, in addition to the discussion in the above blog,
-	the first n of 2n of these points are evenly distributed in the real
-	projective space RP^2 which is very nice.
-	
-	Now ANY diffusion hemisphere is sampled with a regular even grid!
-	"""
-	
-	if hemisphere: n = n*2
-	
-	golden_angle = np.pi * (3 - np.sqrt(5))
-	theta = golden_angle * np.arange(n)
-	z = np.linspace(1 - 1.0 / n, 1.0 / n - 1, n)
-	radius = np.sqrt(1 - z * z)
-	
-	points = np.zeros((n, 3))
-	points[:,0] = radius * np.cos(theta)
-	points[:,1] = radius * np.sin(theta)
-	points[:,2] = z
-	
-	if hemisphere:
-		n = n/2;
-		points = points[:n,:]
-	
-	return points
-
+# ------------- set up camera
 
 cam = scene.get_camera_rays()
 rotmat = scene.get_camera_rotmat()
