@@ -17,20 +17,12 @@ class Tracer:
 		"const float3 pos",
 		"__global float3 *p_normal" ]
 
-	@property
-	def extra_tracer_arguments(self): return []
-	
-	@property
-	def extra_normal_arguments(self): return []
-	
-	@property
-	def unique_tracer_id(self): return ""
+	extra_tracer_arguments = []
+	extra_normal_arguments = []
+	unique_tracer_id = ""
 		
-	@property
-	def extra_tracer_argument_definitions(self): return []
-	
-	@property
-	def extra_normal_argument_definitions(self): return []
+	extra_tracer_argument_definitions = []
+	extra_normal_argument_definitions = []
 	
 	def make_functions(self):
 		
@@ -66,63 +58,54 @@ class Tracer:
 
 class Sphere(Tracer):
 	
-	@property
-	def extra_normal_argument_definitions(self):
-		return ["const float3 center", "const float invR"]
+	extra_normal_argument_definitions = ["const float3 center", "const float invR"]
+	extra_tracer_argument_definitions = ["const float3 center", "const float R2"]
 		
 	@property
 	def extra_normal_arguments(self):
 		return ["(float3)%s" % (self.pos,), 1.0/self.R]
 		
 	@property
-	def extra_tracer_argument_definitions(self):
-		return ["const float3 center", "const float R2"]
-	@property
 	def extra_tracer_arguments(self):
 		return ["(float3)%s" % (self.pos,), self.R**2]
-	
 	
 	def __init__(self, pos, R):
 		self.pos = pos
 		self.R = R
 	
-	@property
-	def tracer_code(self): return """
-	float3 rel = center - origin;
-	float dotp = dot(ray, rel);
-	float psq = dot(rel, rel);
+	tracer_code = """
+		float3 rel = center - origin;
+		float dotp = dot(ray, rel);
+		float psq = dot(rel, rel);
+		
+		float dist, discr, sqrdiscr;
+		
+		if (origin_self && !inside)
+		{
+			return;
+			// no intersection
+		}
+		
+		if (dotp <= 0 && !inside)
+		{
+			// no intersection
+			return;
+		}
+		
+		discr = dotp*dotp - psq + R2;
+		if(discr < 0) return;
+		
+		sqrdiscr = native_sqrt(discr);
+		dist = dotp - sqrdiscr;
+		
+		if (inside) dist = dotp + sqrdiscr;
+		else dist = dotp - sqrdiscr;
+		
+		if (dist <= 0) return;
+		*p_new_isec_dist = dist;
+		"""
 	
-	float dist, discr, sqrdiscr;
-	
-	if (origin_self && !inside)
-	{
-		return;
-		// no intersection
-	}
-	
-	if (dotp <= 0 && !inside)
-	{
-		// no intersection
-		return;
-	}
-	
-	discr = dotp*dotp - psq + R2;
-	if(discr < 0) return;
-	
-	sqrdiscr = native_sqrt(discr);
-	dist = dotp - sqrdiscr;
-	
-	if (inside) dist = dotp + sqrdiscr;
-	else dist = dotp - sqrdiscr;
-	
-	if (dist <= 0) return;
-	*p_new_isec_dist = dist;
-	"""
-	
-	@property
-	def normal_code(self): return """
-	*p_normal = (pos - center) * invR;
-	"""
+	normal_code = "*p_normal = (pos - center) * invR;"
 	
 	@staticmethod
 	def get_bounding_volume_code(center, R, minvar, maxvar):
@@ -165,55 +148,42 @@ class Sphere(Tracer):
 
 class HalfSpace(Tracer):
 	
-	@property
-	def extra_normal_argument_definitions(self):
-		return ["const float3 normal"]
-		
-	@property
-	def extra_normal_arguments(self):
-		return ["(float3)%s" % (self.normal_vec,)]
-		
-	@property
-	def extra_tracer_argument_definitions(self):
-		return ["const float3 normal", "const float h"]
-		
-	@property
-	def extra_tracer_arguments(self):
-		return ["(float3)%s" % (self.normal_vec,), self.h]
+	extra_normal_argument_definitions = ["const float3 normal"]
+	extra_tracer_argument_definitions = ["const float3 normal", "const float h"]
 	
 	def __init__(self, normal, h):
 		self.normal_vec = tuple(normalize(numpy.array(normal)))
 		self.h = h
-	
-	@property
-	def tracer_code(self): return """
-	
-	if (!origin_self)
-	{
-		float slope = dot(ray,-normal);
-		float dist = dot(origin, normal)+h;
 		
-		dist = dist/slope;
-		if (dist > 0) *p_new_isec_dist = dist;
-	}
-	"""
+		self.extra_tracer_arguments = ["(float3)%s" % (self.normal_vec,), self.h]
+		self.extra_normal_arguments = ["(float3)%s" % (self.normal_vec,)]
 	
-	@property
-	def normal_code(self): return """
-	*p_normal = normal;
-	"""
+	tracer_code = """
+		if (!origin_self)
+		{
+			float slope = dot(ray,-normal);
+			float dist = dot(origin, normal)+h;
+			
+			dist = dist/slope;
+			if (dist > 0) *p_new_isec_dist = dist;
+		}
+		"""
+	
+	normal_code = "*p_normal = normal;"
 
 class ImplicitSurface(Tracer):
 
 	# The equation defining the surface must be positive outside the object
 	# (multiply eq. by -1 if things do not work)
 	
-	@property
-	def unique_tracer_id(self): return str(id(self))
+	#@property
+	#def unique_tracer_id(self): return str(id(self))
 	
 	def __init__(self, eq,
 				center=(0,0,0), scale=1.0, bndR=None,
 				max_itr=1000, precision=0.001):
+		
+		self.unique_tracer_id = str(id(self))
 		
 		self.center = center
 		self.scale = scale
