@@ -3,97 +3,91 @@ from utils import normalize
 import numpy
 
 class Tracer:
-	TRACE_KERNEL_ARGUMENTS = """
-	__global const float3 *p_origin,
-	__global const float3 *p_ray,
-	__global const float3 *p_last_normal,
-	__global const float *p_old_isec_dist,
-	__global float *p_new_isec_dist,
-	__global const uint *p_inside,
-	__global const uint *p_origin_self""" # TODO: bool
+
+	TRACER_ARGUMENT_DEFINITIONS = [ \
+		"const float3 origin",
+		"const float3 ray",
+		"const float3 last_normal",
+		"const float old_isec_dist",
+		"__private float *p_new_isec_dist",
+		"bool inside",
+		"bool origin_self"]
 	
-	NORMAL_KERNEL_ARGUMENTS = """
-	__global const float3 *p_pos,
-	__global float3 *p_normal
-	"""
+	NORMAL_ARGUMENT_DEFINITIONS = [ \
+		"const float3 pos",
+		"__global float3 *p_normal" ]
+
+	@property
+	def extra_tracer_arguments(self): return []
 	
-	TRACE_KERNEL_HEADER = """
+	@property
+	def extra_normal_arguments(self): return []
 	
-	const int gid = get_global_id(0);
-	const float3 origin = p_origin[gid];
-	const float3 ray = p_ray[gid];
-	const float3 last_normal = p_last_normal[gid];
-	const float old_isec_dist = p_old_isec_dist[gid];
-	const bool inside = p_inside[gid] != 0;
-	const bool origin_self = p_origin_self[gid] != 0;
-	p_new_isec_dist += gid;
-	"""
-	
-	NORMAL_KERNEL_HEADER = """
-	
-	const int gid = get_global_id(0);
-	const float3 pos = p_pos[gid];
-	p_normal += gid;
-	
-	"""
-	
-	TRACE_STATIC_ARGUMENTS = """
-	const float3 origin,
-	const float3 ray,
-	const float3 last_normal,
-	const float old_isec_dist,
-	__private float *p_new_isec_dist,
-	bool inside,
-	bool origin_self"""
-	
-	NORMAL_STATIC_ARGUMENTS = """
-	const float3 pos,
-	__global float3 *p_normal
-	"""
-	
-	def make_kernel(self, kernel_function=True):
+	@property
+	def unique_tracer_id(self): return ""
 		
-		if kernel_function:
-			kernel_keyword = '__kernel'
-			trace_arguments = Tracer.TRACE_KERNEL_ARGUMENTS
-			normal_arguments = Tracer.NORMAL_KERNEL_ARGUMENTS
-			trace_header = Tracer.TRACE_KERNEL_HEADER
-			normal_header = Tracer.NORMAL_KERNEL_HEADER
-		else:
-			kernel_keyword = ''
-			trace_arguments = Tracer.TRACE_STATIC_ARGUMENTS
-			normal_arguments = Tracer.NORMAL_STATIC_ARGUMENTS
-			trace_header = ''
-			normal_header = ''
+	@property
+	def extra_tracer_argument_definitions(self): return []
+	
+	@property
+	def extra_normal_argument_definitions(self): return []
+	
+	def make_functions(self):
 		
-		kernel_id = self.__class__.__name__+str(id(self))
-		self.tracer_kernel_name = kernel_id+"_tracer"
-		self.normal_kernel_name = kernel_id+"_normal"
+		tracer_arguments = ",".join(Tracer.TRACER_ARGUMENT_DEFINITIONS \
+			+ self.extra_tracer_argument_definitions)
+		normal_arguments = ",".join(Tracer.NORMAL_ARGUMENT_DEFINITIONS \
+			+ self.extra_normal_argument_definitions)
 		
-		self.kernel_code = kernel_keyword + " void %s(%s) {" \
-			% (self.tracer_kernel_name, trace_arguments)
-		self.kernel_code += trace_header
-		self.kernel_code += "\n" + self.tracer_code + "\n}\n\n"
+		kernel_id = self.__class__.__name__+self.unique_tracer_id
+		self.tracer_function_name = kernel_id+"_tracer"
+		self.normal_function_name = kernel_id+"_normal"
 		
-		self.kernel_code += kernel_keyword + " void %s(%s) {" \
-			% (self.normal_kernel_name, normal_arguments)
-		self.kernel_code += normal_header
-		self.kernel_code += "\n" + self.normal_code + "\n}\n\n"
+		tracer_function = " void %s(%s) {" \
+			% (self.tracer_function_name, tracer_arguments)
+		tracer_function += "\n" + self.tracer_code + "\n}\n\n"
 		
-		return self.kernel_code
+		normal_function = " void %s(%s) {" \
+			% (self.normal_function_name, normal_arguments)
+		normal_function += "\n" + self.normal_code + "\n}\n\n"
 		
+		return { \
+			self.tracer_function_name : tracer_function,
+			self.normal_function_name : normal_function
+		}
+	
+	def make_tracer_call(self, base_params):
+		return "%s(%s);" % (self.tracer_function_name, \
+			",".join(base_params+[str(x) for x in self.extra_tracer_arguments]))
+	
+	def make_normal_call(self, base_params):
+		return "%s(%s);" % (self.normal_function_name, \
+			",".join(base_params+[str(x) for x in self.extra_normal_arguments]))
 
 class Sphere(Tracer):
 	
-	def _params(self): return """
-	const float3 center = (float3)%s;
-	const float R2 = %s;
-	const float invR = %s;
-	""" % (self.pos, self.R**2, 1.0/self.R)
+	@property
+	def extra_normal_argument_definitions(self):
+		return ["const float3 center", "const float invR"]
+		
+	@property
+	def extra_normal_arguments(self):
+		return ["(float3)%s" % (self.pos,), 1.0/self.R]
+		
+	@property
+	def extra_tracer_argument_definitions(self):
+		return ["const float3 center", "const float R2"]
+	@property
+	def extra_tracer_arguments(self):
+		return ["(float3)%s" % (self.pos,), self.R**2]
+	
+	
+	def __init__(self, pos, R):
+		self.pos = pos
+		self.R = R
 	
 	@property
-	def tracer_code(self): return self._params() + \
-	"""
+	def tracer_code(self): return """
 	float3 rel = center - origin;
 	float dotp = dot(ray, rel);
 	float psq = dot(rel, rel);
@@ -126,7 +120,7 @@ class Sphere(Tracer):
 	"""
 	
 	@property
-	def normal_code(self): return self._params() + """
+	def normal_code(self): return """
 	*p_normal = (pos - center) * invR;
 	"""
 	
@@ -168,15 +162,54 @@ class Sphere(Tracer):
 			"""  % (maxvar, minvar)
 		
 		return code
-	
-	def __init__(self, pos, R):
-		self.pos = pos
-		self.R = R
 
+class HalfSpace(Tracer):
+	
+	@property
+	def extra_normal_argument_definitions(self):
+		return ["const float3 normal"]
+		
+	@property
+	def extra_normal_arguments(self):
+		return ["(float3)%s" % (self.normal_vec,)]
+		
+	@property
+	def extra_tracer_argument_definitions(self):
+		return ["const float3 normal", "const float h"]
+		
+	@property
+	def extra_tracer_arguments(self):
+		return ["(float3)%s" % (self.normal_vec,), self.h]
+	
+	def __init__(self, normal, h):
+		self.normal_vec = tuple(normalize(numpy.array(normal)))
+		self.h = h
+	
+	@property
+	def tracer_code(self): return """
+	
+	if (!origin_self)
+	{
+		float slope = dot(ray,-normal);
+		float dist = dot(origin, normal)+h;
+		
+		dist = dist/slope;
+		if (dist > 0) *p_new_isec_dist = dist;
+	}
+	"""
+	
+	@property
+	def normal_code(self): return """
+	*p_normal = normal;
+	"""
 
 class ImplicitSurface(Tracer):
+
 	# The equation defining the surface must be positive outside the object
 	# (multiply eq. by -1 if things do not work)
+	
+	@property
+	def unique_tracer_id(self): return str(id(self))
 	
 	def __init__(self, eq,
 				center=(0,0,0), scale=1.0, bndR=None,
@@ -359,8 +392,6 @@ class ImplicitSurface(Tracer):
 		return """
 		*p_normal = fast_normalize((float3)(%s, %s, %s));
 		""" % (self.gx,self.gy,self.gz)
-
-
 
 class QuaternionJuliaSet2(Tracer):
 	
@@ -607,33 +638,4 @@ class QuaternionJuliaSet(ImplicitSurface):
 		
 		//*p_normal = fast_normalize((float3)(dx, dy, dz));
 		""" % (self.center+tuple([self.scale]*3)+self.c+(self.julia_itr,))
-		
 
-class HalfSpace(Tracer):
-		
-	def _params(self): return """
-	const float3 normal = (float3)%s;
-	const float h = %s;
-	""" % (self.normal_vec, self.h)
-	
-	@property
-	def tracer_code(self): return self._params() + """
-	
-	if (!origin_self)
-	{
-		float slope = dot(ray,-normal);
-		float dist = dot(origin, normal)+h;
-		
-		dist = dist/slope;
-		if (dist > 0) *p_new_isec_dist = dist;
-	}
-	"""
-	
-	@property
-	def normal_code(self): return self._params() + """
-	*p_normal = normal;
-	"""
-	
-	def __init__(self, normal, h):
-		self.normal_vec = tuple(normalize(numpy.array(normal)))
-		self.h = h
