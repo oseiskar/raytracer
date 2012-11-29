@@ -125,21 +125,23 @@ class Sphere(Tracer):
 		self.R = R
 	
 	tracer_code = """
+		
+		if (origin_self && !inside)
+		{
+			// convex body
+			return;
+		}
+		
 		float3 rel = center - origin;
 		float dotp = dot(ray, rel);
 		float psq = dot(rel, rel);
 		
 		float dist, discr, sqrdiscr;
 		
-		if (origin_self && !inside)
-		{
-			return;
-			// no intersection
-		}
-		
 		if (dotp <= 0 && !inside)
 		{
-			// no intersection
+			// ray travelling away from the center, not starting inside 
+			// the sphere => no intersection
 			return;
 		}
 		
@@ -196,6 +198,155 @@ class Sphere(Tracer):
 			"""  % (maxvar, minvar)
 		
 		return code
+
+class Cylinder(Tracer):
+	"""
+	Capped cylinder
+	"""
+	
+	extra_normal_argument_definitions = [
+		"const float3 bottom_center",
+		"const float3 axis",
+		"const float height",
+		"const float R"]
+	extra_tracer_argument_definitions = extra_normal_argument_definitions
+		
+	@property
+	def extra_normal_arguments(self):
+		return ["(float3)%s" % (self.pos,), 1.0/self.R]
+		
+	@property
+	def extra_tracer_arguments(self):
+		return ["(float3)%s" % (self.pos,), self.R**2]
+	
+	def __init__(self, bottom_center, axis, height, R):
+		"""
+		axis should be a unit vector
+		"""
+		
+		self.bottom_center = bottom_center
+		self.axis = axis
+		self.height = height
+		self.R = R
+	
+	tracer_code = """
+		
+		if (origin_self && !inside)
+		{
+			// convex body
+			return;
+		}
+		
+		float z0 = dot(rel,axis), zslope = dot(ray,axis);
+		
+		if (!inside && ((z0 < 0 && zslope < 0) || (z0 > height && slope > 0)))
+		{
+			// outside, not between the cap planes and travelling
+			// away from the planes
+			return;
+		}
+		
+		float3 rel = origin - bottom_center;
+		float3 perp = rel - z0*axis;
+		float3 ray_perp = ray - zslope*axis;
+		
+		float dotp = dot(ray_perp,perp);
+		
+		float perp2 = dot(perp,perp);
+		float ray_perp2 = dot(ray_perp,ray_perp);
+		
+		float discr = dotp*dotp - ray_perp2*(perp2 - R2);
+		
+		if (discr < 0)
+		{
+			// ray does not hit the infinite cylinder
+			return;
+		}
+		
+		// ray hits the infinite cylinder
+		
+		float sqrtdiscr = native_sqrt(discr);
+		float dist = -dotp - sqrtdiscr;
+		
+		if (inside) dist += 2*sqrtdiscr;
+		dist /= ray_perp2;
+		
+		float z = z0 + dist*zslope;
+		float zplane = 0;
+		float zplane_dist;
+		*p_subobject = 1;
+		
+		if (inside || (z0 >= 0 && z0 <= height))
+		{
+			if (zslope > 0)
+			{
+				zplane = height;
+				*p_subobject = 2;
+			}
+			
+			zplane_dist = (zplane-z0)/zslope;
+			if (dist < zplane_dist)
+			{
+				*p_subobject = 0;
+			}
+			else
+			{
+				if (inside)
+				{
+					dist = zplane_dist;
+					*p_subobject = 1;
+				}
+				else
+				{
+					return;
+				}
+			}
+		}
+		else
+		{
+			if (z0 > height)
+			{
+				zplane = height;
+				*p_subobject = 2;
+			}
+			
+			if (z >= 0 && z <= height)
+			{
+				*p_subobject = 0;
+			}
+			else
+			{
+				if (dist <= 0)
+				{
+					dist += 2*sqrtdiscr/ray_perp2;
+					if (dist < zplane_dist) return;
+					else
+					{
+						dist = zplane_dist;
+					}
+				}
+				else
+				{
+					if ((z0 < 0 && z > height) || (z0 > height && z < 0)) return;
+					else
+					{
+						dist += 2*sqrtdiscr/ray_perp2;
+						z = z0 + dist*zslope;
+						if ((z0 > height && z < height) || (z0 < 0 && z > 0))
+						{
+							dist = zplane_dist;
+						}
+						else return;
+					}
+				}
+			}
+		}
+		
+		*p_new_isec_dist = dist;
+		"""
+	
+	normal_code = "*p_normal = (pos - center) * invR;"
+	
 
 class HalfSpace(Tracer):
 	
