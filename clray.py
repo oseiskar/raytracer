@@ -212,7 +212,6 @@ def prog_caller(N):
 	def prog_call(kernel_name, buffer_args, value_args=tuple([])):
 		
 		t1 = time.time()
-		#acc.queue.finish()
 		kernel = getattr(prog,kernel_name)
 		arg =  tuple([x.data for x in buffer_args]) + value_args
 		event = kernel(acc.queue, (N,), None, *arg)
@@ -225,7 +224,6 @@ def prog_caller(N):
 		profiling_info[kernel_name]['t'] += t
 		profiling_info[kernel_name]['n'] += 1
 		profiling_info[kernel_name]['ta'] += time.time() - t1
-		#print kernel_name, "executed in", t*1e-9, "s"
 		
 	return prog_call
 
