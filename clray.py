@@ -103,6 +103,8 @@ __kernel void trace(
 	
 	float old_isec_dist = *p_isec_dist;
 	float new_isec_dist = 0;
+	uint subobject;
+	uint cur_subobject;
 	
 	uint i = 0;
 	uint whichobject = 0;
@@ -126,6 +128,7 @@ for i in range(len(objects)):
 			"last_normal",
 			"old_isec_dist",
 			"&new_isec_dist",
+			"&cur_subobject",
 			"inside == i",
 			"lastwhichobject == i"])
 	
@@ -138,6 +141,7 @@ for i in range(len(objects)):
 	{
 		old_isec_dist = new_isec_dist;
 		whichobject = i;
+		subobject = cur_subobject;
 	}
 	"""
 
@@ -160,7 +164,7 @@ for i in range(len(objects)):
 		%s
 		if (inside == i) *p_normal = -*p_normal;
 	}
-	""" % obj.make_normal_call(["pos", "p_normal"])
+	""" % obj.make_normal_call(["pos", "subobject", "p_normal"])
 
 trace_kernel += """
 	*p_isec_dist = old_isec_dist;
@@ -366,7 +370,6 @@ for j in xrange(scene.samples_per_pixel):
 	k = kbegin
 	r_prob = 1
 	while True:
-	#for k in xrange(kbegin,min_bounces+1):
 		
 		#inside.fill(0)
 		

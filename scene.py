@@ -4,6 +4,9 @@ import utils
 import numpy as np
 
 class Object:
+	"""
+	An object consists of a Tracer that represents its shape and a material
+	"""
 	def __init__(self, tracer, material, name=None):
 		self.tracer = tracer
 		self.material = material
@@ -11,7 +14,9 @@ class Object:
 
 # Default scene
 class Scene:
-	"""Default raytracer scene. Override attributes as required"""
+	"""
+	Default raytracer scene. Override attributes as required
+	"""
 	
 	# helpers...
 	
