@@ -22,7 +22,7 @@ scene.get_object('floor').material = 'green'
 
 #obj = Cylinder( (0,0,0.5), (1,1,0), 0.5, 0.6 )
 #obj = Sphere( (0,0,.5), 0.5 )
-obj = Cone( (0,0,1), (0,0,-1), 0.6, 0.3 )
+obj = Cone( (0,0,1), (1,0,0), 0.8, 0.2 )
 scene.objects.append( Object( obj, 'white' ) )
 
 #scene.image_size = (1024,768)
