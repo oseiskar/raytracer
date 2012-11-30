@@ -437,78 +437,100 @@ class Cone(Tracer):
 		float3 rel_perp = rel - rel_par;
 		float3 ray_par = ray_par_len*axis;
 		float3 ray_perp = ray - ray_par;
+		float ray_perp_len2 = dot(ray_perp,ray_perp);
+		float rel_perp_len2 = dot(rel_perp,rel_perp);
 		
-		float a = dot(ray_perp,ray_perp) - s2*ray_par_len*ray_par_len;
+		float a = ray_perp_len2 - s2*ray_par_len*ray_par_len;
 		float hb = dot(rel_perp,ray_perp) - s2 * ray_par_len*z0;
-		float c = dot(rel_perp,rel_perp) - s2 * z0*z0;
+		float c = rel_perp_len2 - s2 * z0*z0;
 		
 		float discr = hb*hb - a*c;
 		if (discr < 0) return; // no intersection with infinite cylinder
 		
 		float sqrtdiscr = native_sqrt(discr);
-		float dist = -hb - sqrtdiscr;
-		if (inside || (z0 < 0 && dist < 0)) dist += 2*sqrtdiscr;
-		dist /= a;
+		float dist1, dist2, dist =  (-hb - sqrtdiscr)/a, z;
 		
-		float z = z0 + dist*ray_par_len;
-		
-		if (z <= 0)
+		if (a >= 0)
 		{
-			// hit the wrong half of the infinite cone
-			return;
-		}
-		
-		*p_subobject = 0;
-		
-		/*if (z0 <= height && !inside)
-		{
-			if (z > height) return;
-			// else hit to the side
+			dist1 = dist;
+			dist2 = dist + 2*sqrtdiscr/a;
 		}
 		else
 		{
-			float zplane_dist = (height-z0)/ray_par_len;
-			
+			dist2 = dist;
+			dist1 = dist + 2*sqrtdiscr/a;
+		}
+		
+		float zplane_dist = (height-z0)/ray_par_len;
+		*p_subobject = 0;
+		
+		if (inside || (z0 >= 0 && z0 <= height))
+		{
 			if (inside)
 			{
-				if (z > height)
+				if (a <= 0)
+				{
+					if (ray_par_len > 0)
+					{
+						dist = zplane_dist;
+						*p_subobject = 1;
+					}
+					else dist = dist1;
+				}
+				else
+				{
+					dist = dist2;
+					if (ray_par_len > 0 && (dist > zplane_dist))
+					{
+						dist = zplane_dist;
+						*p_subobject = 1;
+					}
+				}
+			}
+			else
+			{
+				dist = dist1;
+				z = z0 + dist*ray_par_len;
+				if (z < 0 || z > height || dist < 0) return; 
+			}
+		}
+		else if (z0 < 0)
+		{
+			// dist = dist
+			z = z0 + dist*ray_par_len;
+			if (z < 0 || z > height) return; // dist < 0 already excluded
+			// else certain hit
+		}
+		else
+		{
+			dist = dist1;
+			z = z0 + dist*ray_par_len;
+			
+			if (z >= 0 && z <= height)
+			{
+				if (a < 0)
+				{
+					// dist < 0 already excluded
+					dist = zplane_dist;
+					*p_subobject = 1;
+				}
+				// else certain hit to the side
+			}
+			else
+			{
+				dist = dist2;
+				if (dist < 0) return;
+				
+				z = z0 + dist*ray_par_len;
+				
+				if (z >= 0 && z <= height)
 				{
 					dist = zplane_dist;
 					*p_subobject = 1;
 				}
-				// else hit to the side
+				else return;
 			}
-			else
-			{
-				if (dist < 0)
-				{
-					// inside infinite cone, cannot hit side
-					z += 2*sqrtdiscr/a*ray_par_len;
-					
-					if (z > height) return; // missed bottom
-					else
-					{
-						*p_subobject = 1;
-						dist = zplane_dist;
-					}
-				}
-				else
-				{
-					if (z > height)
-					{
-						// cannot hit side
-						z += 2*sqrtdiscr/a*ray_par_len;
-						if (z > height) return;
-						else
-						{
-							*p_subobject = 1;
-							dist = zplane_dist;
-						}
-					}
-					// else certain hit to the side
-				}
-			}
-		}*/
+		}
 		
 		*p_new_isec_dist = dist;
 		"""
@@ -522,9 +544,12 @@ class Cone(Tracer):
 		
 		float3 rel = pos - tip;
 		float z0 = dot(rel,axis);
-		float3 rel_perp = rel - z0*axis;
+		float3 rel_par = z0*axis;
+		float3 rel_perp = rel - rel_par;
+		float rel_perp_len = (slope * z0);
 		
-		*p_normal = rel_perp / (slope * z0);
+		
+		*p_normal = fast_normalize(rel_perp / (slope * z0) - axis * slope);
 		"""
 
 class Parallelepiped(Tracer): # TODO
