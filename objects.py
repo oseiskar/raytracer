@@ -1,5 +1,5 @@
 
-from utils import normalize
+from utils import normalize_tuple
 import numpy
 
 class Tracer:
@@ -216,20 +216,20 @@ class Cylinder(Tracer):
 		"const float invR"]
 		
 	@property
-	def extra_normal_arguments(self):
-		return [
-			"(float3)%s" % (self.bottom_center,),
-			"(float3)%s" % (self.axis,),
-			self.height,
-			1.0/self.R]
-		
-	@property
 	def extra_tracer_arguments(self):
 		return [
 			"(float3)%s" % (self.bottom_center,),
 			"(float3)%s" % (self.axis,),
 			self.height,
 			self.R**2]
+		
+	@property
+	def extra_normal_arguments(self):
+		return [
+			"(float3)%s" % (self.bottom_center,),
+			"(float3)%s" % (self.axis,),
+			self.height,
+			1.0/self.R]
 	
 	def __init__(self, bottom_center, axis, height, R):
 		"""
@@ -237,7 +237,7 @@ class Cylinder(Tracer):
 		"""
 		
 		self.bottom_center = bottom_center
-		self.axis = tuple(normalize(numpy.array(axis)))
+		self.axis = normalize_tuple(axis)
 		self.height = height
 		self.R = R
 	
@@ -372,6 +372,170 @@ class Cylinder(Tracer):
 			*p_normal = axis;
 		}
 		"""
+
+class Cone(Tracer):
+	
+	extra_tracer_argument_definitions = [
+		"const float3 tip",
+		"const float3 axis",
+		"const float3 height",
+		"const float s2"]
+		
+	extra_normal_argument_definitions = [
+		"const float3 tip",
+		"const float3 axis",
+		"const float slope"]
+	
+	@property
+	def extra_tracer_arguments(self):
+		return [
+			"(float3)%s" % (self.tip,),
+			"(float3)%s" % (self.axis,),
+			self.height,
+			self.R**2 / float(self.height**2)]
+		
+	@property
+	def extra_normal_arguments(self):
+		return [
+			"(float3)%s" % (self.tip,),
+			"(float3)%s" % (self.axis,),
+			self.R / float(self.height)]
+	
+	def __init__(self, tip, axis, height, R):
+		self.tip = tip
+		self.axis = normalize_tuple(axis)
+		self.height = height
+		self.R = R
+	
+	tracer_code = """
+		
+		if (origin_self && !inside)
+		{
+			// convex body
+			return;
+		}
+		
+		float3 rel = origin - tip;
+		float rel_par_len = dot(rel,axis);
+		float ray_par_len = dot(ray,axis);
+		
+		if (rel_par_len < 0 && ray_par_len < 0)
+		{
+			// over the tip, travelling where it points
+			return;
+		}
+		
+		float3 rel_par = rel_par_len*axis;
+		float3 rel_perp = rel - rel_par;
+		float3 ray_par = ray_par_len*axis;
+		float3 ray_perp = ray - ray_par;
+		
+		float c = dot(rel_perp,rel_perp) - s2 * ray_par_len*ray_par_len;
+		float hb = dot(rel_perp,ray_perp) - s2 * dot(rel_par,ray_par);
+		float a = dot(ray_perp,ray_perp) - s2*ray_par_len*ray_par_len;
+		
+		float discr = hb*hb - a*c;
+		if (discr < 0) return; // no intersection with infinite cylinder
+		
+		float sqrtdiscr = native_sqrt(discr);
+		float dist;
+		
+		if (inside || rel_par_len < 0) dist = (-hb + sqrtdiscr)/a;
+		else dist = (-hb - sqrtdiscr)/a;
+		
+		float z = rel_par_len + dist*ray_par_len;
+		
+		if (z < 0)
+		{
+			// hit the wrong half of the infinite cone
+			return;
+		}
+		
+		*p_new_isec_dist = dist;
+		"""
+	
+	normal_code =  """
+		/*if (subobject == 1)
+		{
+			*p_normal = axis;
+			return;
+		}*/
+		
+		float3 rel = pos - tip;
+		float rel_par_len = dot(rel,axis);
+		float3 rel_perp = rel - rel_par_len*axis;
+		
+		*p_normal = rel_perp / (slope * rel_par_len);
+		"""
+
+class Parallelepiped(Tracer): # TODO
+	
+	extra_tracer_argument_definitions = [
+		"const float3 base",
+		"const float3 ax1",
+		"const float3 ax2",
+		"const float3 ax3"]
+	extra_normal_argument_definitions = [
+		"const float3 uax1",
+		"const float3 uax2",
+		"const float3 uax3"]
+		
+	@property
+	def extra_tracer_arguments(self):
+		return [
+			"(float3)%s" % (self.origin,),
+			"(float3)%s" % (self.ax1,),
+			"(float3)%s" % (self.ax2,),
+			"(float3)%s" % (self.ax3,)]
+		
+	@property
+	def extra_normal_arguments(self):
+		return [
+			"(float3)%s" % (normalize_tuple(self.ax1,)),
+			"(float3)%s" % (normalize_tuple(self.ax2,)),
+			"(float3)%s" % (normalize_tuple(self.ax3,))]
+	
+	tracer_code = """
+		float slope1 = dot(ray,ax1),
+		      slope2 = dot(ray,ax2),
+		      slope3 = dot(ray,ax3);
+		
+		float3 rel = origin - base;
+		
+		// TODO
+		"""
+	
+	normal_code =  """
+		if (subobject == 0)
+		{
+			*p_normal = uax1;
+		}
+		else if (subobject == 1)
+		{
+			*p_normal = -uax1;
+		}
+		else if (subobject == 2)
+		{
+			*p_normal = uax2;
+		}
+		else if (subobject == 3)
+		{
+			*p_normal = -uax2;
+		}
+		else if (subobject == 4)
+		{
+			*p_normal = uax3;
+		}
+		else if (subobject == 5)
+		{
+			*p_normal = -uax3;
+		}
+		"""
+	
+	def __init__(self, origin, ax1, ax2, ax3):
+		self.ax1 = ax1
+		self.ax2 = ax2
+		self.ax3 = ax3
 	
 
 class HalfSpace(Tracer):
@@ -380,7 +544,7 @@ class HalfSpace(Tracer):
 	extra_tracer_argument_definitions = ["const float3 normal", "const float h"]
 	
 	def __init__(self, normal, h):
-		self.normal_vec = tuple(normalize(numpy.array(normal)))
+		self.normal_vec = normalize_tuple(normal)
 		self.h = h
 		
 		self.extra_tracer_arguments = ["(float3)%s" % (self.normal_vec,), self.h]

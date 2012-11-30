@@ -20,9 +20,10 @@ scene.get_object('floor').material = 'green'
 #scene.get_object('ceiling').material = 'red' 
 #scene.objects.append( Object(HalfSpace( (-1,-1,-2), 5 ), 'sky') )
 
-obj = Cylinder( (0,0,0.5), (1,1,0), 0.5, 0.6 )
+#obj = Cylinder( (0,0,0.5), (1,1,0), 0.5, 0.6 )
 #obj = Sphere( (0,0,.5), 0.5 )
-scene.objects.append( Object( obj, 'glass' ) )
+obj = Cone( (0,0,1), (0,0,-1), 0.6, 0.3 )
+scene.objects.append( Object( obj, 'white' ) )
 
 #scene.image_size = (1024,768)
 scene.image_size = (800,600)

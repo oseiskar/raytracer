@@ -8,6 +8,9 @@ def normalize(vecs):
 	lens.shape += (1,)
 	return vecs / lens
 
+def normalize_tuple(vec):
+	return tuple(normalize(np.array(vec)))
+
 def camera_rotmat(direction, up=(0,0,1)):
 	
 	# TODO camera roll
