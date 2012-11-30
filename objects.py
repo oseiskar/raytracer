@@ -204,28 +204,40 @@ class Cylinder(Tracer):
 	Capped cylinder
 	"""
 	
+	extra_tracer_argument_definitions = [
+		"const float3 bottom_center",
+		"const float3 axis",
+		"const float height",
+		"const float R2"]
 	extra_normal_argument_definitions = [
 		"const float3 bottom_center",
 		"const float3 axis",
 		"const float height",
-		"const float R"]
-	extra_tracer_argument_definitions = extra_normal_argument_definitions
+		"const float invR"]
 		
 	@property
 	def extra_normal_arguments(self):
-		return ["(float3)%s" % (self.pos,), 1.0/self.R]
+		return [
+			"(float3)%s" % (self.bottom_center,),
+			"(float3)%s" % (self.axis,),
+			self.height,
+			1.0/self.R]
 		
 	@property
 	def extra_tracer_arguments(self):
-		return ["(float3)%s" % (self.pos,), self.R**2]
+		return [
+			"(float3)%s" % (self.bottom_center,),
+			"(float3)%s" % (self.axis,),
+			self.height,
+			self.R**2]
 	
 	def __init__(self, bottom_center, axis, height, R):
 		"""
-		axis should be a unit vector
+		axis is normalized to a unit vector
 		"""
 		
 		self.bottom_center = bottom_center
-		self.axis = axis
+		self.axis = tuple(normalize(numpy.array(axis)))
 		self.height = height
 		self.R = R
 	
@@ -237,16 +249,16 @@ class Cylinder(Tracer):
 			return;
 		}
 		
+		float3 rel = origin - bottom_center;
 		float z0 = dot(rel,axis), zslope = dot(ray,axis);
 		
-		if (!inside && ((z0 < 0 && zslope < 0) || (z0 > height && slope > 0)))
+		if (!inside && ((z0 < 0 && zslope < 0) || (z0 > height && zslope > 0)))
 		{
 			// outside, not between the cap planes and travelling
 			// away from the planes
 			return;
 		}
 		
-		float3 rel = origin - bottom_center;
 		float3 perp = rel - z0*axis;
 		float3 ray_perp = ray - zslope*axis;
 		
@@ -294,7 +306,6 @@ class Cylinder(Tracer):
 				if (inside)
 				{
 					dist = zplane_dist;
-					*p_subobject = 1;
 				}
 				else
 				{
@@ -345,7 +356,22 @@ class Cylinder(Tracer):
 		*p_new_isec_dist = dist;
 		"""
 	
-	normal_code = "*p_normal = (pos - center) * invR;"
+	normal_code =  """
+		if (subobject == 0)
+		{
+			float3 rel = pos - bottom_center;
+			float3 perp = rel - dot(rel,axis)*axis;
+			*p_normal = perp * invR;
+		}
+		else if (subobject == 1)
+		{
+			*p_normal = -axis;
+		}
+		else
+		{
+			*p_normal = axis;
+		}
+		"""
 	
 
 class HalfSpace(Tracer):
