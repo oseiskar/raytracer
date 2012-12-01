@@ -464,7 +464,7 @@ class Cone(Tracer):
 		float zplane_dist = (height-z0)/ray_par_len;
 		*p_subobject = 0;
 		
-		if (inside || (z0 >= 0 && z0 <= height))
+		if (inside || z0 <= height)
 		{
 			if (inside)
 			{
@@ -489,17 +489,11 @@ class Cone(Tracer):
 			}
 			else
 			{
-				dist = dist1;
+				// dist = dist
 				z = z0 + dist*ray_par_len;
-				if (z < 0 || z > height || dist < 0) return; 
+				if (z < 0 || z > height) return; // dist < 0 already excluded
+				// else certain hit
 			}
-		}
-		else if (z0 < 0)
-		{
-			// dist = dist
-			z = z0 + dist*ray_par_len;
-			if (z < 0 || z > height) return; // dist < 0 already excluded
-			// else certain hit
 		}
 		else
 		{
@@ -544,12 +538,9 @@ class Cone(Tracer):
 		
 		float3 rel = pos - tip;
 		float z0 = dot(rel,axis);
-		float3 rel_par = z0*axis;
-		float3 rel_perp = rel - rel_par;
-		float rel_perp_len = (slope * z0);
+		float3 rel_perp = rel - z0*axis;
 		
-		
-		*p_normal = fast_normalize(rel_perp / (slope * z0) - axis * slope);
+		*p_normal = fast_normalize(rel_perp / (slope * z0) - axis * slope); // TODO
 		"""
 
 class Parallelepiped(Tracer): # TODO

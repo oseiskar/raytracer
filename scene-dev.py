@@ -21,21 +21,25 @@ scene.get_object('floor').material = 'green'
 #scene.get_object('ceiling').material = 'red' 
 #scene.objects.append( Object(HalfSpace( (-1,-1,-2), 5 ), 'sky') )
 
-#obj = Cylinder( (0,0,1), (0,-1,0), 0.5, 0.6 )
+obj = Cylinder( (0,0,0.0), (0,0,1), 0.7, 0.8 )
 #obj = Sphere( (0,0,.5), 0.5 )
-obj = Cone( (0,0,1), (0,0,-1), 0.8, 0.9 )
-scene.objects.append( Object( obj, 'glass' ) )
+#obj = Cone( (0,0,0.0), (0,0,1), 0.7, 0.8 )
+scene.objects.append( Object( obj, 'mirror' ) )
+
+scene.objects.append( Object( Sphere((0,0,0.7), 0.3) , 'black' ) )
+#scene.objects.append( Object( Cylinder((0,0,0.65), (0,0,1), 0.1, 0.3) , 'mirror' ) )
+
 
 #scene.image_size = (1024,768)
 scene.image_size = (800,600)
 #scene.image_size = (640,400)
 #scene.image_size = (320,200)
 
-scene.samples_per_pixel = 10000
+scene.samples_per_pixel = 100000
 scene.camera_position = (-2,-3,1)
-scene.direct_camera_towards((0,0,0.9))
-scene.camera_fov = 60
+scene.direct_camera_towards((0,0,0.6))
+scene.camera_fov = 40
 
 #scene.min_bounces = scene.max_bounces = 2
 #scene.min_bounces = 4
-#scene.max_bounces = 6
+scene.max_bounces = 6
