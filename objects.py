@@ -321,6 +321,7 @@ class Cylinder(Tracer):
 				*p_subobject = 2;
 			}
 			
+			zplane_dist = (zplane-z0)/zslope;
 			if (z >= 0 && z <= height)
 			{
 				*p_subobject = 0;
