@@ -63,9 +63,15 @@ rotmat = scene.get_camera_rotmat()
 fovx_rad = scene.camera_fov / 180.0 * np.pi
 pixel_angle = fovx_rad / scene.image_size[0]
 
+# ------------- Find root container object
+Nobjects = len(scene.objects)
+root_object_id = 0
+for i in range(Nobjects):
+	if scene.root_object == scene.objects[i]:
+		root_object_id = i+1
+
 # ------------- make OpenCL code
 
-Nobjects = len(scene.objects)
 kernel_map = {}
 for obj in scene.objects:
 	for (k,v) in obj.tracer.make_functions().items():
@@ -78,6 +84,8 @@ objects = [obj.tracer for obj in scene.objects]
 object_materials = [obj.material for obj in scene.objects]
 
 cl_utils = open('utils.cl', 'r').read() # static code
+
+
 
 # ------------- make tracer kernel (finds intersections)
 trace_kernel = """
@@ -111,7 +119,7 @@ __kernel void trace(
 """
 
 # Unroll loop to CL code
-for i in range(len(objects)):
+for i in range(Nobjects):
 	
 	obj = objects[i]
 	
@@ -149,7 +157,7 @@ trace_kernel += """
 	pos += old_isec_dist * ray; // saxpy
 """
 
-for i in range(len(objects)):
+for i in range(Nobjects):
 	
 	obj = objects[i]
 	
@@ -273,6 +281,7 @@ mat_ior = new_mat_buf('ior')
 max_broadcast_vecs = 4
 vec_broadcast = new_const_buffer(np.zeros((max_broadcast_vecs,4)))
 
+
 # ---- Path tracing
 
 cam = acc.make_vec3_array(cam)
@@ -306,11 +315,14 @@ isec_dist = acc.zeros_like(img)
 raycolor = acc.zeros_like(img)
 curcolor = acc.zeros_like(raycolor)
 
-firstray = acc.zeros_like(pos)
-firstpos = acc.zeros_like(pos)
-firstwhichobject = acc.zeros_like(whichobject)
-firstnormal = acc.zeros_like(normal)
-firstraycolor = acc.zeros_like(raycolor)
+if caching:
+	firstray = acc.zeros_like(pos)
+	firstpos = acc.zeros_like(pos)
+	firstwhichobject = acc.zeros_like(whichobject)
+	firstnormal = acc.zeros_like(normal)
+	firstraycolor = acc.zeros_like(raycolor)
+	firstinside = acc.zeros_like(inside)
+
 directlight = acc.zeros_like(img)
 
 # Do it
@@ -361,10 +373,10 @@ for j in xrange(scene.samples_per_pixel):
 		memcpy(normal, firstnormal)
 		memcpy(raycolor, firstraycolor)
 		memcpy(ray, firstray)
+		memcpy(inside, firstinside)
 		kbegin = 1
-		# TODO: firstinside
 	
-	inside.fill(0)
+	inside.fill(root_object_id)
 	isec_dist.fill(0) # TODO
 	
 	k = kbegin
@@ -398,7 +410,7 @@ for j in xrange(scene.samples_per_pixel):
 		
 		memcpy(curcolor, raycolor)
 		
-		isec_dist.fill(100) # TODO
+		isec_dist.fill(scene.max_ray_length)
 		prog_call('trace', (pos,ray,normal,isec_dist,whichobject,inside))
 		
 		if j==0 and k==0 and caching:
@@ -408,6 +420,7 @@ for j in xrange(scene.samples_per_pixel):
 			memcpy(firstnormal,normal)
 			memcpy(firstraycolor,raycolor)
 			memcpy(firstray, ray)
+			memcpy(firstinside,inside)
 			memcpy(directlight,img)
 			img.fill(0)
 		

@@ -101,6 +101,8 @@ class Scene:
 		self.objects = Scene.make_world_box( 'white', (3,5,2), (0,0,2) )
 		self.objects[-1].material = "sky" # world box ceiling
 		self.objects[-2].material = "green" # world box floor
+		self.root_object = None
+		self.max_ray_length = 100
 		
 		# light bulb on the right wall
 		self.objects.append(Object(Sphere( (-3,-1,2), 0.5 ), 'light', 'light'))
