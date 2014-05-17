@@ -21,6 +21,7 @@ itr_per_refresh = 10
 caching = False
 
 # ------- Import scene
+sys.path.append('scenes/')
 scene_filename = "scene-dev"
 if len(sys.argv) > 1:
 	scene_filename = sys.argv[1]

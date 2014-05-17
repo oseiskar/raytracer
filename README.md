@@ -14,4 +14,4 @@ Requirements
  * scipy
  * sympy (for implicit surfaces)
 
-![showcase](http://olento.dyndns.org/img/raytracer-showcase.png "Example output")
+![showcase](http://olento.zapto.org/img/raytracer-showcase.png "Example output")
