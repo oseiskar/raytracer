@@ -121,7 +121,7 @@ class Sphere(Tracer):
 		return ["(float3)%s" % (self.pos,), self.R**2]
 	
 	def __init__(self, pos, R):
-		self.pos = pos
+		self.pos = tuple(pos)
 		self.R = R
 	
 	tracer_code = """
@@ -236,7 +236,7 @@ class Cylinder(Tracer):
 		axis is normalized to a unit vector
 		"""
 		
-		self.bottom_center = bottom_center
+		self.bottom_center = tuple(bottom_center)
 		self.axis = normalize_tuple(axis)
 		self.height = height
 		self.R = R
@@ -403,7 +403,7 @@ class Cone(Tracer):
 			self.R / float(self.height)]
 	
 	def __init__(self, tip, axis, height, R):
-		self.tip = tip
+		self.tip = tuple(tip)
 		self.axis = normalize_tuple(axis)
 		self.height = height
 		self.R = R
@@ -609,9 +609,9 @@ class Parallelepiped(Tracer): # TODO
 		"""
 	
 	def __init__(self, origin, ax1, ax2, ax3):
-		self.ax1 = ax1
-		self.ax2 = ax2
-		self.ax3 = ax3
+		self.ax1 = tuple(ax1)
+		self.ax2 = tuple(ax2)
+		self.ax3 = tuple(ax3)
 	
 
 class HalfSpace(Tracer):
@@ -653,7 +653,7 @@ class ImplicitSurface(Tracer):
 		
 		self.unique_tracer_id = str(id(self))
 		
-		self.center = center
+		self.center = tuple(center)
 		self.scale = scale
 		
 		import sympy
@@ -841,6 +841,9 @@ class QuaternionJuliaSet2(Tracer):
 		self.max_itr = 100
 		self.precision = 0.001
 		self.max_step = 0.1
+		
+		# TODO: tuple(center)
+		
 		for (k,v) in kwargs.items(): setattr(self, k, v)
 		
 		self.tracer_code = """

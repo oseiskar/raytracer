@@ -9,7 +9,10 @@ def normalize(vecs):
 	return vecs / lens
 
 def normalize_tuple(vec):
-	return tuple(normalize(np.array(vec)))
+	return tuple(normalize(np.array(tuple(vec))))
+
+def vec_norm(vec):
+	return np.sqrt(sum([x**2 for x in vec]))
 
 def camera_rotmat(direction, up=(0,0,1)):
 	

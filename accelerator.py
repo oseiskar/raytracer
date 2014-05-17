@@ -17,11 +17,11 @@ class Accelerator:
 	def new_array( self, shape, datatype=np.float32, zeros=False ):
 		if zeros: ctor = cl_array.zeros
 		else: ctor = cl_array.empty
-		return ctor(self.ctx, self.queue, shape, dtype=datatype)
+		return ctor(self.queue, shape, dtype=datatype)
 		
 	def new_vec3_array( self, shape ):
 		shape = shape + (4,)
-		return cl_array.zeros(self.ctx, self.queue, shape, dtype=np.float32)
+		return cl_array.zeros(self.queue, shape, dtype=np.float32)
 	
 	def make_vec3_array_xyz( self, x,y,z ):
 		
@@ -33,7 +33,7 @@ class Accelerator:
 		cpuarray[...,1] = y
 		cpuarray[...,2] = z
 		cpuarray[...,3] = np.zeros_like(x)
-		return cl_array.to_device(self.ctx, self.queue, cpuarray)
+		return cl_array.to_device(self.queue, cpuarray)
 		
 	def make_vec3_array( self, a ):
 		assert( a.shape[-1]==3 )
