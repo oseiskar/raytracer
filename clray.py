@@ -191,6 +191,14 @@ shader_kernel_params = """
 shader_kernel = shader_kernel_params + open('shader.cl', 'r').read()
 
 prog_code = cl_utils
+
+for kernel in kernels:
+	curl = kernel.find('{')
+	declaration = kernel[:curl] + ';\n'
+	prog_code += declaration
+
+prog_code += "\n"
+
 prog_code += "\n".join(list(kernels))
 prog_code += trace_kernel
 prog_code += shader_kernel

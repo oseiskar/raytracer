@@ -21,13 +21,15 @@ scene.get_object('floor').material = 'green'
 #scene.get_object('ceiling').material = 'red' 
 #scene.objects.append( Object(HalfSpace( (-1,-1,-2), 5 ), 'sky') )
 
-obj = Cylinder( (0,0,0.0), (0,2,1), 0.7, 0.8 )
+#obj = Cylinder( (0,0,0.0), (0,2,1), 0.7, 0.8 )
+obj = Parallelepiped( (0,0,0), (.6,.2,0), (0,.7,0), (0,0,.3) )
 #obj = Sphere( (0,0,.5), 0.5 )
 #obj = Cone( (0,0,0.0), (0,0,1), 0.7, 0.8 )
 scene.objects.append( Object( obj, 'glass' ) )
 
 #scene.objects.append( Object( Sphere((0,0,0.7), 0.3) , 'black' ) )
 #scene.objects.append( Object( Cylinder((0,0,0.65), (0,0,1), 0.1, 0.3) , 'mirror' ) )
+
 
 
 #scene.image_size = (1024,768)
