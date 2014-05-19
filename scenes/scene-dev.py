@@ -22,9 +22,9 @@ scene.get_object('floor').material = 'green'
 #scene.objects.append( Object(HalfSpace( (-1,-1,-2), 5 ), 'sky') )
 
 #obj = Cylinder( (0,0,0.0), (0,2,1), 0.7, 0.8 )
-obj = Parallelepiped( (0,0,0), (.6,.2,0), (0,.7,0), (0,0,.3) )
+#obj = Parallelepiped( (0,0,0), (.7,.0,.3), (0,.3,0), (0,0,.8) )
 #obj = Sphere( (0,0,.5), 0.5 )
-#obj = Cone( (0,0,0.0), (0,0,1), 0.7, 0.8 )
+obj = Cone( (0,0,0.0), (0,0,1), 0.7, 0.8 )
 scene.objects.append( Object( obj, 'glass' ) )
 
 #scene.objects.append( Object( Sphere((0,0,0.7), 0.3) , 'black' ) )

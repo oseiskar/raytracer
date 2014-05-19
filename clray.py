@@ -5,7 +5,6 @@ import pyopencl as cl
 import time, sys
 
 from accelerator import Accelerator
-from objects import *
 from utils import *
 
 startup_time = time.time()
@@ -15,7 +14,7 @@ startup_time = time.time()
 use_pygame = True
 use_scipy_misc_pil_image = True
 output_raw_data = True
-interactive_opencl_context_selection = False
+interactive_opencl_context_selection = True
 
 itr_per_refresh = 10
 caching = False
