@@ -74,6 +74,45 @@ class LayerComponent(ConvexIntersection.Component):
 		else *p_normal = -uax;
 		"""
 
+class SphereComponent(ConvexIntersection.Component):
+	"""Sphere"""
+	
+	extra_normal_argument_definitions = ["const float3 center", "const float invR"]
+	extra_tracer_argument_definitions = ["const float3 center", "const float R2"]
+	
+	n_subobjects = 1
+	
+	def __init__(self, pos, R):
+		self.pos = tuple(pos)
+		self.R = R
+		self.extra_normal_arguments = ["(float3)%s" % (self.pos,), 1.0/self.R]
+		self.extra_tracer_arguments =  ["(float3)%s" % (self.pos,), self.R**2]
+	
+	tracer_code = """
+		
+		float3 rel = center - origin;
+		float dotp = dot(ray, rel);
+		float psq = dot(rel, rel);
+		
+		float dist, discr, sqrdiscr;
+		
+		discr = dotp*dotp - psq + R2;
+		
+		if(discr < 0) {
+			// ray does not hit the sphere
+			*p_isec_begin = 1;
+			*p_isec_end = 0;
+			return;
+		}
+		
+		sqrdiscr = native_sqrt(discr);
+		
+		*p_isec_begin = dotp - sqrdiscr;
+		*p_isec_end = dotp + sqrdiscr;
+		"""
+	
+	normal_code = "*p_normal = (pos - center) * invR;"
+
 class CylinderComponent(ConvexIntersection.Component):
 	"""Infinite cylinder"""
 	

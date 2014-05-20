@@ -50,7 +50,6 @@ class Sphere(Tracer):
 		if(discr < 0) return;
 		
 		sqrdiscr = native_sqrt(discr);
-		dist = dotp - sqrdiscr;
 		
 		if (inside) dist = dotp + sqrdiscr;
 		else dist = dotp - sqrdiscr;

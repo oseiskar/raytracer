@@ -2,7 +2,7 @@ import numpy as np
 import pyopencl.clrandom as cl_random
 import pyopencl.clmath as cl_math
 import pyopencl as cl
-import time, sys
+import time, sys, os, os.path
 
 from accelerator import Accelerator
 from utils import *
@@ -14,10 +14,13 @@ startup_time = time.time()
 use_pygame = True
 use_scipy_misc_pil_image = True
 output_raw_data = True
+sum_to_old_image = True
 interactive_opencl_context_selection = True
 
 itr_per_refresh = 10
 caching = False
+
+RAW_NPY_FILE = 'out.raw.npy'
 
 # ------- Import scene
 sys.path.append('scenes/')
@@ -28,13 +31,21 @@ if len(sys.argv) > 1:
 scene_module = __import__(scene_filename)
 scene = scene_module.scene
 
-# ------- Image output utils
+# ------- Image input/output utils
+
+if sum_to_old_image:
+	if os.path.isfile(RAW_NPY_FILE): old_image = np.load(RAW_NPY_FILE)
+	else: old_image = None
 
 pgwin = None
-def show_and_save_image( imgdata ):
+def show_and_save_image( imgdata_cur ):
+	
+	if sum_to_old_image and old_image != None:
+		imgdata = imgdata_cur + old_image
+	else: imgdata = imgdata_cur
 	
 	if output_raw_data:
-		np.save('out.raw.npy', imgdata)
+		np.save(RAW_NPY_FILE, imgdata)
 	
 	ref = np.mean(imgdata)
 	imgdata = np.clip(imgdata/ref*scene.brightness, 0, 1)
