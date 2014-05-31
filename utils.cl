@@ -90,15 +90,22 @@ __kernel void mult_by_param_vec_vec(
 __kernel void subsample_transform_camera(
 		global const float3 *original_rays,
 		global float3 *new_rays,
-		constant float3 *rotmat_rows)
+		constant float4 *rotmat_rows_and_dof_pos)
 {
 	const int gid = get_global_id(0);
-	
+	const float sharp_distance = rotmat_rows_and_dof_pos[3].w;
+	const float3 campos = rotmat_rows_and_dof_pos[3].xyz;
 	const float3 ray = original_rays[gid];
-	new_rays[gid] = (float3)(
-	    dot(rotmat_rows[0],ray),
-	    dot(rotmat_rows[1],ray),
-	    dot(rotmat_rows[2],ray));
+	
+	const float3 rot_ray = (float3)(
+	    dot(rotmat_rows_and_dof_pos[0].xyz,ray),
+	    dot(rotmat_rows_and_dof_pos[1].xyz,ray),
+	    dot(rotmat_rows_and_dof_pos[2].xyz,ray));
+	
+	if (sharp_distance > 0.0)
+		new_rays[gid] = fast_normalize( sharp_distance * rot_ray - campos );
+	else
+		new_rays[gid] = rot_ray;
 }
 
 

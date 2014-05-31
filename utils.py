@@ -6,7 +6,8 @@ def normalize(vecs):
 	lens = np.sqrt(lens)
 	lens = np.array(lens)
 	lens.shape += (1,)
-	return vecs / lens
+	lens[lens > 0] = 1.0 / lens[lens > 0]
+	return vecs * lens
 
 def normalize_tuple(vec):
 	return tuple(normalize(np.array(tuple(vec))))
@@ -107,3 +108,12 @@ def quasi_random_direction_sample(n, hemisphere=True):
 		points = points[:n,:]
 	
 	return points
+
+def random_dof_sample():
+	
+	insideDof = lambda x,y: (x**2 + y**2) < 1.0
+
+	while True:
+		dofx = (np.random.rand()-0.5)*2.0
+		dofy = (np.random.rand()-0.5)*2.0
+		if insideDof( dofx, dofy ): return (dofx,dofy)

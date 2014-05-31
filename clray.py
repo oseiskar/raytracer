@@ -15,9 +15,9 @@ use_pygame = True
 use_scipy_misc_pil_image = True
 output_raw_data = True
 sum_to_old_image = True
-interactive_opencl_context_selection = True
+interactive_opencl_context_selection = False
 
-itr_per_refresh = 10
+itr_per_refresh = 20
 caching = False
 
 RAW_NPY_FILE = 'out.raw.npy'
@@ -37,6 +37,7 @@ if sum_to_old_image:
 	if os.path.isfile(RAW_NPY_FILE): old_image = np.load(RAW_NPY_FILE)
 	else: old_image = None
 
+shrink = 1
 pgwin = None
 def show_and_save_image( imgdata_cur ):
 	
@@ -55,12 +56,23 @@ def show_and_save_image( imgdata_cur ):
 	if use_pygame:
 		import pygame
 		h,w = imgdata.shape[:2]
-		global pgwin
-		if not pgwin:
-			pgwin = pygame.display.set_mode((w,h))
-			pygame.display.set_caption("Raytracer") 
 		
-		pgwin.blit(pygame.surfarray.make_surface(imgdata.transpose((1,0,2))), (0,0))
+		global pgwin
+		global shrink
+		if not pgwin:
+			pygame.display.init()
+			screen_info = pygame.display.Info()
+			shrink = 1
+			
+			while (h/shrink > screen_info.current_h or
+			       w/shrink > screen_info.current_w):
+				shrink += 1
+		
+			pgwin = pygame.display.set_mode((w/shrink,h/shrink))
+			pygame.display.set_caption("Raytracer 1:%d" % shrink) 
+		
+		displayed_img = imgdata.transpose((1,0,2))[::shrink,::shrink,:]
+		pgwin.blit(pygame.surfarray.make_surface(displayed_img), (0,0))
 		pygame.display.update()
 	
 	if use_scipy_misc_pil_image:
@@ -351,6 +363,7 @@ for j in xrange(scene.samples_per_pixel):
 	
 	if j==0 or not caching:
 		
+		cam_origin = scene.camera_position
 		if caching: memcpy(ray, cam)
 		else:
 			# TODO: quasi random...
@@ -371,15 +384,26 @@ for j in xrange(scene.samples_per_pixel):
 			thetax = (sx-0.5)*pixel_angle*(1.0+overlap)
 			thetay = (sy-0.5)*pixel_angle*(1.0+overlap)
 			
+			dofx, dofy = random_dof_sample()
+			
+			dof_pos = (dofx * rotmat[:,0] + dofy * rotmat[:,1]) * scene.camera_dof_fstop
+			
+			sharp_distance = scene.camera_sharp_distance
+			
 			tilt = rotmat_tilt_camera(thetax,thetay)
 			mat = np.dot(np.dot(rotmat,tilt),rotmat.transpose())
 			mat4 = np.zeros((4,4))
 			mat4[0:3,0:3] = mat
+			mat4[3,0:3] = dof_pos
+			mat4[3,3] = sharp_distance
+			
+			cam_origin = cam_origin + dof_pos
 			
 			cl.enqueue_copy(acc.queue, vec_broadcast,  mat4.astype(np.float32))
 			prog_call('subsample_transform_camera', (cam,ray,), (vec_broadcast,))
-		
-		fill_vec(pos, scene.camera_position)
+			
+			
+		fill_vec(pos, cam_origin)
 		whichobject.fill(0)
 		normal.fill(0)
 		raycolor.fill(1)

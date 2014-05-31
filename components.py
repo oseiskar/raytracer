@@ -94,7 +94,7 @@ class SphereComponent(ConvexIntersection.Component):
 		float dotp = dot(ray, rel);
 		float psq = dot(rel, rel);
 		
-		float dist, discr, sqrdiscr;
+		float discr, sqrdiscr;
 		
 		discr = dotp*dotp - psq + R2;
 		

@@ -113,6 +113,8 @@ class Scene:
 		self.camera_fov = 55 # Field-of-view angle (horizontal)
 		self.camera_flat_ccd = False
 		camera_target = (0,2,0.5)
+		self.camera_dof_fstop = 0.0
+		self.camera_sharp_distance = 0.0
 		self.direct_camera_towards(camera_target)
 		
 
