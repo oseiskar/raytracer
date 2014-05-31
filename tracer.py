@@ -135,6 +135,9 @@ class ConvexIntersection(Tracer):
 			"__private uint *p_subobject", 
 			# is the ray travelling inside the object
 			"bool inside"]
+		
+		def __init__( self, pos = (0,0,0) ):
+			self.pos = tuple(pos)
 	
 	def make_functions( self ):
 		funcs = Tracer.make_functions( self )
@@ -202,8 +205,8 @@ class ConvexIntersection(Tracer):
 			cur_subobj = 0;
 			cur_ibegin = ibegin;
 			cur_iend = iend;
-			%s(rel, ray, &cur_ibegin, &cur_iend, &cur_subobj, inside, %s);
-			""" % (fname, extra_args)
+			%s(rel - (float3)%s, ray, &cur_ibegin, &cur_iend, &cur_subobj, inside, %s);
+			""" % (fname, c.pos, extra_args)
 			
 			s += """
 			if (cur_ibegin > ibegin) {
@@ -250,8 +253,8 @@ class ConvexIntersection(Tracer):
 				s += """
 				if (subobject < %d)""" % (subobj_offset+c.n_subobjects)
 			
-			s += """ %s(p, subobject - %d, p_normal, %s);
-			""" % (c.normal_function_name, subobj_offset, extra_args)
+			s += """ %s(p - (float3)%s, subobject - %d, p_normal, %s);
+			""" % (c.normal_function_name, c.pos, subobj_offset, extra_args)
 			
 			arg_offset += n_arg
 			subobj_offset += c.n_subobjects

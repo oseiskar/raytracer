@@ -18,8 +18,15 @@ scene.materials['sky'] = {
 for obj in scene.get_objects('wall'): obj.material = 'black'
 scene.get_object('floor').material = 'green'
 
-obj = Cone( (0,0,0.0), (0,0,1), 0.7, 0.8 )
-scene.objects.append( Object( obj, 'glass' ) )
+#obj = Cone( (0,0,1), (0,0,-1), 0.7, 0.8 )
+#obj = Cone( (0,0,0), (0,0,1), 0.7, 0.8 )
+#scene.objects.append( Object( obj, 'glass' ) )
+
+scene.objects.append( Object(
+	ConvexIntersection( (0,0,0.5), [
+		ConeComponent( (0,0,-0.5), (0,0,1), 1.0 ),
+		ConeComponent( (0,0,0.5), (0,0,-1), 1.0 )
+	] ), 'glass') )
 
 
 scene.image_size = (800,600)
@@ -33,5 +40,5 @@ scene.min_bounces = 2
 scene.max_bounces = 3
 
 #self.camera_position = (1,-5,2)
-scene.camera_dof_fstop = 0.1
+#scene.camera_dof_fstop = 0.1
 scene.camera_sharp_distance = vec_norm(scene.camera_position)

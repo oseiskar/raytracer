@@ -14,6 +14,7 @@ class HalfSpaceComponent(ConvexIntersection.Component):
 	extra_normal_argument_definitions = ["const float3 normal"]
 	
 	def __init__(self, normal, h):
+		ConvexIntersection.Component.__init__(self)
 		self.normal_vec = normalize_tuple(normal)
 		self.h = h
 		
@@ -41,6 +42,7 @@ class LayerComponent(ConvexIntersection.Component):
 	extra_normal_argument_definitions = ['const float3 uax']
 	
 	def __init__(self, axis, h = None):
+		ConvexIntersection.Component.__init__(self)
 		self.uax = normalize_tuple(axis)
 		if h == None: self.h = vec_norm(axis)
 		else: self.h = h
@@ -77,22 +79,21 @@ class LayerComponent(ConvexIntersection.Component):
 class SphereComponent(ConvexIntersection.Component):
 	"""Sphere"""
 	
-	extra_normal_argument_definitions = ["const float3 center", "const float invR"]
-	extra_tracer_argument_definitions = ["const float3 center", "const float R2"]
+	extra_normal_argument_definitions = ["const float invR"]
+	extra_tracer_argument_definitions = ["const float R2"]
 	
 	n_subobjects = 1
 	
 	def __init__(self, pos, R):
-		self.pos = tuple(pos)
+		ConvexIntersection.Component.__init__(self,pos)
 		self.R = R
-		self.extra_normal_arguments = ["(float3)%s" % (self.pos,), 1.0/self.R]
-		self.extra_tracer_arguments =  ["(float3)%s" % (self.pos,), self.R**2]
+		self.extra_normal_arguments = [1.0/self.R]
+		self.extra_tracer_arguments =  [self.R**2]
 	
 	tracer_code = """
 		
-		float3 rel = center - origin;
-		float dotp = dot(ray, rel);
-		float psq = dot(rel, rel);
+		float dotp = -dot(ray, origin);
+		float psq = dot(origin, origin);
 		
 		float discr, sqrdiscr;
 		
@@ -111,7 +112,7 @@ class SphereComponent(ConvexIntersection.Component):
 		*p_isec_end = dotp + sqrdiscr;
 		"""
 	
-	normal_code = "*p_normal = (pos - center) * invR;"
+	normal_code = "*p_normal = pos * invR;"
 
 class CylinderComponent(ConvexIntersection.Component):
 	"""Infinite cylinder"""
@@ -120,6 +121,7 @@ class CylinderComponent(ConvexIntersection.Component):
 	extra_normal_argument_definitions = ['const float3 axis', 'const float invR']
 	
 	def __init__(self, axis, R):
+		ConvexIntersection.Component.__init__(self)
 		self.uax = normalize_tuple(axis)
 		self.R = R
 		
@@ -169,26 +171,24 @@ class ConeComponent(ConvexIntersection.Component):
 	
 	extra_tracer_argument_definitions = [
 		"const float3 axis",
-		"const float height",
 		"const float s2"]
 		
 	extra_normal_argument_definitions = [
 		"const float3 axis",
 		"const float slope"]
 	
-	def __init__(self, axis, height, R):
+	def __init__(self, pos, axis, slope):
+		ConvexIntersection.Component.__init__(self,pos)
 		self.axis = normalize_tuple(axis)
-		self.height = height
-		self.R = R
+		self.slope = slope
 		
 		self.extra_tracer_arguments = [
 			"(float3)%s" % (self.axis,),
-			self.height,
-			self.R**2 / float(self.height**2)]
+			self.slope**2 ]
 		
 		self.extra_normal_arguments = [
 			"(float3)%s" % (self.axis,),
-			self.R / float(self.height)]
+			self.slope ]
 	
 	n_subobjects = 1
 	
