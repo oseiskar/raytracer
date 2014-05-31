@@ -106,22 +106,37 @@ class Parallelepiped(ConvexIntersection):
 		ConvexIntersection.__init__(self, origin, components)
 		self.unique_tracer_id = ''
 
-class Octahedron(ConvexIntersection):
-	def __init__(self, origin, R):
-		
-		R *= 1 / 3.0
-		sq_vertices = [(R,R), (R,-R), (-R,R), (-R,-R)]
+class SymmetricLayerIntersection(ConvexIntersection):
+	
+	def __init__( self, origin, vertices, R ):
 		
 		components = []
-		for v in sq_vertices:
-			cube_vertex = v + (R,)
-			print cube_vertex
-			layer = LayerComponent( tuple([-x for x in cube_vertex]), vec_norm(cube_vertex)*2.0 )
-			layer.pos = cube_vertex
+		for unscaledV in vertices:
+			v = tuple([R*x for x in unscaledV])
+			layer = LayerComponent( tuple([-x for x in v]), vec_norm(v)*2.0 )
+			layer.pos = v
 			components.append(layer)
 		
 		ConvexIntersection.__init__(self, origin, components)
-		self.unique_tracer_id = ''
+		self.unique_tracer_id = str(R).replace('.','_')
+
+class Octahedron(SymmetricLayerIntersection):
+	def __init__(self, origin, R):
+		sq_vertices = [(1,1), (1,-1), (-1,1), (-1,-1)]
+		SymmetricLayerIntersection.__init__(self, origin,
+			[v + (1,) for v in sq_vertices], R / 3.0)
+
+class Dodecahedron(SymmetricLayerIntersection):
+	def __init__(self, origin, R):
+		phi = 0.5 * (1 + math.sqrt(5)) # the golden ratio
+		SymmetricLayerIntersection.__init__(self, origin,
+			[(0,1,phi),
+			 (1,phi,0),
+			 (phi,0,1),
+			 (0,-1,phi),
+			 (-1,phi,0),
+			 (phi,0,-1)],
+			R / (phi + 1.0/phi)) # TODO: rotate or find correct R
 	
 
 class Cylinder(ConvexIntersection):

@@ -29,7 +29,8 @@ scene.objects.append( Object(
 		ConeComponent( (0,0,0.5), (0,0,-1), 1.0 )
 	] ), 'glass') )
 """
-scene.objects.append( Object( Octahedron( (0,0,0.5), 0.5 ), 'white') )
+#scene.objects.append( Object( Octahedron( (0,0,0.5), 0.5 ), 'white') )
+scene.objects.append( Object( Dodecahedron( (0,0,0.5), 0.5 ), 'white') )
 
 scene.image_size = (800,600)
 
