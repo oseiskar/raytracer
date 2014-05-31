@@ -4,7 +4,7 @@
 from tracer import *
 from utils import normalize_tuple, vec_norm
 import numpy
-import sys
+import sys, math
 
 from components import *
 
@@ -105,6 +105,24 @@ class Parallelepiped(ConvexIntersection):
 		components = [ LayerComponent(ax) for ax in (ax1,ax2,ax3)]
 		ConvexIntersection.__init__(self, origin, components)
 		self.unique_tracer_id = ''
+
+class Octahedron(ConvexIntersection):
+	def __init__(self, origin, R):
+		
+		R *= 1 / 3.0
+		sq_vertices = [(R,R), (R,-R), (-R,R), (-R,-R)]
+		
+		components = []
+		for v in sq_vertices:
+			cube_vertex = v + (R,)
+			print cube_vertex
+			layer = LayerComponent( tuple([-x for x in cube_vertex]), vec_norm(cube_vertex)*2.0 )
+			layer.pos = cube_vertex
+			components.append(layer)
+		
+		ConvexIntersection.__init__(self, origin, components)
+		self.unique_tracer_id = ''
+	
 
 class Cylinder(ConvexIntersection):
 	

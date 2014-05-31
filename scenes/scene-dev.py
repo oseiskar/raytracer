@@ -22,12 +22,14 @@ scene.get_object('floor').material = 'green'
 #obj = Cone( (0,0,0), (0,0,1), 0.7, 0.8 )
 #scene.objects.append( Object( obj, 'glass' ) )
 
+"""
 scene.objects.append( Object(
 	ConvexIntersection( (0,0,0.5), [
 		ConeComponent( (0,0,-0.5), (0,0,1), 1.0 ),
 		ConeComponent( (0,0,0.5), (0,0,-1), 1.0 )
 	] ), 'glass') )
-
+"""
+scene.objects.append( Object( Octahedron( (0,0,0.5), 0.5 ), 'white') )
 
 scene.image_size = (800,600)
 
