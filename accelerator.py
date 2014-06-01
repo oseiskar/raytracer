@@ -13,15 +13,25 @@ class Accelerator:
 		self.ctx = cl.create_some_context(interactive)
 		prop = cl.command_queue_properties.PROFILING_ENABLE
 		self.queue = cl.CommandQueue(self.ctx, properties=prop)
+		self._cl_arrays = []
+	
+	def finish(self):
+		"""Call finish on relevant CL queues and arrays"""
+		self.queue.finish()
+		for a in self._cl_arrays: a.finish()
 	
 	def new_array( self, shape, datatype=np.float32, zeros=False ):
 		if zeros: ctor = cl_array.zeros
 		else: ctor = cl_array.empty
-		return ctor(self.queue, shape, dtype=datatype)
+		arr = ctor(self.queue, shape, dtype=datatype)
+		self._cl_arrays.append(arr)
+		return arr
 		
 	def new_vec3_array( self, shape ):
 		shape = shape + (4,)
-		return cl_array.zeros(self.queue, shape, dtype=np.float32)
+		arr = cl_array.zeros(self.queue, shape, dtype=np.float32)
+		self._cl_arrays.append(arr)
+		return arr
 	
 	def make_vec3_array_xyz( self, x,y,z ):
 		
@@ -33,7 +43,9 @@ class Accelerator:
 		cpuarray[...,1] = y
 		cpuarray[...,2] = z
 		cpuarray[...,3] = np.zeros_like(x)
-		return cl_array.to_device(self.queue, cpuarray)
+		arr = cl_array.to_device(self.queue, cpuarray)
+		self._cl_arrays.append(arr)
+		return arr
 		
 	def make_vec3_array( self, a ):
 		assert( a.shape[-1]==3 )
@@ -50,7 +62,11 @@ class Accelerator:
 	
 	
 	def empty_like( self, a ):
-		return cl_array.empty_like(a).with_queue(self.queue)
+		arr = cl_array.empty_like(a)
+		self._cl_arrays.append(arr)
+		return arr
 
 	def zeros_like( self, a ):
-		return cl_array.zeros_like(a).with_queue(self.queue)
+		arr = cl_array.zeros_like(a)
+		self._cl_arrays.append(arr)
+		return arr

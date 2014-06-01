@@ -7,8 +7,8 @@ Usage
 
 Requirements
 -------------
- * Python (v. 2.7 ?)
- * pyopencl (at least v. 2011.1, tested with 2012.1)
+ * Python (2.7)
+ * pyopencl (> 2013), tested with 2013.2
  * pygame (for visualization)
  * nympy
  * scipy

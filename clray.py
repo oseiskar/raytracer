@@ -347,17 +347,6 @@ curcolor = acc.zeros_like(raycolor)
 
 directlight = acc.zeros_like(img)
 
-all_cl_arrays = [
-	img,
-	whichobject,
-	pos,
-	ray,
-	inside,
-	normal,
-	isec_dist,
-	raycolor,
-	curcolor ]
-
 if caching:
 	firstray = acc.zeros_like(pos)
 	firstpos = acc.zeros_like(pos)
@@ -365,15 +354,6 @@ if caching:
 	firstnormal = acc.zeros_like(normal)
 	firstraycolor = acc.zeros_like(raycolor)
 	firstinside = acc.zeros_like(inside)
-	
-	all_cl_arrays += [
-		firstray,
-		firstpos,
-		firstwhichobject,
-		firstnormal,
-		firstraycolor,
-		firstinside
-	]
 
 # Do it
 for j in xrange(scene.samples_per_pixel):
@@ -513,8 +493,7 @@ for j in xrange(scene.samples_per_pixel):
 	print "elapsed: %.2f s," % (tcur-startup_time),
 	print "eta: %.1f min" % (eta/60.0)
 	
-	for a in all_cl_arrays: a.finish()
-	acc.queue.finish()
+	acc.finish()
 	
 	if j % itr_per_refresh == 0 or j==scene.samples_per_pixel-1:
 		show_and_save_image( img.get().astype(np.float32)[...,0:3] )
