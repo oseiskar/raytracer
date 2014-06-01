@@ -106,6 +106,22 @@ class Parallelepiped(ConvexIntersection):
 		ConvexIntersection.__init__(self, origin, components)
 		self.unique_tracer_id = ''
 
+
+class HyperplaneRepresentation(ConvexIntersection):
+	"""Hyperplane representation of a polyhedron"""
+	
+	def __init__( self, origin, planes, R ):
+		# TODO: rather add R as an attribute to Tracer...
+		components = []
+		for unscaledP in planes:
+			p = tuple([R*x for x in unscaledP])
+			halfspace = HalfSpaceComponent( p, vec_norm(p) )
+			components.append(halfspace)
+		
+		ConvexIntersection.__init__(self, origin, components)
+		self.unique_tracer_id = str(R).replace('.','_')
+	
+
 class SymmetricDualPolyhedron(ConvexIntersection):
 	
 	def __init__( self, origin, vertices, R ):
@@ -126,6 +142,16 @@ class SymmetricDualPolyhedron(ConvexIntersection):
 		
 		ConvexIntersection.__init__(self, origin, components)
 		self.unique_tracer_id = str(R).replace('.','_')
+
+class Tetrahedron(HyperplaneRepresentation):
+	def __init__(self, origin, R):
+		rsqrt2 = 1.0/ math.sqrt(2)
+		HyperplaneRepresentation.__init__(self, origin,
+			[(1,0,-rsqrt2), # vertices of a tetrahedron
+			 (-1,0,-rsqrt2),
+			 (0,1,rsqrt2),
+			 (0,-1,rsqrt2)],
+			R / (rsqrt2 + 1/rsqrt2))
 
 class Octahedron(SymmetricDualPolyhedron):
 	def __init__(self, origin, R):
