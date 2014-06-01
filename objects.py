@@ -106,9 +106,16 @@ class Parallelepiped(ConvexIntersection):
 		ConvexIntersection.__init__(self, origin, components)
 		self.unique_tracer_id = ''
 
-class SymmetricLayerIntersection(ConvexIntersection):
+class SymmetricDualPolyhedron(ConvexIntersection):
 	
 	def __init__( self, origin, vertices, R ):
+		"""
+		The vertices and their symmetries about the origin (i.e.,
+		v -> -v) define the dual polyhedron of the result. R is a
+		scaling factor. If R is 1 and the origin is (0,0,1), then 
+		a vertex, face or edge of the polyhedron is on the ground
+		plane {z = 0}.
+		"""
 		
 		components = []
 		for unscaledV in vertices:
@@ -120,23 +127,42 @@ class SymmetricLayerIntersection(ConvexIntersection):
 		ConvexIntersection.__init__(self, origin, components)
 		self.unique_tracer_id = str(R).replace('.','_')
 
-class Octahedron(SymmetricLayerIntersection):
+class Octahedron(SymmetricDualPolyhedron):
 	def __init__(self, origin, R):
-		sq_vertices = [(1,1), (1,-1), (-1,1), (-1,-1)]
-		SymmetricLayerIntersection.__init__(self, origin,
-			[v + (1,) for v in sq_vertices], R / 3.0)
+		SymmetricDualPolyhedron.__init__(self, origin,
+			[(1,1,1), # vertices of a cube
+			 (1,-1,1),
+			 (-1,1,1),
+			 (-1,-1,1)],
+			R / 3.0)
 
-class Dodecahedron(SymmetricLayerIntersection):
+class Dodecahedron(SymmetricDualPolyhedron):
 	def __init__(self, origin, R):
 		phi = 0.5 * (1 + math.sqrt(5)) # the golden ratio
-		SymmetricLayerIntersection.__init__(self, origin,
-			[(0,1,phi),
+		SymmetricDualPolyhedron.__init__(self, origin,
+			[(0,1,phi), # vertices of an icosahedron
 			 (1,phi,0),
 			 (phi,0,1),
 			 (0,-1,phi),
 			 (-1,phi,0),
 			 (phi,0,-1)],
-			R / (phi + 1.0/phi)) # TODO: rotate or find correct R
+			R / (phi + 1.0/phi))
+
+class Icosahedron(SymmetricDualPolyhedron):
+	def __init__(self, origin, R):
+		phi = 0.5 * (1 + math.sqrt(5)) # the golden ratio
+		SymmetricDualPolyhedron.__init__(self, origin,
+			[(1,1,1), # vertices of a dodecahedron
+			 (-1,1,1),
+			 (1,-1,1),
+			 (-1,-1,1),
+			 (0,1/phi,phi),
+			 (0,-1/phi,phi),
+			 (1/phi,phi,0),
+			 (-1/phi,phi,0),
+			 (phi,0,1/phi),
+			 (phi,0,-1/phi)],
+			R / (phi + 1/phi**3))
 	
 
 class Cylinder(ConvexIntersection):
