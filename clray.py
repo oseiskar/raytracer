@@ -1,7 +1,4 @@
 import numpy as np
-import pyopencl.clrandom as cl_random
-import pyopencl.clmath as cl_math
-import pyopencl as cl
 import time, sys, os, os.path
 #import objgraph
 
@@ -16,7 +13,7 @@ startup_time = time.time()
 use_pygame = True
 use_scipy_misc_pil_image = True
 output_raw_data = True
-sum_to_old_image = True
+sum_to_old_image = False
 interactive_opencl_context_selection = False
 
 itr_per_refresh = 50
@@ -233,8 +230,8 @@ cur_code_file.close()
 
 # ------------- Initialize CL
 
-acc = Accelerator(interactive_opencl_context_selection)
-prog = cl.Program(acc.ctx, prog_code).build()
+acc = Accelerator(cam.size / 3, interactive_opencl_context_selection)
+prog = acc.build_program( prog_code )
 
 # Utils
 
@@ -259,10 +256,6 @@ def output_profiling_info():
 # Materials
 fog = False
 
-def new_const_buffer(buf):
-	mf = cl.mem_flags
-	return cl.Buffer(acc.ctx, mf.READ_ONLY | mf.COPY_HOST_PTR, hostbuf=buf.astype(np.float32))
-	
 def new_mat_buf(pname):
 	default = scene.materials['default'][pname]
 	if len(default) > 1:
@@ -284,7 +277,7 @@ def new_mat_buf(pname):
 	if pname == 'vs' and buf.sum() != 0:
 		fog = True
 		print "fog"
-	return new_const_buffer(buf)
+	return acc.new_const_buffer(buf)
 
 mat_diffuse = new_mat_buf('diffuse')
 mat_emission = new_mat_buf('emission')
@@ -293,38 +286,20 @@ mat_transparency = new_mat_buf('transparency')
 mat_vs = new_mat_buf('vs')
 mat_ior = new_mat_buf('ior')
 max_broadcast_vecs = 4
-vec_broadcast = new_const_buffer(np.zeros((max_broadcast_vecs,4)))
+vec_broadcast = acc.new_const_buffer(np.zeros((max_broadcast_vecs,4)))
 
 
 # ---- Path tracing
 
 cam = acc.make_vec3_array(cam)
-N = cam.size / 4
 imgshape = scene.image_size[::-1]
 
-def prog_call(kernel_name, buffer_args, value_args=tuple([])):
-	
-	t1 = time.time()
-	kernel = getattr(prog,kernel_name)
-	arg =  tuple([x.data for x in buffer_args]) + value_args
-	event = kernel(acc.queue, (N,), None, *arg)
-	event.wait()
-	
-	t = (event.profile.end - event.profile.start)
-	if kernel_name not in profiling_info:
-		profiling_info[kernel_name] = {'n':0, 't':0, 'ta':0}
-		
-	profiling_info[kernel_name]['t'] += t
-	profiling_info[kernel_name]['n'] += 1
-	profiling_info[kernel_name]['ta'] += time.time() - t1
-		
-
-def memcpy(dst,src): cl.enqueue_copy(acc.queue, dst.data, src.data)
+def memcpy(dst,src): acc.enqueue_copy(dst.data, src.data)
 def fill_vec(data, vec):
 	#prog_call('fill_vec', (data,), tuple(np.float32(vec)))
 	hostbuf = np.float32(vec)
-	cl.enqueue_copy(acc.queue, vec_broadcast, hostbuf)
-	prog_call('fill_vec_broadcast', (data,), (vec_broadcast,))
+	acc.enqueue_copy(vec_broadcast, hostbuf)
+	acc.call('fill_vec_broadcast', (data,), (vec_broadcast,))
 
 # Randomization init
 qdirs = quasi_random_direction_sample(scene.samples_per_pixel)
@@ -398,8 +373,8 @@ for j in xrange(scene.samples_per_pixel):
 			
 			cam_origin = cam_origin + dof_pos
 			
-			cl.enqueue_copy(acc.queue, vec_broadcast,  mat4.astype(np.float32))
-			prog_call('subsample_transform_camera', (cam,ray,), (vec_broadcast,))
+			acc.enqueue_copy(vec_broadcast,  mat4.astype(np.float32))
+			acc.call('subsample_transform_camera', (cam,ray,), (vec_broadcast,))
 			
 			
 		fill_vec(pos, cam_origin)
@@ -442,8 +417,8 @@ for j in xrange(scene.samples_per_pixel):
 			hostbuf[0,:3] = vec
 			#hostbuf[1,:3] = light.pos
 			#hostbuf[2,0] = light.R
-			cl.enqueue_copy(acc.queue, vec_broadcast, hostbuf)
-			prog_call('prob_select_ray', \
+			acc.enqueue_copy(vec_broadcast, hostbuf)
+			acc.call('prob_select_ray', \
 				(img,whichobject, normal,isec_dist,pos,ray,raycolor,inside), \
 				(mat_emission, mat_diffuse,mat_reflection,mat_transparency,mat_ior,mat_vs,\
 				rand_01,vec_broadcast,np.uint32(k)))
@@ -453,7 +428,7 @@ for j in xrange(scene.samples_per_pixel):
 		memcpy(curcolor, raycolor)
 		
 		isec_dist.fill(scene.max_ray_length)
-		prog_call('trace', (pos,ray,normal,isec_dist,whichobject,inside))
+		acc.call('trace', (pos,ray,normal,isec_dist,whichobject,inside))
 		
 		if j==0 and k==0 and caching:
 			# cache first intersection
@@ -479,7 +454,7 @@ for j in xrange(scene.samples_per_pixel):
 	img += directlight
 	
 	if not fog:
-		prog_call('mult_by_param_vec_vec', (whichobject, curcolor), (mat_emission,))
+		acc.call('mult_by_param_vec_vec', (whichobject, curcolor), (mat_emission,))
 		img += curcolor
 	
 	tcur = time.time()

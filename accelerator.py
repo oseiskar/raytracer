@@ -2,23 +2,49 @@
 import numpy as np
 import pyopencl as cl
 import pyopencl.array as cl_array
+import time
 
 class Accelerator:
-	"""opencl initialization and some other stuff"""
+	"""
+	PyOpenCL initialization, as well as, management of buffers,
+	kernel calls and command queues are encapsulated here
+	"""
 	
-	# OpenCL-related stuff is not well contained here (at the moment)
-	# which was the original idea
-	
-	def __init__(self,interactive=False):
+	def __init__(self, buffer_size, interactive=False):
 		self.ctx = cl.create_some_context(interactive)
 		prop = cl.command_queue_properties.PROFILING_ENABLE
 		self.queue = cl.CommandQueue(self.ctx, properties=prop)
 		self._cl_arrays = []
+		self.buffer_size = buffer_size
+		
+		self.profiling_info = {}
 	
 	def finish(self):
 		"""Call finish on relevant CL queues and arrays"""
 		self.queue.finish()
 		for a in self._cl_arrays: a.finish()
+	
+	def build_program(self, prog_code):
+		self.prog = cl.Program(self.ctx, prog_code).build()
+	
+	def call(self, kernel_name, buffer_args, value_args=tuple([])):
+		
+		t1 = time.time()
+		kernel = getattr(self.prog,kernel_name)
+		arg =  tuple([x.data for x in buffer_args]) + value_args
+		event = kernel(self.queue, (self.buffer_size,), None, *arg)
+		event.wait()
+		
+		t = (event.profile.end - event.profile.start)
+		if kernel_name not in self.profiling_info:
+			self.profiling_info[kernel_name] = {'n':0, 't':0, 'ta':0}
+			
+		self.profiling_info[kernel_name]['t'] += t
+		self.profiling_info[kernel_name]['n'] += 1
+		self.profiling_info[kernel_name]['ta'] += time.time() - t1
+	
+	def enqueue_copy( self, dest, src ):
+		cl.enqueue_copy(self.queue, dest, src)
 	
 	def new_array( self, shape, datatype=np.float32, zeros=False ):
 		if zeros: ctor = cl_array.zeros
@@ -26,6 +52,10 @@ class Accelerator:
 		arr = ctor(self.queue, shape, dtype=datatype)
 		self._cl_arrays.append(arr)
 		return arr
+	
+	def new_const_buffer( self, buf ):
+		mf = cl.mem_flags
+		return cl.Buffer(self.ctx, mf.READ_ONLY | mf.COPY_HOST_PTR, hostbuf=buf.astype(np.float32))
 		
 	def new_vec3_array( self, shape ):
 		shape = shape + (4,)
