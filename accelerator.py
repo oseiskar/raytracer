@@ -50,7 +50,7 @@ class Accelerator:
 	
 	
 	def empty_like( self, a ):
-		return cl_array.empty_like(a)
+		return cl_array.empty_like(a).with_queue(self.queue)
 
 	def zeros_like( self, a ):
-		return cl_array.zeros_like(a)
+		return cl_array.zeros_like(a).with_queue(self.queue)

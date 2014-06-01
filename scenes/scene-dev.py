@@ -30,13 +30,13 @@ scene.objects.append( Object(
 	] ), 'glass') )
 """
 #scene.objects.append( Object( Octahedron( (0,0,0.5), 0.5 ), 'white') )
-#scene.objects.append( Object( Dodecahedron( (0,0,0.5), 0.5 ), 'white') )
+scene.objects.append( Object( Dodecahedron( (0,0,0.5), 0.5 ), 'glass') )
 #scene.objects.append( Object( Icosahedron( (0,0,0.5), 0.5 ), 'white') )
-scene.objects.append( Object( Tetrahedron( (0,0,0.5), 0.5 ), 'white') )
+#scene.objects.append( Object( Tetrahedron( (0,0,0.5), 0.5 ), 'white') )
 
 scene.image_size = (800,600)
 
-scene.samples_per_pixel = 1000
+scene.samples_per_pixel = 5000
 scene.camera_position = (-2,-3,1)
 scene.direct_camera_towards((0,0,0.6))
 scene.camera_fov = 40

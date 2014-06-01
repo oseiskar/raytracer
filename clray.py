@@ -3,11 +3,13 @@ import pyopencl.clrandom as cl_random
 import pyopencl.clmath as cl_math
 import pyopencl as cl
 import time, sys, os, os.path
+#import objgraph
 
 from accelerator import Accelerator
 from utils import *
 
 startup_time = time.time()
+
 
 # ------- General options
 
@@ -17,7 +19,7 @@ output_raw_data = True
 sum_to_old_image = True
 interactive_opencl_context_selection = False
 
-itr_per_refresh = 20
+itr_per_refresh = 50
 caching = False
 
 RAW_NPY_FILE = 'out.raw.npy'
@@ -251,25 +253,6 @@ def output_profiling_info():
 		tatotal += ta
 	print '----', total,'or',tatotal, 'seconds total'
 
-def prog_caller(N):
-	def prog_call(kernel_name, buffer_args, value_args=tuple([])):
-		
-		t1 = time.time()
-		kernel = getattr(prog,kernel_name)
-		arg =  tuple([x.data for x in buffer_args]) + value_args
-		event = kernel(acc.queue, (N,), None, *arg)
-		event.wait()
-		
-		t = (event.profile.end - event.profile.start)
-		if kernel_name not in profiling_info:
-			profiling_info[kernel_name] = {'n':0, 't':0, 'ta':0}
-			
-		profiling_info[kernel_name]['t'] += t
-		profiling_info[kernel_name]['n'] += 1
-		profiling_info[kernel_name]['ta'] += time.time() - t1
-		
-	return prog_call
-
 
 # ------------- Parameter arrays
 
@@ -319,7 +302,23 @@ cam = acc.make_vec3_array(cam)
 N = cam.size / 4
 imgshape = scene.image_size[::-1]
 
-prog_call = prog_caller(N)
+def prog_call(kernel_name, buffer_args, value_args=tuple([])):
+	
+	t1 = time.time()
+	kernel = getattr(prog,kernel_name)
+	arg =  tuple([x.data for x in buffer_args]) + value_args
+	event = kernel(acc.queue, (N,), None, *arg)
+	event.wait()
+	
+	t = (event.profile.end - event.profile.start)
+	if kernel_name not in profiling_info:
+		profiling_info[kernel_name] = {'n':0, 't':0, 'ta':0}
+		
+	profiling_info[kernel_name]['t'] += t
+	profiling_info[kernel_name]['n'] += 1
+	profiling_info[kernel_name]['ta'] += time.time() - t1
+		
+
 def memcpy(dst,src): cl.enqueue_copy(acc.queue, dst.data, src.data)
 def fill_vec(data, vec):
 	#prog_call('fill_vec', (data,), tuple(np.float32(vec)))
@@ -346,6 +345,19 @@ isec_dist = acc.zeros_like(img)
 raycolor = acc.zeros_like(img)
 curcolor = acc.zeros_like(raycolor)
 
+directlight = acc.zeros_like(img)
+
+all_cl_arrays = [
+	img,
+	whichobject,
+	pos,
+	ray,
+	inside,
+	normal,
+	isec_dist,
+	raycolor,
+	curcolor ]
+
 if caching:
 	firstray = acc.zeros_like(pos)
 	firstpos = acc.zeros_like(pos)
@@ -353,8 +365,15 @@ if caching:
 	firstnormal = acc.zeros_like(normal)
 	firstraycolor = acc.zeros_like(raycolor)
 	firstinside = acc.zeros_like(inside)
-
-directlight = acc.zeros_like(img)
+	
+	all_cl_arrays += [
+		firstray,
+		firstpos,
+		firstwhichobject,
+		firstnormal,
+		firstraycolor,
+		firstinside
+	]
 
 # Do it
 for j in xrange(scene.samples_per_pixel):
@@ -494,8 +513,15 @@ for j in xrange(scene.samples_per_pixel):
 	print "elapsed: %.2f s," % (tcur-startup_time),
 	print "eta: %.1f min" % (eta/60.0)
 	
+	for a in all_cl_arrays: a.finish()
+	acc.queue.finish()
+	
 	if j % itr_per_refresh == 0 or j==scene.samples_per_pixel-1:
 		show_and_save_image( img.get().astype(np.float32)[...,0:3] )
 		output_profiling_info()
+		
+		# objgraph.show_most_common_types(limit=20)
+		# obj = objgraph.by_type('Event')[1000]
+		# objgraph.show_backrefs([obj], max_depth=10)
 	
 output_profiling_info()
