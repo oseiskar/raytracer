@@ -4,79 +4,35 @@ import time, sys, os, os.path
 
 from accelerator import Accelerator
 from utils import *
+from imgutils import Image
 
 startup_time = time.time()
 
-
 # ------- General options
 
-use_pygame = True
-use_scipy_misc_pil_image = True
-output_raw_data = True
-sum_to_old_image = False
+old_raw_file = None
+png_output_file = 'out.png'
+raw_output_file = 'out.raw.npy'
+
 interactive_opencl_context_selection = False
 
 itr_per_refresh = 50
 caching = False
 
-RAW_NPY_FILE = 'out.raw.npy'
-
 # ------- Import scene
 sys.path.append('scenes/')
 scene_filename = "scene-dev"
-if len(sys.argv) > 1:
-	scene_filename = sys.argv[1]
+if len(sys.argv) > 1: scene_filename = sys.argv[1]
 
 scene_module = __import__(scene_filename)
 scene = scene_module.scene
 
-# ------- Image input/output utils
+# ------------- Initialize image
 
-if sum_to_old_image:
-	if os.path.isfile(RAW_NPY_FILE): old_image = np.load(RAW_NPY_FILE)
-	else: old_image = None
-
-shrink = 1
-pgwin = None
-def show_and_save_image( imgdata_cur ):
-	
-	if sum_to_old_image and old_image != None:
-		imgdata = imgdata_cur + old_image
-	else: imgdata = imgdata_cur
-	
-	if output_raw_data:
-		np.save(RAW_NPY_FILE, imgdata)
-	
-	ref = np.mean(imgdata)
-	imgdata = np.clip(imgdata/ref*scene.brightness, 0, 1)
-	imgdata = np.power(imgdata, 1.0/scene.gamma)
-	imgdata = (imgdata*255).astype(np.uint8)
-	
-	if use_pygame:
-		import pygame
-		h,w = imgdata.shape[:2]
-		
-		global pgwin
-		global shrink
-		if not pgwin:
-			pygame.display.init()
-			screen_info = pygame.display.Info()
-			shrink = 1
-			
-			while (h/shrink > screen_info.current_h or
-			       w/shrink > screen_info.current_w):
-				shrink += 1
-		
-			pgwin = pygame.display.set_mode((w/shrink,h/shrink))
-			pygame.display.set_caption("Raytracer 1:%d" % shrink) 
-		
-		displayed_img = imgdata.transpose((1,0,2))[::shrink,::shrink,:]
-		pgwin.blit(pygame.surfarray.make_surface(displayed_img), (0,0))
-		pygame.display.update()
-	
-	if use_scipy_misc_pil_image:
-		from scipy.misc import toimage
-		toimage(imgdata).save('out.png')
+if len(sys.argv) > 2: old_raw_file = sys.argv[2]
+image = Image( old_raw_file )
+image.gamma = scene.gamma
+image.brightness = scene.brightness
 
 # ------------- set up camera
 
@@ -233,24 +189,6 @@ cur_code_file.close()
 acc = Accelerator(cam.size / 3, interactive_opencl_context_selection)
 prog = acc.build_program( prog_code )
 
-# Utils
-
-profiling_info = {}
-
-def output_profiling_info():
-	total = 0
-	tatotal = 0
-	for (k,v) in profiling_info.items():
-		t = v['t']*1e-9
-		ta = v['ta']
-		n = v['n']
-		fmt = '%.2g'
-		print ('%d\t'+('\t'.join([fmt]*4))+'\t'+k) % (n,t,ta,t/n,ta/n)
-		total += t
-		tatotal += ta
-	print '----', total,'or',tatotal, 'seconds total'
-
-
 # ------------- Parameter arrays
 
 # Materials
@@ -296,7 +234,6 @@ imgshape = scene.image_size[::-1]
 
 def memcpy(dst,src): acc.enqueue_copy(dst.data, src.data)
 def fill_vec(data, vec):
-	#prog_call('fill_vec', (data,), tuple(np.float32(vec)))
 	hostbuf = np.float32(vec)
 	acc.enqueue_copy(vec_broadcast, hostbuf)
 	acc.call('fill_vec_broadcast', (data,), (vec_broadcast,))
@@ -307,19 +244,14 @@ qdirs = np.random.permutation(qdirs)
 
 # Device buffers. 
 img = acc.new_vec3_array(imgshape)
-
 whichobject = acc.new_array(imgshape, np.uint32, True)
 pos = acc.zeros_like(cam)
 ray = acc.zeros_like(pos)
-
 inside = acc.zeros_like(whichobject)
-
 normal = acc.zeros_like(pos)
 isec_dist = acc.zeros_like(img)
-
 raycolor = acc.zeros_like(img)
 curcolor = acc.zeros_like(raycolor)
-
 directlight = acc.zeros_like(img)
 
 if caching:
@@ -471,11 +403,12 @@ for j in xrange(scene.samples_per_pixel):
 	acc.finish()
 	
 	if j % itr_per_refresh == 0 or j==scene.samples_per_pixel-1:
-		show_and_save_image( img.get().astype(np.float32)[...,0:3] )
-		output_profiling_info()
+		imgdata = img.get().astype(np.float32)[...,0:3]
 		
-		# objgraph.show_most_common_types(limit=20)
-		# obj = objgraph.by_type('Event')[1000]
-		# objgraph.show_backrefs([obj], max_depth=10)
+		image.show( imgdata )
+		image.save_raw( raw_output_file, imgdata )
+		image.save_png( png_output_file, imgdata )
+		
+		acc.output_profiling_info()
 	
-output_profiling_info()
+acc.output_profiling_info()

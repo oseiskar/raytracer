@@ -100,3 +100,16 @@ class Accelerator:
 		arr = cl_array.zeros_like(a)
 		self._cl_arrays.append(arr)
 		return arr
+	
+	def output_profiling_info(self):
+		total = 0
+		tatotal = 0
+		for (k,v) in self.profiling_info.items():
+			t = v['t']*1e-9
+			ta = v['ta']
+			n = v['n']
+			fmt = '%.2g'
+			print ('%d\t'+('\t'.join([fmt]*4))+'\t'+k) % (n,t,ta,t/n,ta/n)
+			total += t
+			tatotal += ta
+		print '----', total,'or',tatotal, 'seconds total'
