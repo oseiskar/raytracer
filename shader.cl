@@ -1,27 +1,41 @@
-// runtime defines:
-//      RUSSIAN_ROULETTE_PROB
 
 __kernel void prob_select_ray(
+		// output: colors are summed to this image when appropriate
 		global float3 *img,
-		global uint *value_array,
+		// id of the object on whose surface the ray position (param
+		// pos below) is currently on. If 0, the ray position is not
+		// on any surface (happens with fog/scattering and rays
+		// starting from the camera)
+		global uint *surface_object_id,
+		// surface normal at ray position (if on a surface)
 		global float3 *normal,
+		// ...
 		global float *last_distance,
+		// current ray position
 		global float3 *pos,
+		// current ray direction
 		global float3 *ray,
+		// current ray color: a filter that multiplies everything
+		// added to the image
 		global float3 *color,
+		// id of the object inside which the current ray position is,
+		// 0 if in ambient space. (notice however, that the ambient
+		// space also has fog and IoR material properties)
 		global uint *inside,
+		// material properties of the current object
 		constant float3 *emission,
 		constant float3 *diffuse,
 		constant float3 *reflecivity,
 		constant float3 *transparency,
 		constant float *ior,
 		constant float3 *vs,
+		// the random sample [0,1) that decides what to do
 		float p,
-		constant float3 *rvec,
-		uint depth)
+		// a random unit vector
+		constant float3 *rvec)
 {
 	const int gid = get_global_id(0);
-	uint id = value_array[gid];
+	uint id = surface_object_id[gid];
 	
 	float3 cur_col = vs[inside[gid]];
 	float cur_prob = 0;
@@ -29,7 +43,7 @@ __kernel void prob_select_ray(
 	float3 r = ray[gid];
 	float3 n = normal[gid];
 	
-	const float alpha = (cur_col.x+cur_col.y+cur_col.z)/3 * 3.0;
+	const float alpha = (cur_col.x+cur_col.y+cur_col.z)/3;
 	
 	if (alpha > 0) cur_prob = 1.0-exp(-alpha*last_distance[gid]);
 	
@@ -48,18 +62,16 @@ __kernel void prob_select_ray(
 	  
 	    pos[gid] -= (last_distance[gid]-d) * r;
 	    //last_distance[gid] = d;
-	    value_array[gid] = 0; // not on any surface
+	    surface_object_id[gid] = 0; // not on any surface
 	    r = *rvec;
-	    cur_col /= alpha;
+	    cur_mult /= cur_prob;
 	}
 	else
 	{
+		p -= cur_prob;
+		
+		// TODO: the emission is non-Lambertian at the moment
 	    img[gid] += emission[id]*color[gid];
-	    // no reweighting here
-	    
-	    //p -= cur_prob;
-	    //cur_mult /= (1.0 - cur_prob);
-	    //cur_mult /= (1.0 - cur_prob);
 	    
 	    cur_col = diffuse[id];
 	    cur_prob = (cur_col.x+cur_col.y+cur_col.z)/3;
@@ -74,10 +86,8 @@ __kernel void prob_select_ray(
 	        // Reflect (negation) to outside
 	        if (dot(n,r) < 0) r = -r;
 	        
-	        //if (depth == 1)
-	        {
-	            cur_mult *= 2.0 * dot(n,r);
-	        }
+	        // Lambert's law
+	        cur_mult *= 2.0 * dot(n,r);
 	    }
 	    else
 	    {
@@ -104,9 +114,6 @@ __kernel void prob_select_ray(
 	            {
 	                cur_mult /= cur_prob;
 	                
-	                // TODO: fix this bias somewhere else...
-	                cur_mult /= 1.0 - RUSSIAN_ROULETTE_PROB;
-	                
 	                // --- Refraction / Transparency
 	                
 	                float dotp = dot(r,n);
@@ -114,7 +121,7 @@ __kernel void prob_select_ray(
 	                        
 	                float nfrac = 0;
 	                
-	                if (inside[gid] == value_array[gid]) // Leaving
+	                if (inside[gid] == surface_object_id[gid]) // Leaving
 	                {
 	                    nfrac = ior[id]/ior[0];
 	                    inside[gid] = 0; // TODO: parent
@@ -122,7 +129,7 @@ __kernel void prob_select_ray(
 	                else // going in
 	                {
 	                    nfrac = ior[0]/ior[id];
-	                    inside[gid] = value_array[gid];
+	                    inside[gid] = surface_object_id[gid];
 	                }
 	                
 	                if (nfrac != 1)
@@ -135,11 +142,8 @@ __kernel void prob_select_ray(
 	                        
 	                        r -= 2*dotp * n;
 	                        
-	                        cur_col = (float3)(1,1,1);
-	                        cur_mult *= cur_prob;
-	                        
-	                        if (inside[gid] == value_array[gid]) inside[gid] = 0;
-	                        else inside[gid] = value_array[gid];
+	                        if (inside[gid] == surface_object_id[gid]) inside[gid] = 0;
+	                        else inside[gid] = surface_object_id[gid];
 	                    }
 	                    else
 	                    {

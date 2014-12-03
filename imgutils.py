@@ -10,7 +10,7 @@ class Image:
 		else: self.data = np.load( npy_filename )
 		
 		self.gamma = 1.8
-		self.brightness = 1.0
+		self.brightness = 0.3
 		self._pgwin = None
 		self._shrink = 1
 	

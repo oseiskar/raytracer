@@ -16,8 +16,7 @@ raw_output_file = 'out.raw.npy'
 
 interactive_opencl_context_selection = False
 
-itr_per_refresh = 50
-caching = False
+itr_per_refresh = 100
 
 # ------- Import scene
 sys.path.append('scenes/')
@@ -254,76 +253,56 @@ raycolor = acc.zeros_like(img)
 curcolor = acc.zeros_like(raycolor)
 directlight = acc.zeros_like(img)
 
-if caching:
-	firstray = acc.zeros_like(pos)
-	firstpos = acc.zeros_like(pos)
-	firstwhichobject = acc.zeros_like(whichobject)
-	firstnormal = acc.zeros_like(normal)
-	firstraycolor = acc.zeros_like(raycolor)
-	firstinside = acc.zeros_like(inside)
-
 # Do it
 for j in xrange(scene.samples_per_pixel):
 	
 	t0 = time.time()
 	
-	if j==0 or not caching:
+	cam_origin = scene.camera_position
+	
+	# TODO: quasi random...
+	sx = np.float32(np.random.rand())
+	sy = np.float32(np.random.rand())
+	
+	# Tent filter as in smallpt
+	if scene.tent_filter:
+		def tent_filter_transformation(x):
+			x *= 2
+			if x < 1: return np.sqrt(x)-1
+			else: return 1-np.sqrt(2-x)
 		
-		cam_origin = scene.camera_position
-		if caching: memcpy(ray, cam)
-		else:
-			# TODO: quasi random...
-			sx = np.float32(np.random.rand())
-			sy = np.float32(np.random.rand())
-			
-			# Tent filter as in smallpt
-			if scene.tent_filter:
-				def tent_filter_transformation(x):
-					x *= 2
-					if x < 1: return np.sqrt(x)-1
-					else: return 1-np.sqrt(2-x)
-				
-				sx = tent_filter_transformation(sx)
-				sy = tent_filter_transformation(sy)
-			
-			overlap = 0.0
-			thetax = (sx-0.5)*pixel_angle*(1.0+overlap)
-			thetay = (sy-0.5)*pixel_angle*(1.0+overlap)
-			
-			dofx, dofy = random_dof_sample()
-			
-			dof_pos = (dofx * rotmat[:,0] + dofy * rotmat[:,1]) * scene.camera_dof_fstop
-			
-			sharp_distance = scene.camera_sharp_distance
-			
-			tilt = rotmat_tilt_camera(thetax,thetay)
-			mat = np.dot(np.dot(rotmat,tilt),rotmat.transpose())
-			mat4 = np.zeros((4,4))
-			mat4[0:3,0:3] = mat
-			mat4[3,0:3] = dof_pos
-			mat4[3,3] = sharp_distance
-			
-			cam_origin = cam_origin + dof_pos
-			
-			acc.enqueue_copy(vec_broadcast,  mat4.astype(np.float32))
-			acc.call('subsample_transform_camera', (cam,ray,), (vec_broadcast,))
-			
-			
-		fill_vec(pos, cam_origin)
-		whichobject.fill(0)
-		normal.fill(0)
-		raycolor.fill(1)
-		curcolor.fill(0)
-		kbegin = 0
-	else:
-		# cached first intersection
-		memcpy(pos, firstpos)
-		memcpy(whichobject, firstwhichobject)
-		memcpy(normal, firstnormal)
-		memcpy(raycolor, firstraycolor)
-		memcpy(ray, firstray)
-		memcpy(inside, firstinside)
-		kbegin = 1
+		sx = tent_filter_transformation(sx)
+		sy = tent_filter_transformation(sy)
+	
+	overlap = 0.0
+	thetax = (sx-0.5)*pixel_angle*(1.0+overlap)
+	thetay = (sy-0.5)*pixel_angle*(1.0+overlap)
+	
+	dofx, dofy = random_dof_sample()
+	
+	dof_pos = (dofx * rotmat[:,0] + dofy * rotmat[:,1]) * scene.camera_dof_fstop
+	
+	sharp_distance = scene.camera_sharp_distance
+	
+	tilt = rotmat_tilt_camera(thetax,thetay)
+	mat = np.dot(np.dot(rotmat,tilt),rotmat.transpose())
+	mat4 = np.zeros((4,4))
+	mat4[0:3,0:3] = mat
+	mat4[3,0:3] = dof_pos
+	mat4[3,3] = sharp_distance
+	
+	cam_origin = cam_origin + dof_pos
+	
+	acc.enqueue_copy(vec_broadcast,  mat4.astype(np.float32))
+	acc.call('subsample_transform_camera', (cam,ray,), (vec_broadcast,))
+	
+		
+	fill_vec(pos, cam_origin)
+	whichobject.fill(0)
+	normal.fill(0)
+	raycolor.fill(1)
+	curcolor.fill(0)
+	kbegin = 0
 	
 	inside.fill(root_object_id)
 	isec_dist.fill(0) # TODO
@@ -334,44 +313,30 @@ for j in xrange(scene.samples_per_pixel):
 		
 		#inside.fill(0)
 		
-		vec = (0,0,0) # dummy
-		if k!=0:
-			if scene.quasirandom and k == 1:
-				vec = qdirs[j,:]
-			else:
-				vec = normalize(np.random.normal(0,1,(3,)))
-			
-		vec = np.array(vec).astype(np.float32) 
-		rand_01 = np.float32(np.random.rand())
-		
-		if k != 0:
-			hostbuf = np.zeros((3,4), dtype=np.float32)
-			hostbuf[0,:3] = vec
-			#hostbuf[1,:3] = light.pos
-			#hostbuf[2,0] = light.R
-			acc.enqueue_copy(vec_broadcast, hostbuf)
-			acc.call('prob_select_ray', \
-				(img,whichobject, normal,isec_dist,pos,ray,raycolor,inside), \
-				(mat_emission, mat_diffuse,mat_reflection,mat_transparency,mat_ior,mat_vs,\
-				rand_01,vec_broadcast,np.uint32(k)))
-				
 		raycolor *= r_prob
 		
-		memcpy(curcolor, raycolor)
+		#memcpy(curcolor, raycolor)
 		
 		isec_dist.fill(scene.max_ray_length)
 		acc.call('trace', (pos,ray,normal,isec_dist,whichobject,inside))
 		
-		if j==0 and k==0 and caching:
-			# cache first intersection
-			memcpy(firstpos, pos)
-			memcpy(firstwhichobject,whichobject)
-			memcpy(firstnormal,normal)
-			memcpy(firstraycolor,raycolor)
-			memcpy(firstray, ray)
-			memcpy(firstinside,inside)
-			memcpy(directlight,img)
-			img.fill(0)
+		if scene.quasirandom and k == 1:
+			vec = qdirs[j,:]
+		else:
+			vec = normalize(np.random.normal(0,1,(3,)))
+			
+		vec = np.array(vec).astype(np.float32) 
+		rand_01 = np.float32(np.random.rand())
+		
+		hostbuf = np.zeros((3,4), dtype=np.float32)
+		hostbuf[0,:3] = vec
+		#hostbuf[1,:3] = light.pos
+		#hostbuf[2,0] = light.R
+		acc.enqueue_copy(vec_broadcast, hostbuf)
+		acc.call('prob_select_ray', \
+			(img, whichobject, normal,isec_dist,pos,ray,raycolor,inside), \
+			(mat_emission, mat_diffuse,mat_reflection,mat_transparency,mat_ior,mat_vs,\
+			rand_01,vec_broadcast))
 		
 		r_prob = 1
 		if k >= scene.min_bounces:
@@ -382,12 +347,6 @@ for j in xrange(scene.samples_per_pixel):
 				break
 		
 		k += 1
-	
-	img += directlight
-	
-	if not fog:
-		acc.call('mult_by_param_vec_vec', (whichobject, curcolor), (mat_emission,))
-		img += curcolor
 	
 	tcur = time.time()
 	elapsed = (tcur-startup_time)
