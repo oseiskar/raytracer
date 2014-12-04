@@ -51,6 +51,8 @@ scene.camera_fov = 50
 scene.min_bounces = 2
 scene.max_bounces = 4
 
+scene.shader = 'spectrum_shader'
+
 #self.camera_position = (1,-5,2)
 #scene.camera_dof_fstop = 0.1
 scene.camera_sharp_distance = vec_norm(scene.camera_position)

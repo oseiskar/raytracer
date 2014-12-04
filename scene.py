@@ -53,6 +53,9 @@ class Scene:
 	def get_camera_rays(self):
 		return utils.camera_rays(self.image_size, self.camera_flat_ccd, \
 			self.camera_fov, self.camera_direction, self.camera_up)
+    
+	def get_number_of_camera_rays(self):
+		return self.get_camera_rays().size / 3
 	
 	def __init__(self):
 		"""Initialize default scene"""
@@ -104,6 +107,8 @@ class Scene:
 		self.objects[-2].material = "green" # world box floor
 		self.root_object = None
 		self.max_ray_length = 100
+        
+		self.shader = 'rgb_shader'
 		
 		# light bulb on the right wall
 		self.objects.append(Object(Sphere( (-3,-1,2), 0.5 ), 'light', 'light'))
