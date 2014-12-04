@@ -11,6 +11,8 @@ scene.materials['floor'] = {
 	'reflection':(.2,.2,.2)
 }
 
+scene.materials['glass']['dispersion'] = (0.2,)
+
 scene.get_object('floor').material = 'floor'
 scene.get_object('ceiling').material = 'white'
 

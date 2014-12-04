@@ -78,7 +78,8 @@ class Scene:
 				  'reflection':(0,0,0),
 				  'transparency': (0,0,0),
 				  'ior': (1.0,), # Index Of Refraction
-				  'vs': (0,0,0) #(0.1,0.1,0.1) # "fog"
+                  'dispersion': (0.0,),
+				  'vs': (0,0,0) # "fog"
 				}, 
 				# Other materials
 			'white':

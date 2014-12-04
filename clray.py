@@ -1,37 +1,44 @@
 import numpy as np
-import time, sys, os, os.path
+import time, sys, os, os.path, argparse
 #import objgraph
 
 from accelerator import Accelerator
 from utils import *
 from imgutils import Image
+import shader
 
 startup_time = time.time()
 
-# ------- General options
+PNG_OUTPUT_FILE = 'out.png'
+RAW_OUTPUT_FILE = 'out.raw.npy'
 
-old_raw_file = None
-png_output_file = 'out.png'
-raw_output_file = 'out.raw.npy'
+# ------- Parse options
 
-interactive_opencl_context_selection = False
+arg_parser = argparse.ArgumentParser()
+arg_parser.add_argument('-a', '--append', action='store_true')
+arg_parser.add_argument('-i', '--interactive_opencl_context', action='store_true')
+arg_parser.add_argument('-itr', '--itr_per_refresh', type=int, default=100)
+arg_parser.add_argument('scene')
+args = arg_parser.parse_args()
 
-itr_per_refresh = 100
-
-# ------- Import scene
-sys.path.append('scenes/')
-scene_filename = "scene-dev"
-if len(sys.argv) > 1: scene_filename = sys.argv[1]
-
-scene_module = __import__(scene_filename)
-scene = scene_module.scene
+# ------- Import scene (not pretty...)
+def import_scene():
+	sys.path.append('scenes/')
+	scene_name = os.path.basename(args.scene).split('.')[0]
+	scene_module = __import__(scene_name)
+	return scene_module.scene
+scene = import_scene()
 
 # ------------- Initialize image
 
-if len(sys.argv) > 2: old_raw_file = sys.argv[2]
-image = Image( old_raw_file )
-image.gamma = scene.gamma
-image.brightness = scene.brightness
+def init_image():
+	if args.append: old_raw_file = RAW_OUTPUT_FILE
+	else: old_raw_file = None
+	image = Image( old_raw_file )
+	image.gamma = scene.gamma
+	image.brightness = scene.brightness
+	return image
+image = init_image()
 
 # ------------- set up camera
 
@@ -40,6 +47,11 @@ rotmat = scene.get_camera_rotmat()
 fovx_rad = scene.camera_fov / 180.0 * np.pi
 pixel_angle = fovx_rad / scene.image_size[0]
 
+# ------------- Initialize CL
+
+acc = Accelerator(cam.size / 3, args.interactive_opencl_context)
+prog = acc.build_program( shader.make_program(scene) )
+
 # ------------- Find root container object
 Nobjects = len(scene.objects)
 root_object_id = 0
@@ -47,153 +59,17 @@ for i in range(Nobjects):
 	if scene.root_object == scene.objects[i]:
 		root_object_id = i+1
 
-# ------------- make OpenCL code
-
-kernel_map = {}
-for obj in scene.objects:
-	for (k,v) in obj.tracer.make_functions().items():
-		if k in kernel_map and kernel_map[k] != v:
-			raise "kernel name clash!!"
-		kernel_map[k] = v
-kernels = set(kernel_map.values())
-
-objects = [obj.tracer for obj in scene.objects]
-object_materials = [obj.material for obj in scene.objects]
-
-cl_utils = open('utils.cl', 'r').read() # static code
-
-
-
-# ------------- make tracer kernel (finds intersections)
-trace_kernel = """
-__kernel void trace(
-	__global float3 *p_pos,
-	__global const float3 *p_ray,
-	__global float3 *p_normal,
-	__global float *p_isec_dist,
-	__global uint *p_whichobject,
-	__global const uint *p_inside)
-{
-	const int gid = get_global_id(0);
-	const float3 ray = p_ray[gid];
-	float3 pos = p_pos[gid];
-	const float3 last_normal = p_normal[gid];
-	const uint lastwhichobject = p_whichobject[gid];
-	const uint inside = p_inside[gid];
-	
-	p_whichobject += gid;
-	p_normal += gid;
-	p_isec_dist += gid;
-	p_pos += gid;
-	
-	float old_isec_dist = *p_isec_dist;
-	float new_isec_dist = 0;
-	uint subobject;
-	uint cur_subobject;
-	
-	uint i = 0;
-	uint whichobject = 0;
-"""
-
-# Unroll loop to CL code
-for i in range(Nobjects):
-	
-	obj = objects[i]
-	
-	trace_kernel += """
-	new_isec_dist = 0;
-	i = %s;
-	
-	// call tracer
-	""" % (i+1)
-	
-	trace_kernel += obj.make_tracer_call([ \
-			"pos",
-			"ray",
-			"last_normal",
-			"old_isec_dist",
-			"&new_isec_dist",
-			"&cur_subobject",
-			"inside == i",
-			"lastwhichobject == i"])
-	
-	# TODO: handle non-hitting rays!
-	
-	trace_kernel += """
-	if (//lastwhichobject != i && // cull self
-	    new_isec_dist > 0 &&
-	    new_isec_dist < old_isec_dist)
-	{
-		old_isec_dist = new_isec_dist;
-		whichobject = i;
-		subobject = cur_subobject;
-	}
-	"""
-
-trace_kernel += """
-	pos += old_isec_dist * ray; // saxpy
-"""
-
-for i in range(Nobjects):
-	
-	obj = objects[i]
-	
-	trace_kernel += """
-	i = %s;
-	""" % (i+1)
-	
-	trace_kernel += """
-	if (whichobject == i)
-	{
-		// call normal
-		%s
-		if (inside == i) *p_normal = -*p_normal;
-	}
-	""" % obj.make_normal_call(["pos", "subobject", "p_normal"])
-
-trace_kernel += """
-	*p_isec_dist = old_isec_dist;
-	*p_whichobject = whichobject;
-	*p_pos = pos;
-}
-"""
-
-# ------------- shader kernel
-
-shader_kernel_params = """
-#define RUSSIAN_ROULETTE_PROB %s
-""" % scene.russian_roulette_prob
-
-shader_kernel = shader_kernel_params + open('shader.cl', 'r').read()
-
-prog_code = cl_utils
-
-for kernel in kernels:
-	curl = kernel.find('{')
-	declaration = kernel[:curl] + ';\n'
-	prog_code += declaration
-
-prog_code += "\n"
-
-prog_code += "\n".join(list(kernels))
-prog_code += trace_kernel
-prog_code += shader_kernel
-
-cur_code_file = open('last_code.cl', 'w')
-cur_code_file.write(prog_code)
-cur_code_file.close()
-
-# ------------- Initialize CL
-
-acc = Accelerator(cam.size / 3, interactive_opencl_context_selection)
-prog = acc.build_program( prog_code )
-
 # ------------- Parameter arrays
 
 # Materials
 fog = False
+dispersion = False
 
+object_materials = [obj.material for obj in scene.objects]
 def new_mat_buf(pname):
+	
+	global fog, dispersion
+	
 	default = scene.materials['default'][pname]
 	if len(default) > 1:
 		w = 4
@@ -214,6 +90,11 @@ def new_mat_buf(pname):
 	if pname == 'vs' and buf.sum() != 0:
 		fog = True
 		print "fog"
+	
+	if pname == 'dispersion' and buf.sum() != 0:
+		dispersion = True
+		print 'dispersion'
+		
 	return acc.new_const_buffer(buf)
 
 mat_diffuse = new_mat_buf('diffuse')
@@ -222,9 +103,9 @@ mat_reflection = new_mat_buf('reflection')
 mat_transparency = new_mat_buf('transparency')
 mat_vs = new_mat_buf('vs')
 mat_ior = new_mat_buf('ior')
+mat_dispersion = new_mat_buf('dispersion')
 max_broadcast_vecs = 4
 vec_broadcast = acc.new_const_buffer(np.zeros((max_broadcast_vecs,4)))
-
 
 # ---- Path tracing
 
@@ -249,7 +130,8 @@ ray = acc.zeros_like(pos)
 inside = acc.zeros_like(whichobject)
 normal = acc.zeros_like(pos)
 isec_dist = acc.zeros_like(img)
-raycolor = acc.zeros_like(img)
+if dispersion: raycolor = acc.new_array(imgshape, np.float32, True )
+else: raycolor = acc.zeros_like(img)
 curcolor = acc.zeros_like(raycolor)
 directlight = acc.zeros_like(img)
 
@@ -330,13 +212,35 @@ for j in xrange(scene.samples_per_pixel):
 		
 		hostbuf = np.zeros((3,4), dtype=np.float32)
 		hostbuf[0,:3] = vec
-		#hostbuf[1,:3] = light.pos
+		
+		if dispersion:
+			
+			wavelength = np.float32(np.random.rand())
+			def tent_func(x):
+				if abs(x) > 1.0: return 0
+				return 1.0 - abs(x)
+			
+			color_mask = [tent_func( 4.0 * (wavelength-c) ) for c in [0.25,0.5,0.75]]
+			
+			hostbuf[1,:3] = color_mask
+			dispersion_coeff = np.float32((wavelength - 0.5) * 2.0)
+			
+			#print wavelength, color_mask, dispersion_coeff
+		
 		#hostbuf[2,0] = light.R
 		acc.enqueue_copy(vec_broadcast, hostbuf)
-		acc.call('prob_select_ray', \
-			(img, whichobject, normal,isec_dist,pos,ray,raycolor,inside), \
-			(mat_emission, mat_diffuse,mat_reflection,mat_transparency,mat_ior,mat_vs,\
-			rand_01,vec_broadcast))
+		
+		if dispersion:
+			acc.call('prob_select_ray_dispersive', \
+				(img, whichobject, normal,isec_dist,pos,ray,raycolor,inside), \
+				(mat_emission, mat_diffuse,mat_reflection,mat_transparency,
+				mat_ior,mat_dispersion,mat_vs, rand_01,dispersion_coeff,
+				vec_broadcast))
+		else:
+			acc.call('prob_select_ray', \
+				(img, whichobject, normal,isec_dist,pos,ray,raycolor,inside), \
+				(mat_emission, mat_diffuse,mat_reflection,mat_transparency,
+				 mat_ior,mat_vs,rand_01,vec_broadcast))
 		
 		r_prob = 1
 		if k >= scene.min_bounces:
@@ -361,12 +265,12 @@ for j in xrange(scene.samples_per_pixel):
 	
 	acc.finish()
 	
-	if j % itr_per_refresh == 0 or j==scene.samples_per_pixel-1:
+	if j % args.itr_per_refresh == 0 or j==scene.samples_per_pixel-1:
 		imgdata = img.get().astype(np.float32)[...,0:3]
 		
 		image.show( imgdata )
-		image.save_raw( raw_output_file, imgdata )
-		image.save_png( png_output_file, imgdata )
+		image.save_raw( RAW_OUTPUT_FILE, imgdata )
+		image.save_png( PNG_OUTPUT_FILE, imgdata )
 		
 		acc.output_profiling_info()
 	
