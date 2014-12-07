@@ -1,6 +1,6 @@
 
 from utils import *
-import compiler
+import generator
 from accelerator import Accelerator
 
 class Shader:
@@ -12,13 +12,13 @@ class Shader:
         self.acc = Accelerator(scene.get_number_of_camera_rays(), \
             args.interactive_opencl_context)
         
-        prog_code = compiler.make_program(self)
+        prog_code = generator.make_program(self)
         self.prog = self.acc.build_program( prog_code )
         
         self.prepare()
     
     def make_code(self):
-        """main shader code generation function to be called by the compiler"""
+        """main shader code generation function to be called by the generator"""
         
         code = self.make_definitions()
         with open('cl/' + self.shader_name + '.cl') as f: code += f.read()

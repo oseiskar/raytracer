@@ -7,9 +7,7 @@ import numpy as np
 class Image:
 	def __init__( self, npy_filename = None ):
 		if npy_filename == None: self.data = None
-		else:
-			try: self.data = np.load( npy_filename )
-			except: self.data = None
+		else: self.data = np.load( npy_filename )
 		
 		self.gamma = 1.8
 		self.brightness = 0.3

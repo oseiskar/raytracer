@@ -1,4 +1,7 @@
 
+# note to self: do not rename this file (or anything else for that matter) to
+# "compiler.py", this would break numpy.load :(
+
 def make_program( shader ):
     
     scene = shader.scene

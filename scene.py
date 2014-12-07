@@ -170,6 +170,6 @@ class DefaultSpectrumBoxScene(DefaultBoxScene):
                 { 'diffuse': 0.1,
                   'transparency': 0.7,
                   'reflection': 0.2,
-                  'ior': s.linear_dispersion_ior(1.5, 10.0)
+                  'ior': s.linear_dispersion_ior(1.5, 60.0)
                 },
             }
