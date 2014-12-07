@@ -3,7 +3,9 @@ An OpenCL raytracer
 
 Usage
 -------------
-	python clray.py [scene-filename-without-.py]
+	python clray.py scene-filename
+
+(see `python clray.py -h`)
 
 Requirements
 -------------

@@ -42,9 +42,13 @@ class Spectrum:
         
         return np.linalg.solve(cie_xyz_matrix, self.cie_1931_xyz())
     
+    def visible_intensity(self):
+        intensity = np.sqrt(np.sum(self.cie_1931_rgb()**2,axis=0))
+        return intensity / np.sum(intensity)
+    
     def black_body(self, T, normalized=True):
         # Planck's law, the formula from the "Science. It works, bitches" xkcd
-        # strip. T is the (color) temperature in Kelvins.
+        # strip. T is the (color) temperature in kelvins.
         
         from scipy.constants import h,c,k
         

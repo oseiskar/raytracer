@@ -167,6 +167,9 @@ class Shader:
         
         k = kbegin
         r_prob = 1
+        
+        self.extra_stuff()
+        
         while True:
             
             self.raycolor *= r_prob
@@ -183,7 +186,6 @@ class Shader:
             rand_01 = np.float32(np.random.rand())
             
             self.vec_param_buf[0,:3] = rand_vec
-            self.extra_stuff()
             
             acc.enqueue_copy(self.vec_broadcast, self.vec_param_buf)
             
@@ -287,18 +289,23 @@ class SpectrumShader(Shader):
         n_objects = len(self.scene.objects)
         p_buf_len = n_objects+1
         
+        spectrum = self.scene.spectrum
+        
         property_list = self.material_property_sets[0]
         self.host_material_properties = []
         
-        self.color_responses = self.scene.spectrum.cie_1931_rgb()
+        self.color_responses = spectrum.cie_1931_rgb()
         host_mat_y = []
+        
+        self.color_intensity_pdf = spectrum.visible_intensity()
+        self.color_intensity_cdf = np.cumsum(self.color_intensity_pdf)
             
         for obj_idx, p_idx, value in self.each_object_material(property_list):
             
             y = np.ravel(np.array(value))
-            x = np.linspace( *self.scene.spectrum.wavelength_range, num=y.size )
+            x = np.linspace( *spectrum.wavelength_range, num=y.size )
             
-            host_mat_y.append( self.scene.spectrum.map_left(x,y) )
+            host_mat_y.append( spectrum.map_left(x,y) )
         
         self.host_mat_y = np.vstack(host_mat_y).astype(np.float32)
         self.device_material_buffer = self.acc.new_const_buffer(self.host_mat_y[:,0])
@@ -307,12 +314,19 @@ class SpectrumShader(Shader):
     
     def extra_stuff(self):
         
-        uniform_rand = lambda begin, end: np.random.random()*(end-begin)+begin
+        spectrum = self.scene.spectrum
         
-        wavelength = uniform_rand( *self.scene.spectrum.wavelength_range )
+        # importance sampling
+        omega = np.random.random()
+        wavelength = np.interp([omega], self.color_intensity_cdf, spectrum.wavelengths)
+        wavelength_prob = spectrum.map_right([wavelength], self.color_intensity_pdf)
+        
+        #print wavelength, wavelength_prob
+        
+        self.raycolor *= 1.0 / wavelength_prob
         
         wave_interp = lambda y: \
-            self.scene.spectrum.map_right([wavelength],y).astype(np.float32)
+            spectrum.map_right([wavelength],y).astype(np.float32)
         
         mat_props = wave_interp(self.host_mat_y)
         self.acc.enqueue_copy(self.device_material_buffer, mat_props)
