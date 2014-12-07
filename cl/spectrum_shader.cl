@@ -1,4 +1,6 @@
 
+#define PROPERTY(prop, id) material_properties[prop + id]
+
 __kernel void spectrum_shader(
         // output: colors are summed to this image when appropriate
         global float3 *img,
@@ -23,33 +25,24 @@ __kernel void spectrum_shader(
         // space also has fog and IoR material properties)
         global uint *inside,
         // material properties of the current object
-        constant float3 *emission,
-        constant float3 *diffuse,
-        constant float3 *reflecivity,
-        constant float3 *transparency,
-        constant float *ior,
-        constant float *dispersion,
-        constant float3 *vs,
+        constant float *material_properties,
         // the random sample [0,1) that decides what to do
         float p,
-        // 
-        float dispersion_coeff,
         // a random unit vector and color mask
-        constant float4 *rvec_and_color_mask)
+        constant float4 *rvec_and_cmask)
 {
     const int gid = get_global_id(0);
     uint id = surface_object_id[gid];
     
-    const float3 rvec = rvec_and_color_mask[0].xyz;
-    const float3 cmask = rvec_and_color_mask[1].xyz;
+    const float3 rvec = rvec_and_cmask[0].xyz;
+    const float3 cmask = rvec_and_cmask[1].xyz;
     
-    float cur_col = dot(cmask,vs[inside[gid]]);
     float cur_prob = 0;
     float cur_mult = 1.0;
     float3 r = ray[gid];
     float3 n = normal[gid];
     
-    const float alpha = cur_col;
+    const float alpha = PROPERTY(MAT_VS,inside[gid]);
     
     if (alpha > 0) cur_prob = 1.0-exp(-alpha*last_distance[gid]);
     
@@ -70,22 +63,18 @@ __kernel void spectrum_shader(
         //last_distance[gid] = d;
         surface_object_id[gid] = 0; // not on any surface
         r = rvec;
-        cur_mult /= cur_prob;
     }
     else
     {
         p -= cur_prob;
     
         // TODO: the emission is non-Lambertian at the moment
-        img[gid] += emission[id]*intensity[gid]*cmask;
+        img[gid] += PROPERTY(MAT_EMISSION, id)*intensity[gid]*cmask;
         
-        cur_col = dot(cmask,diffuse[id]);
-        cur_prob = cur_col;
+        cur_prob = PROPERTY(MAT_DIFFUSE,id);
         
         if (p < cur_prob)
         {
-            cur_mult /= cur_prob;
-           
             // --- Diffuse
             r = rvec;
                 
@@ -99,13 +88,10 @@ __kernel void spectrum_shader(
         {
             p -= cur_prob;
             
-            cur_col = dot(cmask,reflecivity[id]);
-            cur_prob = cur_col;
+            cur_prob = PROPERTY(MAT_REFLECTION,id);
             
             if (p < cur_prob)
             {
-                cur_mult /= cur_prob;
-                
                 // --- Reflection
                 r -= 2*dot(r,n) * n;
             }
@@ -113,13 +99,10 @@ __kernel void spectrum_shader(
             {
                 p -= cur_prob;
                 
-                cur_col = dot(cmask,transparency[id]);
-                cur_prob = cur_col;
+                cur_prob = PROPERTY(MAT_TRANSPARENCY,id);
                 
                 if (p < cur_prob)
                 {
-                    cur_mult /= cur_prob;
-                    
                     // --- Refraction / Transparency
                     
                     float dotp = dot(r,n);
@@ -127,16 +110,17 @@ __kernel void spectrum_shader(
                             
                     float nfrac = 0;
                     
-                    float other_ior = ior[id] * (1.0 + dispersion[id]*dispersion_coeff);
+                    float ior1 = PROPERTY(MAT_IOR,id);
+                    float ior0 = PROPERTY(MAT_IOR,0);
                     
                     if (inside[gid] == surface_object_id[gid]) // Leaving
                     {
-                        nfrac = other_ior/ior[0];
+                        nfrac = ior1/ior0;
                         inside[gid] = 0; // TODO: parent
                     }
                     else // going in
                     {
-                        nfrac = ior[0]/other_ior;
+                        nfrac = ior0/ior1;
                         inside[gid] = surface_object_id[gid];
                     }
                     
@@ -169,12 +153,12 @@ __kernel void spectrum_shader(
                 else
                 {
                     // --- Assumed absorption
-                    cur_col = 0;
+                    cur_mult = 0;
                 }
             }
         }
     }
     
     ray[gid] = r;
-    intensity[gid] *= cur_mult*cur_col;
+    intensity[gid] *= cur_mult;
 }

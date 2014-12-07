@@ -2,10 +2,8 @@ import numpy as np
 import time, sys, os, os.path, argparse
 #import objgraph
 
-from accelerator import Accelerator
 from imgutils import Image
 from shader import Shader
-import compiler
 
 startup_time = time.time()
 
@@ -40,21 +38,10 @@ def init_image():
     return image
 image = init_image()
 
-# ------------- set up camera
-
-cam = scene.get_camera_rays()
-rotmat = scene.get_camera_rotmat()
-fovx_rad = scene.camera_fov / 180.0 * np.pi
-pixel_angle = fovx_rad / scene.image_size[0]
-
 # ------------- Initialize CL
 
-acc = Accelerator(scene.get_number_of_camera_rays(), args.interactive_opencl_context)
-prog_code = compiler.make_program(scene)
-with open('last_code.cl', 'w') as f: f.write(prog_code)
-prog = acc.build_program( prog_code )
-
-shader = Shader(scene, prog, acc)
+shader = scene.shader(scene, args)
+acc = shader.acc
 
 # Do it
 for j in xrange(scene.samples_per_pixel):

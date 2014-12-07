@@ -1,10 +1,10 @@
 
-def make_program( scene ):
+def make_program( shader ):
+    
+    scene = shader.scene
 
     objects = [obj.tracer for obj in scene.objects]
     Nobjects = len(scene.objects)
-
-    cl_utils = open('cl/utils.cl', 'r').read() # static code
 
     # ------------- make tracer kernel (finds intersections)
     trace_kernel = """
@@ -100,16 +100,12 @@ def make_program( scene ):
     }
     """
 
-    # ------------- shader kernel
-
-    shader_kernel_params = """
-    #define RUSSIAN_ROULETTE_PROB %s
-    """ % scene.russian_roulette_prob
-
-    shader_kernel = shader_kernel_params
-    shader_kernel += open('cl/' + scene.shader + '.cl').read()
-
-    prog_code = cl_utils
+    prog_code = ''
+    with open('cl/utils.cl', 'r') as f:
+        prog_code += f.read() # static code
+        
+    prog_code += "\n"
+    prog_code += shader.make_code()
 
     kernel_map = {}
     for obj in scene.objects:
@@ -124,10 +120,7 @@ def make_program( scene ):
         declaration = kernel[:curl] + ';\n'
         prog_code += declaration
 
-    prog_code += "\n"
-
     prog_code += "\n".join(list(kernels))
     prog_code += trace_kernel
-    prog_code += shader_kernel
     
     return prog_code

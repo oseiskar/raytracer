@@ -3,6 +3,8 @@ from scene import *
 from utils import normalize, vec_norm
 import math
 
+scene = DefaultBoxScene()
+
 scene.materials['sky'] = {
 	'diffuse': ( 0, 0, 0), 'emission': tuple(np.array((.5,.5,.7))*0.7) }
 	

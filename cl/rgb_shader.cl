@@ -1,4 +1,7 @@
 
+#define COLOR(prop, id) material_colors[prop + id].xyz
+#define SCALAR(prop, id) material_scalars[prop + id]
+
 __kernel void rgb_shader(
         // output: colors are summed to this image when appropriate
         global float3 *img,
@@ -23,12 +26,8 @@ __kernel void rgb_shader(
         // space also has fog and IoR material properties)
         global uint *inside,
         // material properties of the current object
-        constant float3 *emission,
-        constant float3 *diffuse,
-        constant float3 *reflecivity,
-        constant float3 *transparency,
-        constant float *ior,
-        constant float3 *vs,
+        constant float4 *material_colors,
+        constant float *material_scalars,
         // the random sample [0,1) that decides what to do
         float p,
         // a random unit vector
@@ -37,7 +36,7 @@ __kernel void rgb_shader(
     const int gid = get_global_id(0);
     uint id = surface_object_id[gid];
     
-    float3 cur_col = vs[inside[gid]];
+    float3 cur_col = COLOR(MAT_VS,inside[gid]);
     float cur_prob = 0;
     float cur_mult = 1.0;
     float3 r = ray[gid];
@@ -71,9 +70,9 @@ __kernel void rgb_shader(
         p -= cur_prob;
         
         // TODO: the emission is non-Lambertian at the moment
-        img[gid] += emission[id]*color[gid];
+        img[gid] += COLOR(MAT_EMISSION,id)*color[gid];
         
-        cur_col = diffuse[id];
+        cur_col = COLOR(MAT_DIFFUSE,id);
         cur_prob = (cur_col.x+cur_col.y+cur_col.z)/3;
     
         if (p < cur_prob)
@@ -93,7 +92,7 @@ __kernel void rgb_shader(
         {
             p -= cur_prob;
             
-            cur_col = reflecivity[id];
+            cur_col = COLOR(MAT_REFLECTION,id);
             cur_prob = (cur_col.x+cur_col.y+cur_col.z)/3;
             
             if (p < cur_prob)
@@ -107,7 +106,7 @@ __kernel void rgb_shader(
             {
                 p -= cur_prob;
                 
-                cur_col = transparency[id];
+                cur_col = COLOR(MAT_TRANSPARENCY,id);
                 cur_prob = (cur_col.x+cur_col.y+cur_col.z)/3;
                 
                 if (p < cur_prob)
@@ -121,14 +120,17 @@ __kernel void rgb_shader(
                             
                     float nfrac = 0;
                     
+                    float ior0 = SCALAR(MAT_IOR,0);
+                    float ior1 = SCALAR(MAT_IOR,id);
+                    
                     if (inside[gid] == surface_object_id[gid]) // Leaving
                     {
-                        nfrac = ior[id]/ior[0];
+                        nfrac = ior1/ior0;
                         inside[gid] = 0; // TODO: parent
                     }
                     else // going in
                     {
-                        nfrac = ior[0]/ior[id];
+                        nfrac = ior1/ior0;
                         inside[gid] = surface_object_id[gid];
                     }
                     
