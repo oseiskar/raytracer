@@ -102,7 +102,7 @@ class DefaultBoxScene(Scene):
         
         # --- Raytracer settings
         self.tent_filter = True
-        self.quasirandom = True
+        self.quasirandom = False
         self.samples_per_pixel = 10000
         self.min_bounces = 3
         self.russian_roulette_prob = .3
@@ -151,7 +151,11 @@ class DefaultSpectrumBoxScene(DefaultBoxScene):
                   'reflection': 0.0,
                   'transparency': 0.0,
                   'ior': 1.0, # Index Of Refraction
-                  'vs': 0.0, # "fog"
+                  'volume_absorption': 0.0,
+                  'volume_scattering': 0.0,
+                  'volume_scattering_blur': 1.0,
+                  'transparency_blur': 0.0,
+                  'reflection_blur': 0.0
                 }, 
                 # Other materials
             'white':
@@ -172,4 +176,13 @@ class DefaultSpectrumBoxScene(DefaultBoxScene):
                   'reflection': 0.2,
                   'ior': s.linear_dispersion_ior(1.5, 60.0)
                 },
+            'brushed metal':
+                { 'diffuse': 0.2, 'reflection': 0.7, 'reflection_blur': 0.1 },
+            'wax':
+                { 'transparency': 0.95,
+                  'transparency_blur': 0.7,
+                  'volume_scattering': 0.5,
+                  'volume_absorption': (1.0 - s.gaussian(670,100)) * 4.0,
+                  'diffuse': 0.05
+                }
             }

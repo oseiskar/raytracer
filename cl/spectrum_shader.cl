@@ -29,26 +29,29 @@ __kernel void spectrum_shader(
         // the random sample [0,1) that decides what to do
         float p,
         // a random unit vector and color mask
-        constant float4 *rvec_and_cmask)
+        constant float4 *rvecs_and_cmask)
 {
     const int gid = get_global_id(0);
     uint id = surface_object_id[gid];
     
-    const float3 rvec = rvec_and_cmask[0].xyz;
-    const float3 cmask = rvec_and_cmask[1].xyz;
+    const float3 rvec = rvecs_and_cmask[0].xyz;
+    const float3 cmask = rvecs_and_cmask[2].xyz;
+    float3 gauss_rvec = rvecs_and_cmask[1].xyz;
     
     float cur_prob = 0;
     float cur_mult = 1.0;
     float3 r = ray[gid];
     float3 n = normal[gid];
+    float blur;
     
-    const float alpha = PROPERTY(MAT_VS,inside[gid]);
+    float last_dist = last_distance[gid];
+    const float alpha = PROPERTY(MAT_VOLUME_SCATTERING,inside[gid]);
     
-    if (alpha > 0) cur_prob = 1.0-exp(-alpha*last_distance[gid]);
+    if (alpha > 0) cur_prob = 1.0-exp(-alpha*last_dist);
     
     if (p < cur_prob)
     {
-        // --- (sub-surface) scattering / fog
+        // --- volume scattering
         
         // "derivation":
         //    p < 1.0-exp(-alpha*dist)
@@ -59,17 +62,30 @@ __kernel void spectrum_shader(
         float d = -log(1.0 - p) / alpha;
         //float d = (p/cur_prob)*last_distance[gid]; 
       
-        pos[gid] -= (last_distance[gid]-d) * r;
+        pos[gid] -= (last_dist-d) * r;
+        
+        last_dist = d;
+        
         //last_distance[gid] = d;
         surface_object_id[gid] = 0; // not on any surface
-        r = rvec;
+        
+        blur = PROPERTY(MAT_VOLUME_SCATTERING_BLUR,inside[gid]);
+        if (blur < 1.0) {
+            r = normalize(gauss_rvec + r * tan(M_PI*0.5*(1.0 - blur)));
+        }
+        else r = rvec;
+        
+        // TODO: scattering 'blur' can be added here
     }
-    else
+    
+    cur_mult *= exp(-PROPERTY(MAT_VOLUME_ABSORPTION,inside[gid])*last_dist);
+    
+    if (p >= cur_prob)
     {
         p -= cur_prob;
     
         // TODO: the emission is non-Lambertian at the moment
-        img[gid] += PROPERTY(MAT_EMISSION, id)*intensity[gid]*cmask;
+        img[gid] += PROPERTY(MAT_EMISSION, id)*intensity[gid]*cmask*cur_mult;
         
         cur_prob = PROPERTY(MAT_DIFFUSE,id);
         
@@ -94,6 +110,12 @@ __kernel void spectrum_shader(
             {
                 // --- Reflection
                 r -= 2*dot(r,n) * n;
+                
+                blur = PROPERTY(MAT_REFLECTION_BLUR,id);
+                if (blur > 0) {
+                    if (dot(n,gauss_rvec) < 0) gauss_rvec = -gauss_rvec;
+                    r = normalize(gauss_rvec * blur + r * (1.0-blur));
+                }
             }
             else
             {
@@ -148,6 +170,12 @@ __kernel void spectrum_shader(
                     
                     if (dot(n,r) < 0) n = -n;
                     normal[gid] = n;
+                    
+                    blur = PROPERTY(MAT_TRANSPARENCY_BLUR,id);
+                    if (blur > 0) {
+                        if (dot(n,gauss_rvec) < 0) gauss_rvec = -gauss_rvec;
+                        r = normalize(gauss_rvec * blur + r * (1.0-blur));
+                    }
 
                 }
                 else

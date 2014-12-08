@@ -3,19 +3,24 @@ from utils import normalize, vec_norm
 
 scene = DefaultSpectrumBoxScene()
 
-for obj in scene.get_objects('wall'): obj.material = 'red'
+spectrum = scene.spectrum
+
+for obj in scene.get_objects('wall'): obj.material = 'black'
 scene.get_object('floor').material = 'white'
 scene.get_object('ceiling').material = 'white'
 scene.get_object('light').material = 'white'
 scene.materials['black'] = { 'diffuse': 0.2 }
-scene.materials['glass']['ior'] = scene.spectrum.linear_dispersion_ior(1.6, 36.0)
-#scene.materials['default']['vs'] = 0.1
+scene.materials['glass']['ior'] = spectrum.linear_dispersion_ior(1.6, 36.0)
+scene.materials['sky']['emission'] = spectrum.black_body(5000)
 
-scene.objects.append( Object(HalfSpace( (-1,-1,-2), 5.5 ), 'sky') )
+#scene.materials['default']['volume_scattering'] = 0.4
+#scene.materials['default']['volume_scattering_blur'] = 0.01
+
+scene.objects.append( Object(HalfSpace( (-1,-1,-2), 5 ), 'sky') )
 
 objR = .6
-objPos = (0,0,objR)
-objMat = 'glass'
+#objPos = (0,0,objR)
+#objMat = 'glass'
 #objType = Tetrahedron
 #objType = Octahedron
 #objType = Dodecahedron
@@ -29,9 +34,12 @@ scene.objects.append( Object(
 		CylinderComponent( (1,0,0), objR, ),
 		CylinderComponent( (0,1,0), objR, ),
 		CylinderComponent( (0,0,1), objR, )
-	] ), 'glass') )
+	] ), 'wax') )
 #"""
 scene.image_size = (800,600)
+
+#tanglecube_eq = 'x**4 - 5*x**2 + y**4 - 5*y**2 + z**4 - 5*z**2 + 11.8'
+#scene.objects.append( Object( ImplicitSurface(tanglecube_eq, (0,0,0.5), 0.25, 4), 'wax' ) )
 
 scene.samples_per_pixel = 15000
 scene.camera_position = (-2,-3,1)
@@ -43,5 +51,5 @@ scene.max_bounces = 3
 
 #self.camera_position = (1,-5,2)
 
-scene.camera_dof_fstop = 0.03
+#scene.camera_dof_fstop = 0.03
 scene.camera_sharp_distance = vec_norm(scene.camera_position) - 0.5

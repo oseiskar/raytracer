@@ -186,6 +186,7 @@ class Shader:
             rand_01 = np.float32(np.random.rand())
             
             self.vec_param_buf[0,:3] = rand_vec
+            self.vec_param_buf[1,:3] = np.random.normal(0,1,(3,))
             
             acc.enqueue_copy(self.vec_broadcast, self.vec_param_buf)
             
@@ -275,7 +276,11 @@ class SpectrumShader(Shader):
                 'emission',
                 'reflection',
                 'transparency',
-                'vs',
+                'volume_scattering',
+                'volume_absorption',
+                'reflection_blur',
+                'transparency_blur',
+                'volume_scattering_blur',
                 'ior'
             ]
         ]
@@ -333,5 +338,5 @@ class SpectrumShader(Shader):
         
         color_mask = wave_interp(self.color_responses)
         #print wavelength, color_mask
-        self.vec_param_buf[1,:3] = np.ravel(color_mask)
+        self.vec_param_buf[2,:3] = np.ravel(color_mask)
 
