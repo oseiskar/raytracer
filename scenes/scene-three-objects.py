@@ -3,17 +3,13 @@ from scene import *
 from utils import normalize, vec_norm
 import math
 
+#scene = DefaultSpectrumBoxScene()
 scene = DefaultBoxScene()
-
-scene.materials['sky'] = {
-	'diffuse': ( 0, 0, 0), 'emission': tuple(np.array((.5,.5,.7))*0.7) }
 	
 scene.materials['floor'] = {
 	'diffuse': ( 0.2, 0.2, 0.2),
 	'reflection':(.2,.2,.2)
 }
-
-scene.materials['glass']['dispersion'] = (0.2,)
 
 scene.get_object('floor').material = 'floor'
 scene.get_object('ceiling').material = 'white'
@@ -46,7 +42,7 @@ scene.objects.append( Object(
 #scene.image_size = (1280,1024)
 scene.image_size = (1024,768)
 #scene.image_size = (640,400)
-scene.samples_per_pixel = 1000 #80000
+scene.samples_per_pixel = 10000
 scene.quasirandom = False
 scene.gamma = 1.6
 #scene.max_bounces = 5

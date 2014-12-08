@@ -157,15 +157,15 @@ class DefaultSpectrumBoxScene(DefaultBoxScene):
             'white':
                 { 'diffuse': 0.8 }, 
             'green':
-                { 'diffuse': 0.6 }, #[0.4,0.9,0.4] },
+                { 'diffuse': s.gaussian(540,30)*0.65 + 0.3 },
             'red':
-                { 'diffuse': 0.5 }, #[.7,.4,.4] }, 
+                { 'diffuse': s.gaussian(670,30)*0.6 + 0.2 },
             'mirror':
                 { 'diffuse': 0.2, 'reflection': 0.7 },
             'light': # warm yellow-orange-light
                 { 'diffuse': 1.0, 'emission': s.black_body(3200)*7.0 },
             'sky':
-                { 'diffuse': 1.0, 'emission': s.black_body(5000) },
+                { 'diffuse': 1.0, 'emission': s.black_body(10000) },
             'glass':
                 { 'diffuse': 0.1,
                   'transparency': 0.7,

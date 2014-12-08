@@ -62,6 +62,10 @@ class Spectrum:
         #print (self.wavelengths - 589.3)*alpha + n_d
         return (self.wavelengths - 589.3)*alpha + n_d
     
+    def gaussian(self, mean, stdev):
+        # Gaussian, normalized to a value one at the maximum
+        return np.exp( -0.5 * ((self.wavelengths - mean) / stdev)**2 )  
+    
     def get_color(self, density, brightness = None):
         c = np.dot( self.cie_1931_rgb(), np.ravel(density).T )
         if brightness is not None:
