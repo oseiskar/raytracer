@@ -36,21 +36,22 @@ __kernel void rgb_shader(
     const int gid = get_global_id(0);
     uint id = surface_object_id[gid];
     
-    float3 cur_col = (float3)(1.0,1.0,1.0);
-    float3 cur_col_mult = cur_col;
-    float cur_prob = 0;
-    float cur_mult = 1.0;
     float3 r = ray[gid];
     float3 n = normal[gid];
-    
     const float3 rvec = rvecs[0].xyz;
     float3 gauss_rvec = rvecs[1].xyz;
+    
+    float cur_prob = 0;
+    float cur_mult = 1.0;
     float blur;
+    
+    const float3 WHITE = (float3)(1.0,1.0,1.0);
+    float3 cur_col_mult = WHITE;
     
     float last_dist = last_distance[gid];
     const float alpha = SCALAR(MAT_VOLUME_SCATTERING,inside[gid]);
     
-    if (alpha > 0) cur_prob = 1.0-exp(-alpha*last_distance[gid]);
+    if (alpha > 0) cur_prob = 1.0-exp(-alpha*last_dist);
     
     if (p < cur_prob)
     {
@@ -63,7 +64,6 @@ __kernel void rgb_shader(
         //   -log(1-p) < alpha*dist
         //   dist > -log(1-p)/alpha
         float d = -log(1.0 - p) / alpha;
-        //float d = (p/cur_prob)*last_distance[gid]; 
       
         pos[gid] -= (last_dist-d) * r;
         last_dist = d;
@@ -76,8 +76,11 @@ __kernel void rgb_shader(
         else r = rvec;
     }
     
-    cur_col = COLOR(MAT_VOLUME_ABSORPTION,inside[gid]);
+    #define COLOR2PROB(color) dot(color,WHITE)/3.0
+    
+    float3 cur_col = COLOR(MAT_VOLUME_ABSORPTION,inside[gid]);
     cur_col_mult = (float3)(exp(-cur_col.x*last_dist),exp(-cur_col.y*last_dist),exp(-cur_col.z*last_dist));
+    cur_col = WHITE;
     
     if (p >= cur_prob)
     {
@@ -87,7 +90,7 @@ __kernel void rgb_shader(
         img[gid] += COLOR(MAT_EMISSION,id)*color[gid]*cur_col_mult;
         
         cur_col = COLOR(MAT_DIFFUSE,id);
-        cur_prob = (cur_col.x+cur_col.y+cur_col.z)/3;
+        cur_prob = COLOR2PROB(cur_col);
     
         if (p < cur_prob)
         {
@@ -107,7 +110,7 @@ __kernel void rgb_shader(
             p -= cur_prob;
             
             cur_col = COLOR(MAT_REFLECTION,id);
-            cur_prob = (cur_col.x+cur_col.y+cur_col.z)/3;
+            cur_prob = COLOR2PROB(cur_col);
             
             if (p < cur_prob)
             {
@@ -127,7 +130,7 @@ __kernel void rgb_shader(
                 p -= cur_prob;
                 
                 cur_col = COLOR(MAT_TRANSPARENCY,id);
-                cur_prob = (cur_col.x+cur_col.y+cur_col.z)/3;
+                cur_prob = COLOR2PROB(cur_col);
                 
                 if (p < cur_prob)
                 {
@@ -140,8 +143,8 @@ __kernel void rgb_shader(
                             
                     float nfrac = 0;
                     
-                    float ior0 = SCALAR(MAT_IOR,0);
                     float ior1 = SCALAR(MAT_IOR,id);
+                    float ior0 = SCALAR(MAT_IOR,0);
                     
                     if (inside[gid] == surface_object_id[gid]) // Leaving
                     {
@@ -150,7 +153,7 @@ __kernel void rgb_shader(
                     }
                     else // going in
                     {
-                        nfrac = ior1/ior0;
+                        nfrac = ior0/ior1;
                         inside[gid] = surface_object_id[gid];
                     }
                     

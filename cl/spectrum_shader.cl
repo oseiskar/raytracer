@@ -34,15 +34,17 @@ __kernel void spectrum_shader(
     const int gid = get_global_id(0);
     uint id = surface_object_id[gid];
     
+    float3 r = ray[gid];
+    float3 n = normal[gid];
     const float3 rvec = rvecs_and_cmask[0].xyz;
-    const float3 cmask = rvecs_and_cmask[2].xyz;
     float3 gauss_rvec = rvecs_and_cmask[1].xyz;
     
     float cur_prob = 0;
     float cur_mult = 1.0;
-    float3 r = ray[gid];
-    float3 n = normal[gid];
     float blur;
+    
+    const float3 cmask = rvecs_and_cmask[2].xyz;
+    
     
     float last_dist = last_distance[gid];
     const float alpha = PROPERTY(MAT_VOLUME_SCATTERING,inside[gid]);
@@ -60,13 +62,9 @@ __kernel void spectrum_shader(
         //   -log(1-p) < alpha*dist
         //   dist > -log(1-p)/alpha
         float d = -log(1.0 - p) / alpha;
-        //float d = (p/cur_prob)*last_distance[gid]; 
       
         pos[gid] -= (last_dist-d) * r;
-        
         last_dist = d;
-        
-        //last_distance[gid] = d;
         surface_object_id[gid] = 0; // not on any surface
         
         blur = PROPERTY(MAT_VOLUME_SCATTERING_BLUR,inside[gid]);
@@ -74,8 +72,6 @@ __kernel void spectrum_shader(
             r = normalize(gauss_rvec + r * tan(M_PI*0.5*(1.0 - blur)));
         }
         else r = rvec;
-        
-        // TODO: scattering 'blur' can be added here
     }
     
     cur_mult *= exp(-PROPERTY(MAT_VOLUME_ABSORPTION,inside[gid])*last_dist);

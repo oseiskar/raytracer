@@ -92,7 +92,7 @@ class DefaultBoxScene(Scene):
             'sky':
                 { 'diffuse': 0.0, 'emission':(.5,.5,.7) },
             'glass':
-                { 'diffuse': 0.1, 'transparency': 0.7, 'reflection': 0.2, 'ior':(1.5,) },
+                { 'diffuse': 0.1, 'transparency': 0.7, 'reflection': 0.2, 'ior': 1.5 },
             'brushed metal':
                 { 'diffuse': 0.2, 'reflection': 0.7, 'reflection_blur': 0.1 },
             'wax':
