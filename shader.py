@@ -229,10 +229,16 @@ class RgbShader(Shader):
                 'emission',
                 'reflection',
                 'transparency',
-                'vs'
+                'volume_absorption'
             ],
             # scalar material properties
-            [ 'ior' ]
+            [
+                'ior',
+                'volume_scattering',
+                'volume_scattering_blur',
+                'reflection_blur',
+                'transparency_blur'
+            ]
         ]
         
         self.initialize(scene, args)
@@ -256,7 +262,11 @@ class RgbShader(Shader):
                 
             for obj_idx, p_idx, value in self.each_object_material(property_list):
                 
+                if np.array(value).size == 1:
+                    if color: value = [value]*3
+                    else: value = [value]
                 value = np.array(value)
+                if color and value.size == 1: value = np.ones((3,))*value[0]
                 buf[p_idx * p_buf_len + obj_idx,:value.size] = value
             
             device_buffer = self.acc.new_const_buffer(buf)

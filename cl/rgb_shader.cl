@@ -30,19 +30,25 @@ __kernel void rgb_shader(
         constant float *material_scalars,
         // the random sample [0,1) that decides what to do
         float p,
-        // a random unit vector
-        constant float3 *rvec)
+        // a random unit vector and a random gaussian vector
+        constant float4 *rvecs)
 {
     const int gid = get_global_id(0);
     uint id = surface_object_id[gid];
     
-    float3 cur_col = COLOR(MAT_VS,inside[gid]);
+    float3 cur_col = (float3)(1.0,1.0,1.0);
+    float3 cur_col_mult = cur_col;
     float cur_prob = 0;
     float cur_mult = 1.0;
     float3 r = ray[gid];
     float3 n = normal[gid];
     
-    const float alpha = (cur_col.x+cur_col.y+cur_col.z)/3;
+    const float3 rvec = rvecs[0].xyz;
+    float3 gauss_rvec = rvecs[1].xyz;
+    float blur;
+    
+    float last_dist = last_distance[gid];
+    const float alpha = SCALAR(MAT_VOLUME_SCATTERING,inside[gid]);
     
     if (alpha > 0) cur_prob = 1.0-exp(-alpha*last_distance[gid]);
     
@@ -59,18 +65,26 @@ __kernel void rgb_shader(
         float d = -log(1.0 - p) / alpha;
         //float d = (p/cur_prob)*last_distance[gid]; 
       
-        pos[gid] -= (last_distance[gid]-d) * r;
-        //last_distance[gid] = d;
+        pos[gid] -= (last_dist-d) * r;
+        last_dist = d;
         surface_object_id[gid] = 0; // not on any surface
-        r = *rvec;
-        cur_mult /= cur_prob;
+        
+        blur = SCALAR(MAT_VOLUME_SCATTERING_BLUR,inside[gid]);
+        if (blur < 1.0) {
+            r = normalize(gauss_rvec + r * tan(M_PI*0.5*(1.0 - blur)));
+        }
+        else r = rvec;
     }
-    else
+    
+    cur_col = COLOR(MAT_VOLUME_ABSORPTION,inside[gid]);
+    cur_col_mult = (float3)(exp(-cur_col.x*last_dist),exp(-cur_col.y*last_dist),exp(-cur_col.z*last_dist));
+    
+    if (p >= cur_prob)
     {
         p -= cur_prob;
         
         // TODO: the emission is non-Lambertian at the moment
-        img[gid] += COLOR(MAT_EMISSION,id)*color[gid];
+        img[gid] += COLOR(MAT_EMISSION,id)*color[gid]*cur_col_mult;
         
         cur_col = COLOR(MAT_DIFFUSE,id);
         cur_prob = (cur_col.x+cur_col.y+cur_col.z)/3;
@@ -80,7 +94,7 @@ __kernel void rgb_shader(
             cur_mult /= cur_prob;
            
             // --- Diffuse
-            r = *rvec;
+            r = rvec;
                 
             // Reflect (negation) to outside
             if (dot(n,r) < 0) r = -r;
@@ -101,6 +115,12 @@ __kernel void rgb_shader(
                 
                 // --- Reflection
                 r -= 2*dot(r,n) * n;
+                
+                blur = SCALAR(MAT_REFLECTION_BLUR,id);
+                if (blur > 0) {
+                    if (dot(n,gauss_rvec) < 0) gauss_rvec = -gauss_rvec;
+                    r = normalize(gauss_rvec * blur + r * (1.0-blur));
+                }
             }
             else
             {
@@ -158,6 +178,12 @@ __kernel void rgb_shader(
                     
                     if (dot(n,r) < 0) n = -n;
                     normal[gid] = n;
+                    
+                    blur = SCALAR(MAT_TRANSPARENCY_BLUR,id);
+                    if (blur > 0) {
+                        if (dot(n,gauss_rvec) < 0) gauss_rvec = -gauss_rvec;
+                        r = normalize(gauss_rvec * blur + r * (1.0-blur));
+                    }
 
                 }
                 else
@@ -170,5 +196,5 @@ __kernel void rgb_shader(
     }
     
     ray[gid] = r;
-    color[gid] *= cur_mult*cur_col;
+    color[gid] *= cur_mult*cur_col*cur_col_mult;
 }

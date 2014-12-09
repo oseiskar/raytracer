@@ -68,28 +68,43 @@ class DefaultBoxScene(Scene):
         self.materials = {\
             'default': # "Air" / initial / default material
                 { 'diffuse': ( 1, 0, 1),
-                  'emission':(0, 0, 0),
-                  'reflection':(0,0,0),
-                  'transparency': (0,0,0),
-                  'ior': (1.0,), # Index Of Refraction
-                  'dispersion': (0.0,),
-                  'vs': (0,0,0) # "fog"
-                }, 
+                  'emission': 0.0,
+                  'reflection': 0.0,
+                  'transparency': 0.0,
+                  'ior': 1.0, # Index Of Refraction
+                  'volume_absorption': 0.0,
+                  'volume_scattering': 0.0,
+                  'volume_scattering_blur': 1.0,
+                  'transparency_blur': 0.0,
+                  'reflection_blur': 0.0
+                },
                 # Other materials
             'white':
-                { 'diffuse': ( .8, .8, .8) }, 
+                { 'diffuse': 0.8 }, 
             'green':
                 { 'diffuse': (0.4,0.9,0.4)},
             'red':
                 { 'diffuse': (.7,.4,.4) }, 
             'mirror':
-                { 'diffuse': (.2,.2,.2), 'reflection':(.7,.7,.7) },
+                { 'diffuse': 0.2, 'reflection': 0.7 },
             'light': # warm yellow-orange-light
-                { 'diffuse': ( 1, 1, 1), 'emission':(4,2,.7) },
+                { 'diffuse': 1.0, 'emission':(4,2,.7) },
             'sky':
-                { 'diffuse': ( 0, 0, 0), 'emission':(.5,.5,.7) },
+                { 'diffuse': 0.0, 'emission':(.5,.5,.7) },
             'glass':
-                { 'diffuse': (.1,.1,.1), 'transparency':(.7,.7,.7), 'reflection':(.2,.2,.2), 'ior':(1.5,) },
+                { 'diffuse': 0.1, 'transparency': 0.7, 'reflection': 0.2, 'ior':(1.5,) },
+            'brushed metal':
+                { 'diffuse': 0.2, 'reflection': 0.7, 'reflection_blur': 0.1 },
+            'wax':
+                { 'transparency': 0.9,
+                  'transparency_blur': 0.7,
+                  'volume_scattering': 0.5,
+                  'volume_scattering_blur': 1.0,
+                  'volume_absorption': (1.0-np.array([1,.8,.3])) * 4.0,
+                  'reflection': 0.08,
+                  'reflection_blur': 0.1,
+                  'diffuse': 0.02
+                }
             }
     
     def __init__(self):
@@ -179,10 +194,13 @@ class DefaultSpectrumBoxScene(DefaultBoxScene):
             'brushed metal':
                 { 'diffuse': 0.2, 'reflection': 0.7, 'reflection_blur': 0.1 },
             'wax':
-                { 'transparency': 0.95,
+                { 'transparency': 0.9,
                   'transparency_blur': 0.7,
                   'volume_scattering': 0.5,
+                  'volume_scattering_blur': 1.0,
                   'volume_absorption': (1.0 - s.gaussian(670,100)) * 4.0,
-                  'diffuse': 0.05
+                  'reflection': 0.08,
+                  'reflection_blur': 0.1,
+                  'diffuse': 0.02
                 }
             }
