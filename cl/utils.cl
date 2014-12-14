@@ -16,20 +16,31 @@
 #define ia_iadd(a,b) a += b
 #define ia_sub(a, b) ia_new(ia_begin(a)-ia_end(b), ia_end(a)-ia_begin(b))
 #define ia_mul_pos_exact(a,ex) ((a)*(ex))
-#define ia_mul_neg_exact(a,ex) ia_neg(ia_mul_pos_exact(a,-ex))
-#define ia_mul_exact(a,ex) ((ex) > 0 ? ia_mul_pos_exact(a,ex) : ia_mul_neg_exact(a,ex))
+#define ia_mul_neg_exact(a,ex) (ia_neg(a)*-(ex))
+#define ia_mul_exact(a,ex) (((ex) > 0.0) ? ia_mul_pos_exact(a,ex) : ia_mul_neg_exact(a,ex))
 #define ia_neg(a) (ia_new(-ia_end(a),-ia_begin(a)))
-#define ia_abs(a) (ia_begin(a) >= 0 ? (a) : \
-                   (ia_end(a) <= 0 ? ia_neg(a) : \
-                    ia_new(0, max(-ia_begin(a),ia_end(a)))))
+#define ia_abs(a) ((ia_begin(a) >= 0.0) ? (a) : \
+                   ((ia_end(a) <= 0.0) ? ia_neg(a) : \
+                    ia_new(0.0, max(-ia_begin(a),ia_end(a)))))
 
 ia_type ia_mul(ia_type a, ia_type b)
 {
-    ia_type i1 = a*b;
-    ia_type i2 = -ia_neg(a)*b;
-    return ia_new(
-        min(min(ia_begin(i1),ia_end(i1)),min(ia_begin(i2),ia_end(i2))),
-        max(max(ia_begin(i1),ia_end(i1)),max(ia_begin(i2),ia_end(i2))));
+    if (ia_contains_zero(a)) {
+        
+        if (ia_contains_zero(b)) {
+            return ia_new(min(ia_begin(a)*ia_end(b),ia_begin(b)*ia_end(a)),
+                          max(ia_begin(a)*ia_begin(b),ia_end(a)*ia_end(b)));
+        }
+        else { ia_type tmp = b; b = a; a = tmp; } // swap
+    }
+    
+    if (ia_end(a) < 0) { a = ia_neg(a); b = ia_neg(b); }
+    
+    // now ia_begin(a) > 0
+    
+    if (ia_end(b) < 0) return ia_new(ia_end(a)*ia_begin(b), ia_begin(a)*ia_end(b));
+    else if (ia_contains_zero(b)) return ia_new(ia_end(a)*ia_begin(b),ia_end(a)*ia_end(b));
+    else return a*b;
 }
 
 ia_type ia_pow2(ia_type a)
