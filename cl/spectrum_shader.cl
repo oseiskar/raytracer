@@ -83,101 +83,94 @@ __kernel void spectrum_shader(
         // TODO: the emission is non-Lambertian at the moment
         img[gid] += PROPERTY(MAT_EMISSION, id)*intensity[gid]*cmask*cur_mult;
         
-        cur_prob = PROPERTY(MAT_DIFFUSE,id);
+        cur_prob = PROPERTY(MAT_REFLECTION,id);
         
         if (p < cur_prob)
         {
-            // --- Diffuse
-            r = rvec;
-                
-            // Reflect (negation) to outside
-            if (dot(n,r) < 0) r = -r;
+            // --- Reflection
+            r -= 2*dot(r,n) * n;
             
-            // Lambert's law
-            cur_mult *= 2.0 * dot(n,r);
+            blur = PROPERTY(MAT_REFLECTION_BLUR,id);
+            if (blur > 0) {
+                if (dot(n,gauss_rvec) < 0) gauss_rvec = -gauss_rvec;
+                r = normalize(gauss_rvec * blur + r * (1.0-blur));
+            }
         }
         else
         {
             p -= cur_prob;
             
-            cur_prob = PROPERTY(MAT_REFLECTION,id);
+            cur_prob = PROPERTY(MAT_TRANSPARENCY,id);
             
             if (p < cur_prob)
             {
-                // --- Reflection
-                r -= 2*dot(r,n) * n;
+                // --- Refraction / Transparency
                 
-                blur = PROPERTY(MAT_REFLECTION_BLUR,id);
+                float dotp = dot(r,n);
+                if (dotp > 0) { n = -n; dotp = -dotp; }
+                        
+                float nfrac = 0;
+                
+                float ior1 = PROPERTY(MAT_IOR,id);
+                float ior0 = PROPERTY(MAT_IOR,0);
+                
+                if (inside[gid] == surface_object_id[gid]) // Leaving
+                {
+                    nfrac = ior1/ior0;
+                    inside[gid] = 0; // TODO: parent
+                }
+                else // going in
+                {
+                    nfrac = ior0/ior1;
+                    inside[gid] = surface_object_id[gid];
+                }
+                
+                if (nfrac != 1)
+                {
+                    float cos2t =1-nfrac*nfrac*(1-dotp*dotp);
+                    
+                    if (cos2t < 0)
+                    {
+                        // Total reflection
+                        
+                        r -= 2*dotp * n;
+                        
+                        if (inside[gid] == surface_object_id[gid]) inside[gid] = 0;
+                        else inside[gid] = surface_object_id[gid];
+                    }
+                    else
+                    {
+                        // Refraction
+                        r = normalize(r*nfrac + n*(-dotp*nfrac-sqrt(cos2t)));
+                    }
+                }
+                
+                // else: no refraction, leave r intact
+                
+                if (dot(n,r) < 0) n = -n;
+                normal[gid] = n;
+                
+                blur = PROPERTY(MAT_TRANSPARENCY_BLUR,id);
                 if (blur > 0) {
                     if (dot(n,gauss_rvec) < 0) gauss_rvec = -gauss_rvec;
                     r = normalize(gauss_rvec * blur + r * (1.0-blur));
                 }
+
             }
             else
             {
-                p -= cur_prob;
+                cur_mult *= PROPERTY(MAT_DIFFUSE,id);
                 
-                cur_prob = PROPERTY(MAT_TRANSPARENCY,id);
-                
-                if (p < cur_prob)
+                if (cur_mult > 0.0)
                 {
-                    // --- Refraction / Transparency
-                    
-                    float dotp = dot(r,n);
-                    if (dotp > 0) { n = -n; dotp = -dotp; }
-                            
-                    float nfrac = 0;
-                    
-                    float ior1 = PROPERTY(MAT_IOR,id);
-                    float ior0 = PROPERTY(MAT_IOR,0);
-                    
-                    if (inside[gid] == surface_object_id[gid]) // Leaving
-                    {
-                        nfrac = ior1/ior0;
-                        inside[gid] = 0; // TODO: parent
-                    }
-                    else // going in
-                    {
-                        nfrac = ior0/ior1;
-                        inside[gid] = surface_object_id[gid];
-                    }
-                    
-                    if (nfrac != 1)
-                    {
-                        float cos2t =1-nfrac*nfrac*(1-dotp*dotp);
+                    // --- Diffuse
+                    r = rvec;
                         
-                        if (cos2t < 0)
-                        {
-                            // Total reflection
-                            
-                            r -= 2*dotp * n;
-                            
-                            if (inside[gid] == surface_object_id[gid]) inside[gid] = 0;
-                            else inside[gid] = surface_object_id[gid];
-                        }
-                        else
-                        {
-                            // Refraction
-                            r = normalize(r*nfrac + n*(-dotp*nfrac-sqrt(cos2t)));
-                        }
-                    }
+                    // Reflect (negation) to outside
+                    if (dot(n,r) < 0) r = -r;
                     
-                    // else: no refraction, leave r intact
-                    
-                    if (dot(n,r) < 0) n = -n;
-                    normal[gid] = n;
-                    
-                    blur = PROPERTY(MAT_TRANSPARENCY_BLUR,id);
-                    if (blur > 0) {
-                        if (dot(n,gauss_rvec) < 0) gauss_rvec = -gauss_rvec;
-                        r = normalize(gauss_rvec * blur + r * (1.0-blur));
-                    }
-
-                }
-                else
-                {
-                    // --- Assumed absorption
-                    cur_mult = 0;
+                    // Lambert's law
+                    cur_mult *= 2.0 * dot(n,r);
                 }
             }
         }
