@@ -225,6 +225,98 @@ class ImplicitSurface(Tracer):
 		return "%s(%s,%s)" % (f, base, exponent)
 
 
+class QuarticSurface(Tracer):
+	
+	def __init__(self, eq, center=(0,0,0), scale=1.0):
+		
+		self.unique_tracer_id = str(id(self))
+		
+		self.center = tuple(center)
+		self.scale = scale
+		
+		import sympy
+		import sympy.core.numbers
+		
+		xyz = sympy.symbols('x y z')
+		t = sympy.symbols('t')
+		ray = sympy.symbols('ray.x ray.y ray.z')
+		origin = sympy.symbols('origin.x origin.y origin.z')
+		pos = sympy.symbols('pos.x pos.y pos.z')
+		
+		self.eq = sympy.sympify(eq)
+		
+		scaled_and_shifted = self.eq.subs([
+			(xyz[i], (pos[i] - self.center[i])/self.scale) \
+			for i in range(3) ])
+		
+		ray_paramd = scaled_and_shifted.subs([
+			(pos[i], ray[i]*t + origin[i]) \
+			for i in range(3) ])
+		
+		self.poly = sympy.Poly(ray_paramd,t)
+		self.derivative = sympy.Poly(sympy.diff(ray_paramd,t),t)
+		self.gradient = [sympy.diff(scaled_and_shifted, pos[i]) for i in range(3)]
+		
+		order = len(self.poly.coeffs())-1;
+		
+		if order != 4: raise RuntimeError("surface is of order %d != 4" % order)
+		
+		# Must replace some expressions to make them OpenCL
+		class Printer(sympy.printing.str.StrPrinter):
+			def _print_Pow(self, expr):
+				return ImplicitSurface.print_pow(expr)
+		sympy.Basic.__str__ = lambda self: Printer().doprint(self)
+		
+		self.normal_code = """
+		*p_normal = fast_normalize((float3)(%s, %s, %s));
+		""" % tuple([self.gradient[i] for i in range(3)])
+		
+		
+		self.tracer_code = """
+		
+		float coeff[5], roots[4], dcoeff[4];
+		const int check_derivative = origin_self;
+		"""
+		
+		poly_code = ""
+		dcode = ""
+		
+		for i in range(order+1):
+			poly_code += """
+			coeff[%d] = %s;
+			""" % (order-i, str(self.poly.coeffs()[i]))
+			if i < order:
+				dcode += """
+				dcoeff[%d] = %s;
+				""" % (order-1-i, str(self.derivative.coeffs()[i]))
+			
+		self.tracer_code += """
+		%s
+		
+		if (check_derivative) {
+			%s
+		}
+		""" % (poly_code, dcode)
+		
+		self.tracer_code += """
+		
+		int n_roots = solveQuartic(coeff, roots), i;
+		float dist = old_isec_dist, d, t;
+		
+		for (i=0; i<n_roots; ++i) {
+			t = roots[i];
+			if (t > 0 && t < dist) {
+				if (check_derivative) {
+					d = dcoeff[0] + t*dcoeff[1] + t*t*dcoeff[2] + t*t*t*dcoeff[3];
+				}
+				if (!check_derivative || (d < 0) != inside) dist = t;
+			}
+		}
+		
+		if (dist < old_isec_dist) *p_new_isec_dist = dist;
+		"""
+
+
 class QuaternionJuliaSet2(Tracer):
 	
 	def __init__(self, c, julia_itr, **kwargs):

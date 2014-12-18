@@ -103,9 +103,11 @@ def make_program( shader ):
     }
     """
 
+    # static code
+    
     prog_code = ''
-    with open('cl/utils.cl', 'r') as f:
-        prog_code += f.read() # static code
+    with open('cl/utils.cl', 'r') as f: prog_code += f.read() 
+    with open('cl/poly_solvers.cl', 'r') as f: prog_code += f.read()
         
     prog_code += "\n"
     prog_code += shader.make_code()
