@@ -21,7 +21,7 @@ args = arg_parser.parse_args()
 
 # ------- Import scene (not pretty...)
 def import_scene():
-    sys.path.append('scenes/')
+    sys.path.append(os.path.dirname(args.scene))
     scene_name = os.path.basename(args.scene).split('.')[0]
     scene_module = __import__(scene_name)
     return scene_module.scene

@@ -89,110 +89,104 @@ __kernel void rgb_shader(
         // TODO: the emission is non-Lambertian at the moment
         img[gid] += COLOR(MAT_EMISSION,id)*color[gid]*cur_col_mult;
         
-        cur_col = COLOR(MAT_DIFFUSE,id);
+        cur_col = COLOR(MAT_REFLECTION,id);
         cur_prob = COLOR2PROB(cur_col);
-    
+        
         if (p < cur_prob)
         {
             cur_mult /= cur_prob;
-           
-            // --- Diffuse
-            r = rvec;
-                
-            // Reflect (negation) to outside
-            if (dot(n,r) < 0) r = -r;
             
-            // Lambert's law
-            cur_mult *= 2.0 * dot(n,r);
+            // --- Reflection
+            r -= 2*dot(r,n) * n;
+            
+            blur = SCALAR(MAT_REFLECTION_BLUR,id);
+            if (blur > 0) {
+                if (dot(n,gauss_rvec) < 0) gauss_rvec = -gauss_rvec;
+                r = normalize(gauss_rvec * blur + r * (1.0-blur));
+            }
         }
         else
         {
             p -= cur_prob;
             
-            cur_col = COLOR(MAT_REFLECTION,id);
+            cur_col = COLOR(MAT_TRANSPARENCY,id);
             cur_prob = COLOR2PROB(cur_col);
             
             if (p < cur_prob)
             {
                 cur_mult /= cur_prob;
                 
-                // --- Reflection
-                r -= 2*dot(r,n) * n;
+                // --- Refraction / Transparency
                 
-                blur = SCALAR(MAT_REFLECTION_BLUR,id);
+                float dotp = dot(r,n);
+                if (dotp > 0) { n = -n; dotp = -dotp; }
+                        
+                float nfrac = 0;
+                
+                float ior1 = SCALAR(MAT_IOR,id);
+                float ior0 = SCALAR(MAT_IOR,0);
+                
+                if (inside[gid] == surface_object_id[gid]) // Leaving
+                {
+                    nfrac = ior1/ior0;
+                    inside[gid] = 0; // TODO: parent
+                }
+                else // going in
+                {
+                    nfrac = ior0/ior1;
+                    inside[gid] = surface_object_id[gid];
+                }
+                
+                if (nfrac != 1)
+                {
+                    float cos2t =1-nfrac*nfrac*(1-dotp*dotp);
+                    
+                    if (cos2t < 0)
+                    {
+                        // Total reflection
+                        
+                        r -= 2*dotp * n;
+                        
+                        if (inside[gid] == surface_object_id[gid]) inside[gid] = 0;
+                        else inside[gid] = surface_object_id[gid];
+                    }
+                    else
+                    {
+                        // Refraction
+                        r = normalize(r*nfrac + n*(-dotp*nfrac-sqrt(cos2t)));
+                    }
+                }
+                
+                // else: no refraction, leave r intact
+                
+                if (dot(n,r) < 0) n = -n;
+                normal[gid] = n;
+                
+                blur = SCALAR(MAT_TRANSPARENCY_BLUR,id);
                 if (blur > 0) {
                     if (dot(n,gauss_rvec) < 0) gauss_rvec = -gauss_rvec;
                     r = normalize(gauss_rvec * blur + r * (1.0-blur));
                 }
+
             }
             else
             {
-                p -= cur_prob;
+                // p -= cur_prob; // (no need to do this)
                 
-                cur_col = COLOR(MAT_TRANSPARENCY,id);
-                cur_prob = COLOR2PROB(cur_col);
+                cur_col = COLOR(MAT_DIFFUSE,id);
                 
-                if (p < cur_prob)
-                {
-                    cur_mult /= cur_prob;
-                    
-                    // --- Refraction / Transparency
-                    
-                    float dotp = dot(r,n);
-                    if (dotp > 0) { n = -n; dotp = -dotp; }
-                            
-                    float nfrac = 0;
-                    
-                    float ior1 = SCALAR(MAT_IOR,id);
-                    float ior0 = SCALAR(MAT_IOR,0);
-                    
-                    if (inside[gid] == surface_object_id[gid]) // Leaving
-                    {
-                        nfrac = ior1/ior0;
-                        inside[gid] = 0; // TODO: parent
-                    }
-                    else // going in
-                    {
-                        nfrac = ior0/ior1;
-                        inside[gid] = surface_object_id[gid];
-                    }
-                    
-                    if (nfrac != 1)
-                    {
-                        float cos2t =1-nfrac*nfrac*(1-dotp*dotp);
+                // diffusion / absorbtion
+                
+                if (COLOR2PROB(cur_col) > 0.0) {
+                
+                    // --- Diffuse
+                    r = rvec;
                         
-                        if (cos2t < 0)
-                        {
-                            // Total reflection
-                            
-                            r -= 2*dotp * n;
-                            
-                            if (inside[gid] == surface_object_id[gid]) inside[gid] = 0;
-                            else inside[gid] = surface_object_id[gid];
-                        }
-                        else
-                        {
-                            // Refraction
-                            r = normalize(r*nfrac + n*(-dotp*nfrac-sqrt(cos2t)));
-                        }
-                    }
+                    // Reflect (negation) to outside
+                    if (dot(n,r) < 0) r = -r;
                     
-                    // else: no refraction, leave r intact
-                    
-                    if (dot(n,r) < 0) n = -n;
-                    normal[gid] = n;
-                    
-                    blur = SCALAR(MAT_TRANSPARENCY_BLUR,id);
-                    if (blur > 0) {
-                        if (dot(n,gauss_rvec) < 0) gauss_rvec = -gauss_rvec;
-                        r = normalize(gauss_rvec * blur + r * (1.0-blur));
-                    }
-
-                }
-                else
-                {
-                    // --- Assumed absorption
-                    cur_col = 0;
+                    // Lambert's law
+                    cur_mult *= 2.0 * dot(n,r);
                 }
             }
         }
