@@ -14,6 +14,7 @@ RAW_OUTPUT_FILE = 'out.raw.npy'
 
 arg_parser = argparse.ArgumentParser()
 arg_parser.add_argument('-a', '--append', action='store_true')
+arg_parser.add_argument('-n', '--no_window', action='store_true')
 arg_parser.add_argument('-i', '--interactive_opencl_context', action='store_true')
 arg_parser.add_argument('-itr', '--itr_per_refresh', type=int, default=100)
 arg_parser.add_argument('scene')
@@ -61,10 +62,11 @@ for j in xrange(scene.samples_per_pixel):
     print "elapsed: %.2f s," % (tcur-startup_time),
     print "eta: %.1f min" % (eta/60.0)
     
-    if j % args.itr_per_refresh == 0 or j==scene.samples_per_pixel-1:
+    if j % args.itr_per_refresh == 0 or j==scene.samples_per_pixel-1 or \
+       (j % max(1,int(args.itr_per_refresh/10)) == 0 and j < args.itr_per_refresh):
         imgdata = shader.img.get().astype(np.float32)[...,0:3]
         
-        image.show( imgdata )
+        if not args.no_window: image.show( imgdata )
         image.save_raw( RAW_OUTPUT_FILE, imgdata )
         image.save_png( PNG_OUTPUT_FILE, imgdata )
         

@@ -35,6 +35,7 @@ class Scene:
     
     def direct_camera_towards(self, target):
         self.camera_direction = np.array(target)-np.array(self.camera_position)
+        self.camera_sharp_distance = np.linalg.norm(self.camera_direction)
     
     def get_camera_rays(self):
         return utils.camera_rays(self.image_size, self.camera_flat_ccd, \
@@ -145,7 +146,6 @@ class DefaultBoxScene(Scene):
         self.camera_flat_ccd = False
         camera_target = (0,2,0.5)
         self.camera_dof_fstop = 0.0
-        self.camera_sharp_distance = 0.0
         self.direct_camera_towards(camera_target)
         
         self.shader = RgbShader
