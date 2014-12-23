@@ -10,9 +10,9 @@ Usage
 Requirements
 -------------
  * Python (2.7)
- * pyopencl (> 2013), tested with 2013.2
+ * pyopencl (>= 2012), tested with 2012.1, 2013.2 and 2014.1
  * pygame (for visualization)
- * nympy
+ * numpy
  * scipy
  * sympy (for implicit surfaces)
 

@@ -4,6 +4,9 @@ import pyopencl as cl
 import pyopencl.array as cl_array
 import time
 
+# Enables a work-around for the PyOpenCL issue #56 in versions 2013 and 2014
+FINISH_CL_ARRAYS = cl.VERSION[0] in (2013,2014)
+
 class Accelerator:
 	"""
 	PyOpenCL initialization, as well as, management of buffers,
@@ -22,7 +25,8 @@ class Accelerator:
 	def finish(self):
 		"""Call finish on relevant CL queues and arrays"""
 		self.queue.finish()
-		for a in self._cl_arrays: a.finish()
+		if FINISH_CL_ARRAYS:
+			for a in self._cl_arrays: a.finish()
 	
 	def build_program(self, prog_code):
 		with open('last_code.cl', 'w') as f: f.write(prog_code)
