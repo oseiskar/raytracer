@@ -44,6 +44,9 @@ class Scene:
     def get_number_of_camera_rays(self):
         return self.get_camera_rays().size / 3
     
+    def add_object(self, tracer, material, name=None):
+        self.objects.append(Object(tracer,material,name))
+    
 def default_materials():
     # --- Materials
     return {\
