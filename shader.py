@@ -160,12 +160,11 @@ class Shader:
         self.normal.fill(0)
         self.raycolor.fill(1)
         self.curcolor.fill(0)
-        kbegin = 0
         
         self.inside.fill(self.root_object_id)
         self.isec_dist.fill(0) # TODO
         
-        k = kbegin
+        path_index = 0
         r_prob = 1
         
         self.extra_stuff()
@@ -173,49 +172,47 @@ class Shader:
         while True:
             
             self.raycolor *= r_prob
-            
-            self.isec_dist.fill(scene.max_ray_length)
-            acc.call('trace', (self.pos,self.ray,self.normal,self.isec_dist,self.whichobject,self.inside))
-            
-            if scene.quasirandom and k == 1:
-                rand_vec = self.qdirs[sample_index,:]
-            else:
-                rand_vec = normalize(np.random.normal(0,1,(3,)))
-                
-            rand_vec = np.array(rand_vec).astype(np.float32) 
-            rand_01 = np.float32(np.random.rand())
-            
-            self.vec_param_buf[0,:3] = rand_vec
-            self.vec_param_buf[1,:3] = np.random.normal(0,1,(3,))
-            
-            acc.enqueue_copy(self.vec_broadcast, self.vec_param_buf)
-            
-            acc.call(self.shader_name, \
-                (self.img, self.whichobject, self.normal, self.isec_dist,
-                 self.pos, self.ray, self.raycolor, self.inside), \
-                tuple( self.material_buffers + [rand_01, self.vec_broadcast] ))
+            self.compute_next_path_segment(path_index)
             
             r_prob = 1
-            if k >= scene.min_bounces:
+            if path_index >= scene.min_bounces:
                 rand_01 = np.random.rand()
-                if rand_01 < scene.russian_roulette_prob and k < scene.max_bounces:
+                if rand_01 < scene.russian_roulette_prob and path_index < scene.max_bounces:
                     r_prob = 1.0/(1-scene.russian_roulette_prob)
                 else:
                     break
             
-            k += 1
+            path_index += 1
     
         acc.finish()
         
-        return k
+        return path_index
 
-        self.mat_diffuse = self.new_mat_buf('diffuse')
-        self.mat_emission = self.new_mat_buf('emission')
-        self.mat_reflection = self.new_mat_buf('reflection')
-        self.mat_transparency = self.new_mat_buf('transparency')
-        self.mat_vs = self.new_mat_buf('vs')
-        self.mat_ior = self.new_mat_buf('ior')
-        self.mat_dispersion = self.new_mat_buf('dispersion')
+    def compute_next_path_segment(self, path_index):
+        
+        acc = self.acc
+        
+        self.isec_dist.fill(self.scene.max_ray_length)
+        acc.call('trace', (self.pos,self.ray,self.normal,self.isec_dist,self.whichobject,self.inside))
+        
+        if self.scene.quasirandom and path_index == 1:
+            rand_vec = self.qdirs[sample_index,:]
+        else:
+            rand_vec = normalize(np.random.normal(0,1,(3,)))
+            
+        rand_vec = np.array(rand_vec).astype(np.float32) 
+        rand_01 = np.float32(np.random.rand())
+        
+        self.vec_param_buf[0,:3] = rand_vec
+        self.vec_param_buf[1,:3] = np.random.normal(0,1,(3,))
+        
+        acc.enqueue_copy(self.vec_broadcast, self.vec_param_buf)
+        
+        acc.call(self.shader_name, \
+            (self.img, self.whichobject, self.normal, self.isec_dist,
+             self.pos, self.ray, self.raycolor, self.inside), \
+            tuple( self.material_buffers + [rand_01, self.vec_broadcast] ))
+
 
 class RgbShader(Shader):
     
@@ -276,23 +273,25 @@ class RgbShader(Shader):
 
 class SpectrumShader(Shader):
     
+    MATERIAL_PROPERTIES = [
+            'diffuse',
+            'emission',
+            'reflection',
+            'transparency',
+            'volume_scattering',
+            'volume_absorption',
+            'reflection_blur',
+            'transparency_blur',
+            'volume_scattering_blur',
+            'ior'
+        ]
+    
     def __init__(self, scene, args):
         self.shader_name = 'spectrum_shader'
         
         self.material_property_sets = [
             # (scalar) material properties
-            [
-                'diffuse',
-                'emission',
-                'reflection',
-                'transparency',
-                'volume_scattering',
-                'volume_absorption',
-                'reflection_blur',
-                'transparency_blur',
-                'volume_scattering_blur',
-                'ior'
-            ]
+            SpectrumShader.MATERIAL_PROPERTIES
         ]
         self.initialize(scene, args)
     
@@ -350,3 +349,62 @@ class SpectrumShader(Shader):
         #print wavelength, color_mask
         self.vec_param_buf[2,:3] = np.ravel(color_mask)
 
+class BidirectionalSpectrumShader(SpectrumShader):
+    def __init__(self, scene, args):
+        self.shader_name = 'bidirectional_spectrum_shader'
+        
+        self.material_property_sets = [
+            # (scalar) material properties
+            SpectrumShader.MATERIAL_PROPERTIES
+        ]
+        self.initialize(scene, args)
+        
+        def has_emission(o):
+            em = scene.materials[o.material].get('emission',0.0)
+            if isinstance(em, float): return em > 0.0
+            else: return any([e > 0 for e in em])
+        
+        self.lights = [o for o in self.scene.objects if has_emission(o)]
+    
+    def prepare(self):
+        SpectrumShader.prepare(self)
+        self.shadow_mask = self.acc.zeros_like(self.isec_dist)
+        
+    def compute_next_path_segment(self, path_index):
+        
+        acc = self.acc
+        
+        self.isec_dist.fill(self.scene.max_ray_length)
+        acc.call('trace', (self.pos,self.ray,self.normal,self.isec_dist,self.whichobject,self.inside))
+        
+        light_point = np.array(self.get_light_point()).astype(np.float32)
+        self.vec_param_buf[0,:3] = light_point
+        
+        acc.enqueue_copy(self.vec_broadcast, self.vec_param_buf)
+        acc.call('shadow_trace', \
+            (self.pos,self.normal,self.whichobject,self.inside,self.shadow_mask), \
+            (self.vec_broadcast,))
+        
+        if self.scene.quasirandom and path_index == 1:
+            rand_vec = self.qdirs[sample_index,:]
+        else:
+            rand_vec = normalize(np.random.normal(0,1,(3,)))
+            
+        rand_vec = np.array(rand_vec).astype(np.float32) 
+        rand_01 = np.float32(np.random.rand())
+        
+        self.vec_param_buf[0,:3] = rand_vec
+        self.vec_param_buf[1,:3] = np.random.normal(0,1,(3,))
+        # element 2 has color mask
+        self.vec_param_buf[3,:3] = light_point
+        
+        acc.enqueue_copy(self.vec_broadcast, self.vec_param_buf)
+        
+        acc.call(self.shader_name, \
+            (self.img, self.whichobject, self.normal, self.isec_dist,
+             self.pos, self.ray, self.raycolor, self.inside,self.shadow_mask), \
+            tuple( self.material_buffers + [rand_01, self.vec_broadcast] ))
+    
+    def get_light_point(self):
+        return [-2,2,2]
+    

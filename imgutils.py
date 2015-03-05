@@ -26,7 +26,7 @@ class Image:
 		return imgdata
 	
 	def _to_24bit( self, imgdata = None ):
-		imgdata = self._sum( imgdata )
+		imgdata = np.nan_to_num(self._sum( imgdata ))
 		ref = np.mean(imgdata)
 		imgdata = np.clip(imgdata/ref*self.brightness, 0, 1)
 		imgdata = np.power(imgdata, 1.0/self.gamma)

@@ -10,7 +10,7 @@ else:
 
 data = None
 for fn in fns:
-	d = numpy.load(fn)
+	d = numpy.nan_to_num(numpy.load(fn))
 
 	print "opened numpy matrix of size "+str(d.shape)
 	

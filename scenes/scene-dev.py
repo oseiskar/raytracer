@@ -1,22 +1,23 @@
 from scene import *
 from utils import normalize, vec_norm
 
-#scene = DefaultSpectrumBoxScene()
-scene = DefaultBoxScene()
+scene = DefaultSpectrumBoxScene()
+#scene = DefaultBoxScene()
 #spectrum = scene.spectrum
+scene.shader = BidirectionalSpectrumShader
 
 for obj in scene.get_objects('wall'): obj.material = 'red'
 scene.get_object('floor').material = 'white'
 scene.get_object('ceiling').material = 'white'
-scene.get_object('light').material = 'white'
+#scene.get_object('light').material = 'white'
 scene.materials['black'] = { 'diffuse': 0.2 }
 #scene.materials['glass']['ior'] = spectrum.linear_dispersion_ior(1.6, 36.0)
 #scene.materials['sky']['emission'] = spectrum.black_body(5000)
 
-scene.materials['default']['volume_scattering'] = 0.1
-scene.materials['default']['volume_scattering_blur'] = 0.01
+#scene.materials['default']['volume_scattering'] = 0.1
+#scene.materials['default']['volume_scattering_blur'] = 0.01
 
-scene.objects.append( Object(HalfSpace( (-1,-1,-2), 5 ), 'sky') )
+#scene.objects.append( Object(HalfSpace( (-1,-1,-2), 5 ), 'sky') )
 
 objR = .6
 objPos = (0,0,objR)
@@ -24,8 +25,8 @@ objMat = 'glass'
 #objType = Tetrahedron
 #objType = Octahedron
 #objType = Dodecahedron
-#objType = Icosahedron
-objType = Sphere
+objType = Icosahedron
+#objType = Sphere
 scene.objects.append( Object( objType( objPos, objR ), objMat ) )
 
 """
@@ -37,7 +38,7 @@ scene.objects.append( Object(
 	] ), 'glass') )
 """
 
-szmul = 50
+szmul = 150
 scene.image_size = (8*szmul,6*szmul)
 
 #tanglecube_eq = 'x**4 - 5*x**2 + y**4 - 5*y**2 + z**4 - 5*z**2 + 11.8'
