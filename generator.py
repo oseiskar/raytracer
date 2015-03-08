@@ -84,7 +84,8 @@ def make_program( shader ):
         __global const uint *p_inside,
         __global float *p_shadow_mask,
         // a random unit vector and color mask
-        constant float4 *p_dest_point)
+        constant float4 *p_dest_point,
+        uint light_id)
     {
         const int gid = get_global_id(0);
         
@@ -95,7 +96,6 @@ def make_program( shader ):
         const float3 last_normal = p_normal[gid];
         
         if ( dot(last_normal, ray) < 0.0 ) {
-            // TODO
             p_shadow_mask[gid] = 0.0;
             return;
         }
@@ -103,16 +103,15 @@ def make_program( shader ):
         float isec_dist = shadow_dist;
         uint subobject;
         
-        trace_core(
+        uint whichobject = trace_core(
             ray,
             last_normal,
             p_whichobject[gid],
             p_inside[gid],
             &pos,&subobject,&isec_dist);
         
-        const float EPS = 1e-5; // TODO: get rid of epsilon
-        
-        if (isec_dist > shadow_dist - EPS) {
+        // no light self-intersection (light objects must be convex)
+        if (whichobject == 0 || whichobject == light_id) {
             // no shadow
             p_shadow_mask[gid] = 1.0;
         }

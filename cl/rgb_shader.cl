@@ -25,21 +25,29 @@ __kernel void rgb_shader(
         // 0 if in ambient space. (notice however, that the ambient
         // space also has fog and IoR material properties)
         global uint *inside,
+#ifdef BIDIRECTIONAL
+        // visibility mask for light point
+        global float *shadow_mask,
+        global int *suppress_emission,
+        // id of the light object
+        int light_id,
+        float light_area,
+#endif
         // material properties of the current object
         constant float4 *material_colors,
         constant float *material_scalars,
         // the random sample [0,1) that decides what to do
         float p,
         // a random unit vector and a random gaussian vector
-        constant float4 *rvecs)
+        constant float4 *rvecs_cmask_and_light)
 {
     const int gid = get_global_id(0);
     uint id = surface_object_id[gid];
     
     float3 r = ray[gid];
     float3 n = normal[gid];
-    const float3 rvec = rvecs[0].xyz;
-    float3 gauss_rvec = rvecs[1].xyz;
+    const float3 rvec = rvecs_cmask_and_light[0].xyz;
+    float3 gauss_rvec = rvecs_cmask_and_light[1].xyz;
     
     float cur_prob = 0;
     float cur_mult = 1.0;
@@ -50,6 +58,13 @@ __kernel void rgb_shader(
     
     float last_dist = last_distance[gid];
     const float alpha = SCALAR(MAT_VOLUME_SCATTERING,inside[gid]);
+    
+    #ifdef BIDIRECTIONAL
+        const uint suppressed_emission_id = suppress_emission[gid];
+        if (suppressed_emission_id != 0) {
+            suppress_emission[gid] = -1;
+        }
+    #endif
     
     if (alpha > 0) cur_prob = 1.0-exp(-alpha*last_dist);
     
@@ -74,6 +89,10 @@ __kernel void rgb_shader(
             r = normalize(gauss_rvec + r * tan(M_PI*0.5*(1.0 - blur)));
         }
         else r = rvec;
+        
+        #ifdef BIDIRECTIONAL
+            suppress_emission[gid] = -1;
+        #endif
     }
     
     #define COLOR2PROB(color) dot(color,WHITE)/3.0
@@ -87,7 +106,14 @@ __kernel void rgb_shader(
         p -= cur_prob;
         
         // TODO: the emission is non-Lambertian at the moment
-        img[gid] += COLOR(MAT_EMISSION,id)*color[gid]*cur_col_mult;
+        #ifdef BIDIRECTIONAL
+            if (id != suppressed_emission_id)
+            {
+        #endif
+                img[gid] += COLOR(MAT_EMISSION,id)*color[gid]*cur_col_mult;
+        #ifdef BIDIRECTIONAL
+            }
+        #endif
         
         cur_col = COLOR(MAT_REFLECTION,id);
         cur_prob = COLOR2PROB(cur_col);
@@ -171,13 +197,33 @@ __kernel void rgb_shader(
             }
             else
             {
-                // p -= cur_prob; // (no need to do this)
-                
                 cur_col = COLOR(MAT_DIFFUSE,id);
                 
                 // diffusion / absorbtion
                 
                 if (COLOR2PROB(cur_col) > 0.0) {
+                
+                    #ifdef BIDIRECTIONAL
+                        if (suppressed_emission_id == 0) {
+                            const float3 light_point = rvecs_cmask_and_light[3].xyz;
+                            const float3 light_normal = rvecs_cmask_and_light[4].xyz;
+                            float3 shadow_ray = light_point - pos[gid];
+                            const float shadow_dist = length(shadow_ray);
+                            
+                            suppress_emission[gid] = light_id;
+                            
+                            if (dot(shadow_ray, n) > 0 && dot(shadow_ray,light_normal) < 0) {
+                                shadow_ray = fast_normalize(shadow_ray);
+                                
+                                img[gid] += 2.0 * dot(n,shadow_ray)
+                                    * dot(-shadow_ray,light_normal) / (shadow_dist*shadow_dist)
+                                    * color[gid]*cur_mult*cur_col*cur_col_mult
+                                    * COLOR(MAT_EMISSION,light_id)
+                                    * shadow_mask[gid]
+                                    * light_area;
+                            }
+                        }
+                    #endif
                 
                     // --- Diffuse
                     r = rvec;

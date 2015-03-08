@@ -4,12 +4,12 @@ from utils import normalize, vec_norm
 scene = DefaultSpectrumBoxScene()
 #scene = DefaultBoxScene()
 #spectrum = scene.spectrum
-scene.shader = BidirectionalSpectrumShader
 
 for obj in scene.get_objects('wall'): obj.material = 'red'
 scene.get_object('floor').material = 'white'
 scene.get_object('ceiling').material = 'white'
 #scene.get_object('light').material = 'white'
+scene.get_object('light').bidirectional_light = True
 scene.materials['black'] = { 'diffuse': 0.2 }
 #scene.materials['glass']['ior'] = spectrum.linear_dispersion_ior(1.6, 36.0)
 #scene.materials['sky']['emission'] = spectrum.black_body(5000)
@@ -25,8 +25,8 @@ objMat = 'glass'
 #objType = Tetrahedron
 #objType = Octahedron
 #objType = Dodecahedron
-objType = Icosahedron
-#objType = Sphere
+#objType = Icosahedron
+objType = Sphere
 scene.objects.append( Object( objType( objPos, objR ), objMat ) )
 
 """

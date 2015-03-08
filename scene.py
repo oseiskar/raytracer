@@ -7,12 +7,16 @@ from spectrum import Spectrum
 
 class Object:
     """
-    An object consists of a Tracer that represents its shape and a material
+    An object consists of a Tracer that represents its shape and a material.
+    It is also defined here if the object is to be used as a light source
+    in bidirectional path tracing. If yes, this must be supported by the
+    Tracer.
     """
     def __init__(self, tracer, material, name=None):
         self.tracer = tracer
         self.material = material
         self.name = name
+        self.bidirectional_light = False
 
 class Scene:
     

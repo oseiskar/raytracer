@@ -24,6 +24,15 @@ class Sphere(Tracer):
 	def __init__(self, pos, R):
 		self.pos = tuple(pos)
 		self.R = R
+    
+	def surface_area(self):
+		return 4.0 * math.pi * self.R**2
+
+	def random_surface_point_and_normal(self):
+		p = numpy.array(self.pos)
+		rand = numpy.random.normal(0,1,p.shape)
+		rand = rand / numpy.linalg.norm(rand)
+		return (p + rand * self.R, rand)
 	
 	tracer_code = """
 		

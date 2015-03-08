@@ -1,5 +1,6 @@
 
 #define PROPERTY(prop, id) material_properties[prop + id]
+#define MIN_SHADOW_DIST_THRESHOLD 0.0
 
 __kernel void spectrum_shader(
         // output: colors are summed to this image when appropriate
@@ -24,30 +25,44 @@ __kernel void spectrum_shader(
         // 0 if in ambient space. (notice however, that the ambient
         // space also has fog and IoR material properties)
         global uint *inside,
+#ifdef BIDIRECTIONAL
+        // visibility mask for light point
+        global float *shadow_mask,
+        global int *suppress_emission,
+        // id of the light object
+        int light_id,
+        float light_area,
+#endif
         // material properties of the current object
         constant float *material_properties,
         // the random sample [0,1) that decides what to do
         float p,
         // a random unit vector and color mask
-        constant float4 *rvecs_and_cmask)
+        constant float4 *rvecs_cmask_and_light)
 {
     const int gid = get_global_id(0);
     uint id = surface_object_id[gid];
     
     float3 r = ray[gid];
     float3 n = normal[gid];
-    const float3 rvec = rvecs_and_cmask[0].xyz;
-    float3 gauss_rvec = rvecs_and_cmask[1].xyz;
+    const float3 rvec = rvecs_cmask_and_light[0].xyz;
+    float3 gauss_rvec = rvecs_cmask_and_light[1].xyz;
     
     float cur_prob = 0;
     float cur_mult = 1.0;
     float blur;
     
-    const float3 cmask = rvecs_and_cmask[2].xyz;
-    
+    const float3 cmask = rvecs_cmask_and_light[2].xyz;
     
     float last_dist = last_distance[gid];
     const float alpha = PROPERTY(MAT_VOLUME_SCATTERING,inside[gid]);
+    
+    #ifdef BIDIRECTIONAL
+        const uint suppressed_emission_id = suppress_emission[gid];
+        if (suppressed_emission_id != 0) {
+            suppress_emission[gid] = -1;
+        }
+    #endif
     
     if (alpha > 0) cur_prob = 1.0-exp(-alpha*last_dist);
     
@@ -72,6 +87,10 @@ __kernel void spectrum_shader(
             r = normalize(gauss_rvec + r * tan(M_PI*0.5*(1.0 - blur)));
         }
         else r = rvec;
+        
+        #ifdef BIDIRECTIONAL
+            suppress_emission[gid] = -1;
+        #endif
     }
     
     cur_mult *= exp(-PROPERTY(MAT_VOLUME_ABSORPTION,inside[gid])*last_dist);
@@ -81,7 +100,14 @@ __kernel void spectrum_shader(
         p -= cur_prob;
     
         // TODO: the emission is non-Lambertian at the moment
-        img[gid] += PROPERTY(MAT_EMISSION, id)*intensity[gid]*cmask*cur_mult;
+        #ifdef BIDIRECTIONAL
+            if (id != suppressed_emission_id)
+            {
+        #endif
+                img[gid] += PROPERTY(MAT_EMISSION, id)*intensity[gid]*cmask*cur_mult;
+        #ifdef BIDIRECTIONAL
+            }
+        #endif
         
         cur_prob = PROPERTY(MAT_REFLECTION,id);
         
@@ -163,6 +189,31 @@ __kernel void spectrum_shader(
                 
                 if (cur_mult > 0.0)
                 {
+                    #ifdef BIDIRECTIONAL
+                        if (suppressed_emission_id == 0) {
+                            const float3 light_point = rvecs_cmask_and_light[3].xyz;
+                            const float3 light_normal = rvecs_cmask_and_light[4].xyz;
+                            float3 shadow_ray = light_point - pos[gid];
+                            const float shadow_dist = length(shadow_ray);
+                            
+                            if (shadow_dist > MIN_SHADOW_DIST_THRESHOLD) {
+                                suppress_emission[gid] = light_id;
+                                
+                                if (dot(shadow_ray, n) > 0 && dot(shadow_ray,light_normal) < 0) {
+                                    shadow_ray = fast_normalize(shadow_ray);
+                                    
+                                    img[gid] += 2.0 * dot(n,shadow_ray)
+                                        * dot(-shadow_ray,light_normal) / (shadow_dist*shadow_dist)
+                                        * intensity[gid]*cmask*cur_mult
+                                        * PROPERTY(MAT_EMISSION, light_id)
+                                        * shadow_mask[gid]
+                                        
+                                        * light_area;
+                                }
+                            }
+                        }
+                    #endif
+                
                     // --- Diffuse
                     r = rvec;
                         

@@ -12,10 +12,11 @@ class Shader:
         self.acc = Accelerator(scene.get_number_of_camera_rays(), \
             args.interactive_opencl_context)
         
+        self.prepare()
+        
         prog_code = generator.make_program(self)
         self.prog = self.acc.build_program( prog_code )
         
-        self.prepare()
     
     def make_code(self):
         """main shader code generation function to be called by the generator"""
@@ -36,6 +37,9 @@ class Shader:
             for p in property_list:
                 code += "#define MAT_%s %d\n" % (p.upper(), offset)
                 offset += n_objects + 1
+        
+        if self.bidirectional:
+            code += "#define BIDIRECTIONAL\n"
             
         return code
     
@@ -54,7 +58,7 @@ class Shader:
         
         self.initialize_material_buffers()
 
-        self.max_broadcast_vecs = 4
+        self.max_broadcast_vecs = 5
         self.vec_broadcast = self.acc.new_const_buffer(np.zeros((self.max_broadcast_vecs,4)))
         self.vec_param_buf = np.zeros((self.max_broadcast_vecs,4), dtype=np.float32)
 
@@ -82,6 +86,21 @@ class Shader:
         for i in range(len(scene.objects)):
             if scene.root_object == scene.objects[i]:
                 self.root_object_id = i+1
+        
+        # Find lights
+        def has_emission(o):
+            em = scene.materials[o.material].get('emission',0.0)
+            if isinstance(em, float): return em > 0.0
+            else: return any([e > 0 for e in em])
+        
+        self.bidirectional_light_ids = [i
+            for i in range(len(self.scene.objects))
+            if self.scene.objects[i].bidirectional_light]
+            
+        self.bidirectional = len(self.bidirectional_light_ids) > 0
+        if self.bidirectional:
+            self.shadow_mask = self.acc.zeros_like(self.isec_dist)
+            self.suppress_emission = self.acc.new_array(imgshape, np.int32, True)
         
     # helpers
 
@@ -191,9 +210,25 @@ class Shader:
     def compute_next_path_segment(self, path_index):
         
         acc = self.acc
+        scene = self.scene
         
         self.isec_dist.fill(self.scene.max_ray_length)
         acc.call('trace', (self.pos,self.ray,self.normal,self.isec_dist,self.whichobject,self.inside))
+        
+        if self.bidirectional:
+            if path_index == 0: self.suppress_emission.fill(0)
+        
+            light_id, light_point, light_normal, light_intensity = self.get_light_point()
+            light_id = np.int32(light_id+1)
+            light_point = np.array(light_point).astype(np.float32)
+            light_normal = np.array(light_normal).astype(np.float32)
+            light_intensity = np.float32(light_intensity)
+            self.vec_param_buf[0,:3] = light_point
+
+            acc.enqueue_copy(self.vec_broadcast, self.vec_param_buf)
+            acc.call('shadow_trace', \
+                (self.pos,self.normal,self.whichobject,self.inside,self.shadow_mask), \
+                (self.vec_broadcast,light_id))
         
         if self.scene.quasirandom and path_index == 1:
             rand_vec = self.qdirs[sample_index,:]
@@ -205,14 +240,28 @@ class Shader:
         
         self.vec_param_buf[0,:3] = rand_vec
         self.vec_param_buf[1,:3] = np.random.normal(0,1,(3,))
-        
+        # element 2 has color mask
+        if self.bidirectional:
+            self.vec_param_buf[3,:3] = light_point
+            self.vec_param_buf[4,:3] = light_normal
         acc.enqueue_copy(self.vec_broadcast, self.vec_param_buf)
         
-        acc.call(self.shader_name, \
-            (self.img, self.whichobject, self.normal, self.isec_dist,
-             self.pos, self.ray, self.raycolor, self.inside), \
-            tuple( self.material_buffers + [rand_01, self.vec_broadcast] ))
-
+        buffer_params = [self.img, self.whichobject,
+            self.normal, self.isec_dist, self.pos, self.ray,
+            self.raycolor, self.inside]
+             
+        constant_params = self.material_buffers + [rand_01, self.vec_broadcast]
+        
+        if self.bidirectional:
+            buffer_params += [self.shadow_mask,self.suppress_emission]
+            constant_params = [light_id,light_intensity] + constant_params
+        
+        acc.call(self.shader_name, tuple(buffer_params), tuple(constant_params))
+        
+    def get_light_point(self):
+        light_id = self.bidirectional_light_ids[np.random.randint(len(self.bidirectional_light_ids))]
+        light = self.scene.objects[light_id]
+        return (light_id,) + light.tracer.random_surface_point_and_normal() + (light.tracer.surface_area(),)
 
 class RgbShader(Shader):
     
@@ -273,25 +322,23 @@ class RgbShader(Shader):
 
 class SpectrumShader(Shader):
     
-    MATERIAL_PROPERTIES = [
-            'diffuse',
-            'emission',
-            'reflection',
-            'transparency',
-            'volume_scattering',
-            'volume_absorption',
-            'reflection_blur',
-            'transparency_blur',
-            'volume_scattering_blur',
-            'ior'
-        ]
-    
     def __init__(self, scene, args):
         self.shader_name = 'spectrum_shader'
         
         self.material_property_sets = [
             # (scalar) material properties
-            SpectrumShader.MATERIAL_PROPERTIES
+            [
+                'diffuse',
+                'emission',
+                'reflection',
+                'transparency',
+                'volume_scattering',
+                'volume_absorption',
+                'reflection_blur',
+                'transparency_blur',
+                'volume_scattering_blur',
+                'ior'
+            ]
         ]
         self.initialize(scene, args)
     
@@ -348,63 +395,4 @@ class SpectrumShader(Shader):
         color_mask = wave_interp(self.color_responses)
         #print wavelength, color_mask
         self.vec_param_buf[2,:3] = np.ravel(color_mask)
-
-class BidirectionalSpectrumShader(SpectrumShader):
-    def __init__(self, scene, args):
-        self.shader_name = 'bidirectional_spectrum_shader'
-        
-        self.material_property_sets = [
-            # (scalar) material properties
-            SpectrumShader.MATERIAL_PROPERTIES
-        ]
-        self.initialize(scene, args)
-        
-        def has_emission(o):
-            em = scene.materials[o.material].get('emission',0.0)
-            if isinstance(em, float): return em > 0.0
-            else: return any([e > 0 for e in em])
-        
-        self.lights = [o for o in self.scene.objects if has_emission(o)]
-    
-    def prepare(self):
-        SpectrumShader.prepare(self)
-        self.shadow_mask = self.acc.zeros_like(self.isec_dist)
-        
-    def compute_next_path_segment(self, path_index):
-        
-        acc = self.acc
-        
-        self.isec_dist.fill(self.scene.max_ray_length)
-        acc.call('trace', (self.pos,self.ray,self.normal,self.isec_dist,self.whichobject,self.inside))
-        
-        light_point = np.array(self.get_light_point()).astype(np.float32)
-        self.vec_param_buf[0,:3] = light_point
-        
-        acc.enqueue_copy(self.vec_broadcast, self.vec_param_buf)
-        acc.call('shadow_trace', \
-            (self.pos,self.normal,self.whichobject,self.inside,self.shadow_mask), \
-            (self.vec_broadcast,))
-        
-        if self.scene.quasirandom and path_index == 1:
-            rand_vec = self.qdirs[sample_index,:]
-        else:
-            rand_vec = normalize(np.random.normal(0,1,(3,)))
-            
-        rand_vec = np.array(rand_vec).astype(np.float32) 
-        rand_01 = np.float32(np.random.rand())
-        
-        self.vec_param_buf[0,:3] = rand_vec
-        self.vec_param_buf[1,:3] = np.random.normal(0,1,(3,))
-        # element 2 has color mask
-        self.vec_param_buf[3,:3] = light_point
-        
-        acc.enqueue_copy(self.vec_broadcast, self.vec_param_buf)
-        
-        acc.call(self.shader_name, \
-            (self.img, self.whichobject, self.normal, self.isec_dist,
-             self.pos, self.ray, self.raycolor, self.inside,self.shadow_mask), \
-            tuple( self.material_buffers + [rand_01, self.vec_broadcast] ))
-    
-    def get_light_point(self):
-        return [-2,2,2]
     
