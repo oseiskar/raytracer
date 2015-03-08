@@ -32,6 +32,7 @@ __kernel void rgb_shader(
         // id of the light object
         int light_id,
         float light_area,
+        float min_light_sampling_distance,
 #endif
         // material properties of the current object
         constant float4 *material_colors,
@@ -61,9 +62,7 @@ __kernel void rgb_shader(
     
     #ifdef BIDIRECTIONAL
         const uint suppressed_emission_id = suppress_emission[gid];
-        if (suppressed_emission_id != 0) {
-            suppress_emission[gid] = -1;
-        }
+        suppress_emission[gid] = 0;
     #endif
     
     if (alpha > 0) cur_prob = 1.0-exp(-alpha*last_dist);
@@ -105,7 +104,6 @@ __kernel void rgb_shader(
     {
         p -= cur_prob;
         
-        // TODO: the emission is non-Lambertian at the moment
         #ifdef BIDIRECTIONAL
             if (id != suppressed_emission_id)
             {
@@ -204,23 +202,28 @@ __kernel void rgb_shader(
                 if (COLOR2PROB(cur_col) > 0.0) {
                 
                     #ifdef BIDIRECTIONAL
-                        if (suppressed_emission_id == 0) {
-                            const float3 light_point = rvecs_cmask_and_light[3].xyz;
-                            const float3 light_normal = rvecs_cmask_and_light[4].xyz;
-                            float3 shadow_ray = light_point - pos[gid];
-                            const float shadow_dist = length(shadow_ray);
+                        if (suppressed_emission_id == 0 && light_id > 0) {
+                            const float3 light_center = rvecs_cmask_and_light[5].xyz;
                             
-                            suppress_emission[gid] = light_id;
+                            if (length(pos[gid]-light_center) > min_light_sampling_distance) {
                             
-                            if (dot(shadow_ray, n) > 0 && dot(shadow_ray,light_normal) < 0) {
-                                shadow_ray = fast_normalize(shadow_ray);
+                                const float3 light_point = rvecs_cmask_and_light[3].xyz;
+                                float3 shadow_ray = light_point - pos[gid];
+                                const float3 light_normal = rvecs_cmask_and_light[4].xyz;
+                            
+                                suppress_emission[gid] = light_id;
                                 
-                                img[gid] += 2.0 * dot(n,shadow_ray)
-                                    * dot(-shadow_ray,light_normal) / (shadow_dist*shadow_dist)
-                                    * color[gid]*cur_mult*cur_col*cur_col_mult
-                                    * COLOR(MAT_EMISSION,light_id)
-                                    * shadow_mask[gid]
-                                    * light_area;
+                                if (dot(shadow_ray, n) > 0 && dot(shadow_ray,light_normal) < 0) {
+                                    const float shadow_dist = length(shadow_ray);
+                                    shadow_ray = fast_normalize(shadow_ray);
+                                    
+                                    img[gid] += dot(n,shadow_ray) / M_PI
+                                        * dot(-shadow_ray,light_normal) / (shadow_dist*shadow_dist)
+                                        * color[gid]*cur_mult*cur_col*cur_col_mult
+                                        * COLOR(MAT_EMISSION,light_id)
+                                        * shadow_mask[gid]
+                                        * light_area;
+                                }
                             }
                         }
                     #endif

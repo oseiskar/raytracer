@@ -34,6 +34,9 @@ class Sphere(Tracer):
 		rand = rand / numpy.linalg.norm(rand)
 		return (p + rand * self.R, rand)
 	
+	def center_and_min_sampling_distance(self):
+		return (numpy.array(self.pos), self.R * 2.0)
+	
 	tracer_code = """
 		
 		if (origin_self && !inside)

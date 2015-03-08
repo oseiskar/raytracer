@@ -58,7 +58,7 @@ class Shader:
         
         self.initialize_material_buffers()
 
-        self.max_broadcast_vecs = 5
+        self.max_broadcast_vecs = 6
         self.vec_broadcast = self.acc.new_const_buffer(np.zeros((self.max_broadcast_vecs,4)))
         self.vec_param_buf = np.zeros((self.max_broadcast_vecs,4), dtype=np.float32)
 
@@ -191,15 +191,18 @@ class Shader:
         while True:
             
             self.raycolor *= r_prob
-            self.compute_next_path_segment(path_index)
             
             r_prob = 1
+            break_next = False
             if path_index >= scene.min_bounces:
                 rand_01 = np.random.rand()
                 if rand_01 < scene.russian_roulette_prob and path_index < scene.max_bounces:
                     r_prob = 1.0/(1-scene.russian_roulette_prob)
-                else:
-                    break
+                else: break_next = True
+            
+            self.compute_next_path_segment(path_index, break_next)
+            
+            if break_next: break
             
             path_index += 1
     
@@ -207,7 +210,7 @@ class Shader:
         
         return path_index
 
-    def compute_next_path_segment(self, path_index):
+    def compute_next_path_segment(self, path_index, is_last):
         
         acc = self.acc
         scene = self.scene
@@ -218,18 +221,25 @@ class Shader:
         if self.bidirectional:
             if path_index == 0: self.suppress_emission.fill(0)
         
-            light_id, light_point, light_normal, light_intensity = self.get_light_point()
-            light_id = np.int32(light_id+1)
+            light_id, light_area, light_point, light_normal, \
+                light_center, min_light_sampling_distance = self.get_light_point()
+            
             light_point = np.array(light_point).astype(np.float32)
             light_normal = np.array(light_normal).astype(np.float32)
-            light_intensity = np.float32(light_intensity)
-            self.vec_param_buf[0,:3] = light_point
+            light_center = np.array(light_center).astype(np.float32)
+            light_area = np.float32(light_area)
+            min_light_sampling_distance = np.float32(min_light_sampling_distance)
+                
+            if is_last: light_id = np.int32(0)
+            else:
+                light_id = np.int32(light_id+1)
+                self.vec_param_buf[0,:3] = light_point
 
-            acc.enqueue_copy(self.vec_broadcast, self.vec_param_buf)
-            acc.call('shadow_trace', \
-                (self.pos,self.normal,self.whichobject,self.inside,self.shadow_mask), \
-                (self.vec_broadcast,light_id))
-        
+                acc.enqueue_copy(self.vec_broadcast, self.vec_param_buf)
+                acc.call('shadow_trace', \
+                    (self.pos,self.normal,self.whichobject,self.inside,self.shadow_mask), \
+                    (self.vec_broadcast,light_id))
+    
         if self.scene.quasirandom and path_index == 1:
             rand_vec = self.qdirs[sample_index,:]
         else:
@@ -244,6 +254,7 @@ class Shader:
         if self.bidirectional:
             self.vec_param_buf[3,:3] = light_point
             self.vec_param_buf[4,:3] = light_normal
+            self.vec_param_buf[5,:3] = light_center
         acc.enqueue_copy(self.vec_broadcast, self.vec_param_buf)
         
         buffer_params = [self.img, self.whichobject,
@@ -254,14 +265,16 @@ class Shader:
         
         if self.bidirectional:
             buffer_params += [self.shadow_mask,self.suppress_emission]
-            constant_params = [light_id,light_intensity] + constant_params
+            constant_params = [light_id,light_area,min_light_sampling_distance] + constant_params
         
         acc.call(self.shader_name, tuple(buffer_params), tuple(constant_params))
         
     def get_light_point(self):
         light_id = self.bidirectional_light_ids[np.random.randint(len(self.bidirectional_light_ids))]
         light = self.scene.objects[light_id]
-        return (light_id,) + light.tracer.random_surface_point_and_normal() + (light.tracer.surface_area(),)
+        return (light_id,light.tracer.surface_area()) + \
+            light.tracer.random_surface_point_and_normal() + \
+            light.tracer.center_and_min_sampling_distance()
 
 class RgbShader(Shader):
     

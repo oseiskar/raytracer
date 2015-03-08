@@ -10,6 +10,7 @@ scene.get_object('floor').material = 'white'
 scene.get_object('ceiling').material = 'white'
 #scene.get_object('light').material = 'white'
 scene.get_object('light').bidirectional_light = True
+#scene.get_object('light').tracer.R = 0.9
 scene.materials['black'] = { 'diffuse': 0.2 }
 #scene.materials['glass']['ior'] = spectrum.linear_dispersion_ior(1.6, 36.0)
 #scene.materials['sky']['emission'] = spectrum.black_body(5000)
