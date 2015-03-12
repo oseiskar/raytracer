@@ -21,6 +21,7 @@ scene.materials['wax']['reflection'] = (0.01,0.04,0.02)
 
 scene.get_object('floor').material = 'floor'
 scene.get_object('ceiling').material = 'white'
+#scene.get_object('light').bidirectional_light = True
 
 for obj in scene.get_objects('wall'): obj.material = 'white'
 
