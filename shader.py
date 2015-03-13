@@ -1,6 +1,5 @@
 
 from utils import *
-import generator
 from accelerator import Accelerator
 import templates
 

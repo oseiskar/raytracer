@@ -8,5 +8,5 @@ img/
 unversioned/
 
 # needed for the spectrum shader to work. not sure about the IPR of these...
-color_data/cie-1931.csv
-color_data/cie-1964.csv
+data/cie-1931.csv
+data/cie-1964.csv

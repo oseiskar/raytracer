@@ -28,7 +28,7 @@ class Spectrum:
     def cie_1931_xyz(self):
         if not hasattr(self, 'cie_xyz'):
             # Google for "CIE 1931 data" to find an XLS with this data
-            cie_data = np.genfromtxt('color_data/cie-1931.csv', delimiter=',')
+            cie_data = np.genfromtxt('data/cie-1931.csv', delimiter=',')
             self.cie_xyz = self.map_left( cie_data[:,0], cie_data[:,1:].T )
         return self.cie_xyz
     

@@ -2,7 +2,7 @@
 # Tracer objects: components for objects defined as intersections
 # of convex objects (e.g., capped cylinder)
 
-from tracer import *
+from objects import ConvexIntersection
 from utils import normalize_tuple, vec_norm
 import numpy
 import sys
