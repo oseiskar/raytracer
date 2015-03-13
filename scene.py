@@ -50,6 +50,15 @@ class Scene:
     
     def add_object(self, tracer, material, name=None):
         self.objects.append(Object(tracer,material,name))
+
+    def get_kernels(self):
+        kernel_map = {}
+        for obj in self.objects:
+            for (k,v) in obj.tracer.make_functions().items():
+                if k in kernel_map and kernel_map[k] != v:
+                    raise "kernel name clash!!"
+                kernel_map[k] = v
+        return list(set(kernel_map.values()))
     
 def default_materials():
     # --- Materials

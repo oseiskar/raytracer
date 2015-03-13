@@ -2,6 +2,7 @@
 from utils import *
 import generator
 from accelerator import Accelerator
+import templates
 
 class Shader:
     
@@ -14,34 +15,39 @@ class Shader:
         
         self.prepare()
         
-        prog_code = generator.make_program(self)
-        self.prog = self.acc.build_program( prog_code )
+        self.prog = self.acc.build_program( self.make_program() )
         
     
-    def make_code(self):
-        """main shader code generation function to be called by the generator"""
-        
-        code = self.make_definitions()
-        with open('cl/' + self.shader_name + '.cl') as f: code += f.read()
-        return code
-    
-    def make_definitions(self):
-        
-        code = ''
+    def get_material_property_offsets(self):
+        properties = []
         n_objects = len(self.scene.objects)
         
         for property_list in self.material_property_sets:
             
             offset = 0
-            
             for p in property_list:
-                code += "#define MAT_%s %d\n" % (p.upper(), offset)
+                properties.append((p.upper(), offset))
                 offset += n_objects + 1
         
-        if self.bidirectional:
-            code += "#define BIDIRECTIONAL\n"
-            
-        return code
+        return properties
+    
+    def make_program(self):
+        scene = self.scene
+    
+        kernels = scene.get_kernels()
+        kernel_declarations = [kernel[:kernel.find('{')] + ';' for kernel in kernels]
+
+        return templates.render('main.cl', {
+            'shader': self,
+            'objects': {
+                'length': len(scene.objects),
+                'tracers': [o.tracer for o in scene.objects]
+            },
+            'kernels': {
+                'declarations': kernel_declarations,
+                'functions': kernels
+            }
+        })
     
     def prepare(self):
         

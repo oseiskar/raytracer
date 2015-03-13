@@ -29,6 +29,7 @@ class Accelerator:
 			for a in self._cl_arrays: a.finish()
 	
 	def build_program(self, prog_code):
+		prog_code = prog_code.encode('ascii')
 		with open('last_code.cl', 'w') as f: f.write(prog_code)
 		self.prog = cl.Program(self.ctx, prog_code).build()
 	
