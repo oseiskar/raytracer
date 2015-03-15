@@ -1,14 +1,17 @@
 
-### include 'utils.cl'
+{% include 'utils.cl' %}
 
-### include 'shade.cl'
+{% include 'shade.cl' %}
 
+// Declarations
 ### for k in kernels.declarations
-    {{ k }}
+{{ k }}
 ### endfor
 
+
+// Definitions
 ### for k in kernels.functions
-    {{ k }}
+{{ k }}
 ### endfor
 
 ### include 'trace.cl'

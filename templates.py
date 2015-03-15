@@ -7,8 +7,10 @@ def get_environment():
     global environment
     if environment is None:
         environment = jinja2.Environment(\
-            loader=jinja2.PackageLoader('clray', 'cl_templates'), \
-            line_statement_prefix='###')
+            loader=jinja2.PackageLoader('clray', 'cl_templates'),
+            line_statement_prefix='###',
+            trim_blocks=False,
+            lstrip_blocks=False)
     return environment
 
 def render(name, *args, **kwargs):

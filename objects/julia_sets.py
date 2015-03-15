@@ -134,7 +134,7 @@ class QuaternionJuliaSet2(Tracer):
 		float trace_begin, trace_end;
 		"""
 		
-		self.tracer_code += Sphere.get_bounding_volume_code(\
+		self.tracer_code += ImplicitSurface.get_bounding_volume_code(\
 			tuple(self.center), self.bndR, 'trace_begin', 'trace_end');
 		
 		self.tracer_code += """
