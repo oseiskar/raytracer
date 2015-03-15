@@ -116,17 +116,13 @@ __kernel void trace(
         inside,
         &pos,&subobject,&isec_dist);
     
-    uint i = 0;
-
     ### for i in range(objects.length)
         
-        i = {{ i + 1 }};
-        
-        if (whichobject == i)
+        {% if i %}else {% endif %}if (whichobject == {{ i + 1 }})
         {
             // call normal
             {{ objects.tracers[i].make_normal_call("pos, subobject, p_normal") }}
-            if (inside == i) *p_normal = -*p_normal;
+            if (inside == {{ i + 1 }}) *p_normal = -*p_normal;
         }
         
     ### endfor

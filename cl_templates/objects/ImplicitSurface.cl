@@ -23,7 +23,3 @@
 ### macro normal_call(obj, params)
 {{ obj.normal_function_name }}({{params}});
 ### endmacro
-
-### macro bounding_volume(center, R, minvar, maxvar)
-
-### endmacro

@@ -48,7 +48,7 @@
 		### set subobj_offset = 0
         ### for c in obj.components
         
-            if ({% if subobj_offset > 0 %}subobject >= {{ subobj_offset }} && {% endif %}subobject < {{ subobj_offset + c.n_subobjects }})
+            {% if subobj_offset > 0 %}else {% endif %}if ({% if subobj_offset > 0 %}subobject >= {{ subobj_offset }} && {% endif %}subobject < {{ subobj_offset + c.n_subobjects }})
                 {{ obj.make_component_normal_call(c, subobj_offset) }}
                 
 			### set subobj_offset = subobj_offset + c.n_subobjects
