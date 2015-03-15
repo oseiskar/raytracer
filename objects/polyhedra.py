@@ -1,6 +1,6 @@
-from objects import ConvexIntersection
-from objects.components import *
+from objects import ConvexIntersection, HalfSpaceComponent, LayerComponent
 import math, numpy
+from utils import vec_norm, normalize_tuple
 
 class Parallelepiped(ConvexIntersection):
 	

@@ -11,6 +11,7 @@ class QuaternionJuliaSet(ImplicitSurface):
 	def __init__(self, c, julia_itr, *args, **argd):
 		self.c = c
 		self.julia_itr = julia_itr
+		argd['bndR'] = 1.5
 		ImplicitSurface.__init__(self, "x^2 + y^2 + z^2 - 1", *args, **argd)
 		
 		self.tracer_code = """
@@ -134,7 +135,7 @@ class QuaternionJuliaSet2(Tracer):
 		"""
 		
 		self.tracer_code += Sphere.get_bounding_volume_code(\
-			self.center, self.bndR, 'trace_begin', 'trace_end');
+			tuple(self.center), self.bndR, 'trace_begin', 'trace_end');
 		
 		self.tracer_code += """
 		
@@ -151,7 +152,7 @@ class QuaternionJuliaSet2(Tracer):
 		dist = trace_begin;
 		float3 pos = trace_begin * ray + origin - (float3)%s;
 		
-		""" % (self.c,self.center)
+		""" % (tuple(self.c),tuple(self.center))
 		
 		self.tracer_code += """
 		for( i=0; i < MAX_ITER; i++ )
@@ -221,7 +222,7 @@ class QuaternionJuliaSet2(Tracer):
 		self.normal_code = """
 		float4 q = (float4)(pos - (float3)%s,0);
 		const float4 c = (float4)%s, q1;
-		""" % (self.center,self.c)
+		""" % (tuple(self.center),tuple(self.c))
 		
 		self.normal_code += """
 		float3

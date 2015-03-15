@@ -56,6 +56,9 @@ class Scene:
         for obj in self.objects:
             for (k,v) in obj.tracer.make_functions().items():
                 if k in kernel_map and kernel_map[k] != v:
+                    print kernel_map[k]
+                    print '------'
+                    print v
                     raise "kernel name clash!!"
                 kernel_map[k] = v
         return list(set(kernel_map.values()))
@@ -141,7 +144,7 @@ class DefaultBoxScene(Scene):
         self.samples_per_pixel = 10000
         self.min_bounces = 3
         self.russian_roulette_prob = .3
-        self.max_bounces = 4
+        self.max_bounces = 3
         
         self.initialize_materials()
         

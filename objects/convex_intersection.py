@@ -37,10 +37,10 @@ class ConvexIntersection(Tracer):
 		self.components = components
 		
 		self.extra_tracer_argument_definitions = ['const float3 base']
-		self.extra_tracer_arguments = ["(float3)%s" % (self.origin,)]
+		self.extra_tracer_arguments = ["(float3)%s" % (tuple(self.origin),)]
 		
 		self.extra_normal_argument_definitions = ['const float3 base']
-		self.extra_normal_arguments = ["(float3)%s" % (self.origin,)]
+		self.extra_normal_arguments = ["(float3)%s" % (tuple(self.origin),)]
 		
 		self.unique_tracer_id = str(id(self))
 		
