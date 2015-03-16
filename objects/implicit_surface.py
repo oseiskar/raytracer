@@ -13,12 +13,16 @@ class ImplicitSurface(Tracer):
     
     def __init__(self, eq,
                 center=(0,0,0), scale=1.0, bndR=None,
-                max_itr=1500, precision=0.001):
+                max_itr=1500, precision=0.001, self_intersection=True):
         
         self.unique_tracer_id = str(id(self))
         
         self.center = tuple(center)
         self.scale = scale
+        self.no_self_intersection = not self_intersection
+        self.precision = precision
+        self.max_itr = max_itr
+        self.bndR = bndR
         
         import sympy
         import sympy.core.numbers
@@ -88,101 +92,11 @@ class ImplicitSurface(Tracer):
                 return self._print_mul_rec(expr.args)
                 
         sympy.Basic.__str__ = lambda self: IAPrinter().doprint(self)
-        
-        self.tracer_code = """
-        ia_type t;
-        """
-        
-        self.tracer_code += Sphere.get_bounding_volume_code(\
-            self.center, bndR*self.scale, 'ia_begin(t)', 'ia_end(t)');
-        
-        self.tracer_code += """
-        
-        int i=0;
-        const int MAX_ITER = %d;
-        const float TARGET_EPS = %s;
-        const float FRACTION = 0.5;
-        const float SELF_MAX_BEGIN_STEP = 0.1;
-        """ % (max_itr, precision)
-        
-        self.tracer_code += """
-        ia_type f, df;
-        ia_type x,y,z;
-        
-        float step;
-        int steps_since_subdiv = 0;
-        
-        const ia_type ray_x = ia_new_exact(ray.x);
-        const ia_type ray_y = ia_new_exact(ray.y);
-        const ia_type ray_z = ia_new_exact(ray.z);
-        const ia_type origin_x = ia_new_exact(origin.x);
-        const ia_type origin_y = ia_new_exact(origin.y);
-        const ia_type origin_z = ia_new_exact(origin.z);
-        int need_subdiv;
-        
-        if (origin_self)
-        {
-            ia_end(t) = min(ia_end(t),ia_begin(t) + SELF_MAX_BEGIN_STEP);
-        }
-
-        for( i=0; i < MAX_ITER; i++ )
-        {
-            if (ia_begin(t) >= old_isec_dist) return;
-            if (ia_end(t) > old_isec_dist) ia_end(t) = old_isec_dist;
-            
-            x = ia_mul(ray_x,t) + origin_x;
-            y = ia_mul(ray_y,t) + origin_y;
-            z = ia_mul(ray_z,t) + origin_z;
-        
-            %s
-            
-            step = ia_len(t);
-            need_subdiv = 0;
-            
-            if ((inside && ia_end(f) > 0) || (!inside && ia_begin(f) < 0))
-            {
-                need_subdiv = 1;
-                
-                if (origin_self)
-                {
-                    %s
-                    
-                    if (!ia_contains_zero(df)) {
-                        if ( (ia_end(df) < 0) == inside ) need_subdiv = 0;
-                    }
-                }
-                
-                if ( need_subdiv )
-                {
-                    if (step < TARGET_EPS || i == MAX_ITER-1)
-                    {
-                        step = ia_center(t);
-                        *p_new_isec_dist = step;
-                        return;
-                    }
-                
-                    // Subdivide
-                    step *= FRACTION;
-                    ia_end(t) = ia_begin(t) + step;
-                    steps_since_subdiv = 0;
-                    continue;
-                }
-                
-            }
-            steps_since_subdiv++;
-            
-            // Step forward
-            if (steps_since_subdiv > 1) step /= FRACTION;
-            t = ia_new(ia_end(t),ia_end(t)+step);
-        }
-        """ % (self.compute_f_code(), self.compute_df_code());
+        self.f_code = self.compute_f_code()
+        self.df_code = self.compute_df_code()
         
         sympy.Basic.__str__ = lambda self: Printer().doprint(self)
-        
-        self.normal_code = """
-        *p_normal = fast_normalize((float3)(%s, %s, %s));
-        """ % tuple([self.gradient[i] for i in range(3)])
-        
+        self.gradient_code = [str(self.gradient[i]) for i in range(3)]
         sympy.Basic.__str__ = old_ptr
         
         #print self.tracer_code

@@ -1,5 +1,5 @@
 
-{% include 'utils.cl' %}
+{% include 'static.cl' %}
 
 {% include 'shade.cl' %}
 

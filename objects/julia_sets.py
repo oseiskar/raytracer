@@ -12,11 +12,8 @@ class QuaternionJuliaSet(ImplicitSurface):
 		self.c = c
 		self.julia_itr = julia_itr
 		argd['bndR'] = 1.5
+		argd['self_intersection'] = False
 		ImplicitSurface.__init__(self, "x^2 + y^2 + z^2 - 1", *args, **argd)
-		
-		self.tracer_code = """
-		if (origin_self) return;
-		""" + self.tracer_code
 	
 	def compute_f_code(self):
 		

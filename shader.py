@@ -84,7 +84,6 @@ class Shader:
         self.isec_dist = self.acc.zeros_like(self.img)
         
         self.raycolor = self.new_ray_color_buffer(imgshape)
-        self.curcolor = self.acc.zeros_like(self.raycolor)
         
         # ------------- Find root container object
         self.root_object_id = 0
@@ -183,7 +182,6 @@ class Shader:
         self.whichobject.fill(0)
         self.normal.fill(0)
         self.raycolor.fill(1)
-        self.curcolor.fill(0)
         
         self.inside.fill(self.root_object_id)
         self.isec_dist.fill(0) # TODO
