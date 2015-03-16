@@ -112,4 +112,3 @@
 ### macro normal_call(obj, params)
 {{ obj.normal_function_name }}({{params}});
 ### endmacro
-

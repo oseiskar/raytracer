@@ -22,7 +22,7 @@ test_objects = [
         ConeComponent( (0,-1,0), (0,1,0), R, ), \
         SphereComponent( (0,0,0), R*1.1, ),
         HalfSpaceComponent( (1,1,0), 0.2 ),
-        LayerComponent( (1,0,0), 0.3 ) ])
+        LayerComponent( (1,0,0), 0.3 ) ]),
     # TODO: does not have a scale argument
     #lambda p, R: QuaternionJuliaSet2( (-0.2,-0.4,-0.4,-0.4), 4, center=p, scale=R )
 ]
