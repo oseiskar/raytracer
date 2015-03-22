@@ -52,7 +52,13 @@
             y = ia_mul(ray_y,t) + origin_y;
             z = ia_mul(ray_z,t) + origin_z;
         
-            {{ obj.f_code }}
+        
+            ### if obj.f_code_template()
+                ### import obj.f_code_template() as t
+                {{ t.f_code(obj) }}
+            ### else
+                {{ obj.f_code }}
+            ### endif
             
             step = ia_len(t);
             need_subdiv = 0;
@@ -63,7 +69,12 @@
                 
                 if (origin_self)
                 {
-                    {{ obj.df_code }}
+                        
+                    ### if obj.f_code_template()
+                        {{ t.df_code(obj) }}
+                    ### else
+                        {{ obj.df_code }}
+                    ### endif
                     
                     if (!ia_contains_zero(df)) {
                         if ( (ia_end(df) < 0) == inside ) need_subdiv = 0;

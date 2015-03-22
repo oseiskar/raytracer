@@ -1,7 +1,7 @@
 
 from utils import *
 from accelerator import Accelerator
-import templates
+import jinja2
 
 class Shader:
     
@@ -12,10 +12,12 @@ class Shader:
         self.acc = Accelerator(scene.get_number_of_camera_rays(), \
             args.interactive_opencl_context)
         
-        self.prepare()
+        self._prepare()
         
-        self.prog = self.acc.build_program( self.make_program() )
+        self.prog = self.acc.build_program( self._make_program() )
         
+    def rays_per_sample(self):
+        return self.img.shape[0]*self.img.shape[1]
     
     def get_material_property_offsets(self):
         properties = []
@@ -30,13 +32,19 @@ class Shader:
         
         return properties
     
-    def make_program(self):
+    def _make_program(self):
         scene = self.scene
+        
+        template_env = jinja2.Environment(\
+            loader=jinja2.PackageLoader('clray', 'cl_templates'),
+            line_statement_prefix='###',
+            trim_blocks=False,
+            lstrip_blocks=False)
     
-        kernels = scene.get_kernels()
+        kernels = scene.get_kernels(template_env)
         kernel_declarations = [kernel[:kernel.find('{')] + ';' for kernel in kernels]
 
-        return templates.render('main.cl', {
+        return template_env.get_template('main.cl').render({
             'shader': self,
             'objects': {
                 'length': len(scene.objects),
@@ -48,7 +56,7 @@ class Shader:
             }
         })
     
-    def prepare(self):
+    def _prepare(self):
         
         scene = self.scene
         
@@ -107,10 +115,8 @@ class Shader:
             self.suppress_emission = self.acc.new_array(imgshape, np.int32, True)
         
     # helpers
-
-    #def memcpy(self,dst,src): self.acc.enqueue_copy(dst.data, src.data)
     
-    def fill_vec(self,data, vec):
+    def _fill_vec(self,data, vec):
         hostbuf = np.float32(vec)
         self.acc.enqueue_copy(self.vec_broadcast, hostbuf)
         self.acc.call('fill_vec_broadcast', (data,), (self.vec_broadcast,))
@@ -178,7 +184,7 @@ class Shader:
         acc.enqueue_copy(self.vec_broadcast,  mat4.astype(np.float32))
         acc.call('subsample_transform_camera', (self.cam,self.ray,), (self.vec_broadcast,))
         
-        self.fill_vec(self.pos, cam_origin)
+        self._fill_vec(self.pos, cam_origin)
         self.whichobject.fill(0)
         self.normal.fill(0)
         self.raycolor.fill(1)

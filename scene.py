@@ -51,10 +51,10 @@ class Scene:
     def add_object(self, tracer, material, name=None):
         self.objects.append(Object(tracer,material,name))
 
-    def get_kernels(self):
+    def get_kernels(self, template_env):
         kernel_map = {}
         for obj in self.objects:
-            for (k,v) in obj.tracer.make_functions().items():
+            for (k,v) in obj.tracer.make_functions(template_env).items():
                 if k in kernel_map and kernel_map[k] != v:
                     print kernel_map[k]
                     print '------'

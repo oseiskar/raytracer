@@ -20,7 +20,9 @@ uint trace_core(
         i = {{ i+1 }};
         
         // call tracer
-        {{ objects.tracers[i].make_tracer_call("pos, ray, last_normal, old_isec_dist, &new_isec_dist, &cur_subobject, inside == i, last_whichobject == i") }}
+        ### set obj = objects.tracers[i]
+        ### import obj.template_file_name() as t
+        {{ t.tracer_call(obj, "pos, ray, last_normal, old_isec_dist, &new_isec_dist, &cur_subobject, inside == i, last_whichobject == i") }}
                 
         if (//last_whichobject != i && // cull self
             new_isec_dist > 0 &&
@@ -121,7 +123,10 @@ __kernel void trace(
         {% if i %}else {% endif %}if (whichobject == {{ i + 1 }})
         {
             // call normal
-            {{ objects.tracers[i].make_normal_call("pos, subobject, p_normal") }}
+            ### set obj = objects.tracers[i]
+            ### import obj.template_file_name() as t
+            {{ t.normal_call(obj, "pos, subobject, p_normal") }}
+            
             if (inside == {{ i + 1 }}) *p_normal = -*p_normal;
         }
         

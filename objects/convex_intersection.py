@@ -14,10 +14,10 @@ class ConvexIntersection(Tracer):
     # freeze template name
     def template_name(self): return 'ConvexIntersection'
     
-    def make_functions( self ):
-        funcs = Tracer.make_functions( self )
+    def make_functions( self, template_env ):
+        funcs = Tracer.make_functions( self, template_env )
         for component in self.components:
-            subfuncs = component.make_functions()
+            subfuncs = component.make_functions(template_env)
             funcs = dict( funcs.items() + subfuncs.items() )
         return funcs
     
@@ -29,12 +29,10 @@ class ConvexIntersection(Tracer):
     
     # "view helpers"
     
-    def make_component_tracer_call(self, component):
-        return component.make_tracer_call( \
-            'rel - (float3)%s, ray, &cur_ibegin, &cur_iend, &cur_subobj, inside' \
-            % (tuple(component.pos),))
+    def component_tracer_call_params(self, component):
+        return 'rel - (float3)%s, ray, &cur_ibegin, &cur_iend, &cur_subobj, inside' \
+            % (tuple(component.pos),)
     
-    def make_component_normal_call(self, component, subobject_offset):
-        return component.make_normal_call( \
-            'p - (float3)%s, subobject - %d, p_normal' \
-             % (tuple(component.pos), subobject_offset))
+    def component_normal_call_params(self, component, subobject_offset):
+        return 'p - (float3)%s, subobject - %d, p_normal' \
+             % (tuple(component.pos), subobject_offset)

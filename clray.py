@@ -56,9 +56,11 @@ for j in xrange(scene.samples_per_pixel):
     samples_per_second = float(j+1) / elapsed
     samples_left = scene.samples_per_pixel - samples_done
     eta = samples_left / samples_per_second
+    rays_per_second = int(shader.rays_per_sample() * samples_per_second)
     
     print '%d/%d,'%(samples_done,scene.samples_per_pixel), "depth: %d,"%depth,
-    print "s/sample: %.3f," % (tcur-t0),
+    #print "s/sample: %.3f," % (tcur-t0),
+    print '%d rays/s' % rays_per_second,
     print "elapsed: %.2f s," % (tcur-startup_time),
     print "eta: %.1f min" % (eta/60.0)
     

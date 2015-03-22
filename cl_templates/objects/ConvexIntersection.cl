@@ -16,7 +16,9 @@
 			cur_subobj = 0;
 			cur_ibegin = ibegin;
 			cur_iend = iend;
-            {{ obj.make_component_tracer_call(c) }}
+            
+            ### import c.template_file_name() as t
+            {{ t.tracer_call(c, obj.component_tracer_call_params(c)) }}
 			
 			if (cur_ibegin > ibegin) {
 				ibegin = cur_ibegin;
@@ -49,7 +51,9 @@
         ### for c in obj.components
         
             {% if subobj_offset > 0 %}else {% endif %}if ({% if subobj_offset > 0 %}subobject >= {{ subobj_offset }} && {% endif %}subobject < {{ subobj_offset + c.n_subobjects }})
-                {{ obj.make_component_normal_call(c, subobj_offset) }}
+            
+                ### import c.template_file_name() as t
+                {{ t.normal_call(c, obj.component_normal_call_params(c, subobj_offset)) }}
                 
 			### set subobj_offset = subobj_offset + c.n_subobjects
         

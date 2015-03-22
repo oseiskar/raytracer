@@ -104,6 +104,8 @@ class ImplicitSurface(Tracer):
     # freeze template name
     def template_name(self): return 'ImplicitSurface'
     
+    def f_code_template(self): return None
+    
     def ia_poly(self, coeffs, n_coeff, var):
         s = []
         for i in range(n_coeff):
@@ -114,7 +116,6 @@ class ImplicitSurface(Tracer):
                 c = 'ia_mul_exact(%s,%s_%d)' % (x,coeffs,i)
             s.append(c)
         return ' + '.join(s);
-        
         
     def compute_f_code(self):
         return """
