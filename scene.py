@@ -2,7 +2,7 @@
 from objects import *
 import utils
 import numpy as np
-from shader import *
+import shader
 from spectrum import Spectrum
 
 class Object:
@@ -23,10 +23,10 @@ class Scene:
     def get_camera_rotmat(self):
         return utils.camera_rotmat(self.camera_direction, self.camera_up)
     
-    def get_objects(self,name):
+    def get_objects(self, name):
         return [obj for obj in self.objects if obj.name == name]
     
-    def get_object(self,name):
+    def get_object(self, name):
         objs = self.get_objects(name)
         if len(objs) == 1: return objs[0]
         elif len(objs) == 0:
@@ -34,7 +34,7 @@ class Scene:
         else:
             raise KeyError("Multiple objects in the scene are called '%s'" % name)
     
-    def delete_objects(self,name):
+    def delete_objects(self, name):
         self.objects[:] = [obj for obj in self.objects if obj.name != name]
     
     def direct_camera_towards(self, target):
@@ -49,17 +49,17 @@ class Scene:
         return self.get_camera_rays().size / 3
     
     def add_object(self, tracer, material, name=None):
-        self.objects.append(Object(tracer,material,name))
+        self.objects.append(Object(tracer, material, name))
 
     def get_kernels(self, template_env):
         kernel_map = {}
         for obj in self.objects:
-            for (k,v) in obj.tracer.make_functions(template_env).items():
+            for (k, v) in obj.tracer.make_functions(template_env).items():
                 if k in kernel_map and kernel_map[k] != v:
                     print kernel_map[k]
                     print '------'
                     print v
-                    raise "kernel name clash!!"
+                    raise RuntimeError("kernel name clash!!")
                 kernel_map[k] = v
         return list(set(kernel_map.values()))
     
@@ -82,15 +82,15 @@ def default_materials():
         'white':
             { 'diffuse': 0.8 }, 
         'green':
-            { 'diffuse': (0.4,0.9,0.4)},
+            { 'diffuse': (0.4, 0.9, 0.4)},
         'red':
-            { 'diffuse': (.7,.4,.4) }, 
+            { 'diffuse': (.7, .4, .4) }, 
         'mirror':
             { 'diffuse': 0.2, 'reflection': 0.7 },
         'light': # warm yellow-orange-light
-            { 'diffuse': 1.0, 'emission':(4,2,.7) },
+            { 'diffuse': 1.0, 'emission':(4, 2, .7) },
         'sky':
-            { 'diffuse': 0.0, 'emission':(.5,.5,.7) },
+            { 'diffuse': 0.0, 'emission':(.5, .5, .7) },
         'glass':
             { 'diffuse': 0.1, 'transparency': 0.7, 'reflection': 0.2, 'ior': 1.5 },
         'brushed metal':
@@ -117,7 +117,7 @@ class DefaultBoxScene(Scene):
     # helpers...
     
     @staticmethod
-    def make_world_box( material, dims, center=(0,0,0) ):
+    def make_world_box( material, dims, center=(0, 0, 0) ):
         return [\
             Object(HalfSpace( ( 1, 0, 0), dims[0]-center[0] ), material, 'wall'), \
             Object(HalfSpace( (-1, 0, 0), dims[0]+center[0] ), material, 'wall'), \
@@ -134,7 +134,7 @@ class DefaultBoxScene(Scene):
         """Initialize default scene"""
         
         # --- Image settings
-        self.image_size = (800,600)
+        self.image_size = (800, 600)
         self.brightness = 0.3
         self.gamma = 1.8
         
@@ -149,32 +149,32 @@ class DefaultBoxScene(Scene):
         self.initialize_materials()
         
         # --- Objects
-        self.objects = DefaultBoxScene.make_world_box( 'white', (3,5,2), (0,0,2) )
+        self.objects = DefaultBoxScene.make_world_box( 'white', (3, 5, 2), (0, 0, 2) )
         self.objects[-1].material = "sky" # world box ceiling
         self.objects[-2].material = "green" # world box floor
         self.root_object = None
         self.max_ray_length = 100
         
         # light bulb on the right wall
-        self.objects.append(Object(Sphere( (-3,-1,2), 0.5 ), 'light', 'light'))
+        self.objects.append(Object(Sphere( (-3, -1, 2), 0.5 ), 'light', 'light'))
         
         # --- Camera
-        self.camera_up = (0,0,1)
-        self.camera_position = (1,-5,2)
+        self.camera_up = (0, 0, 1)
+        self.camera_position = (1, -5, 2)
         self.camera_fov = 55 # Field-of-view angle (horizontal)
         self.camera_flat_ccd = False
-        camera_target = (0,2,0.5)
+        camera_target = (0, 2, 0.5)
         self.camera_dof_fstop = 0.0
         self.direct_camera_towards(camera_target)
         
-        self.shader = RgbShader
+        self.shader = shader.RgbShader
 
 class DefaultSpectrumBoxScene(DefaultBoxScene):
     
     def __init__(self):
         self.spectrum = Spectrum()
         DefaultBoxScene.__init__(self)
-        self.shader = SpectrumShader
+        self.shader = shader.SpectrumShader
     
     def initialize_materials(self):
         
@@ -184,9 +184,9 @@ class DefaultSpectrumBoxScene(DefaultBoxScene):
         # Have to replace RGB colors by proper spectra...
         overrides = {
             'green':
-                { 'diffuse': s.gaussian(540,30)*0.65 + 0.3 },
+                { 'diffuse': s.gaussian(540, 30)*0.65 + 0.3 },
             'red':
-                { 'diffuse': s.gaussian(670,30)*0.6 + 0.2 },
+                { 'diffuse': s.gaussian(670, 30)*0.6 + 0.2 },
             'light': # warm yellow-orange-light
                 { 'diffuse': 1.0, 'emission': s.black_body(3200)*7.0 },
             'sky':
@@ -197,7 +197,7 @@ class DefaultSpectrumBoxScene(DefaultBoxScene):
             self.materials[k] = mat
         
         self.materials['wax']['volume_absorption'] = \
-            (1.0 - s.gaussian(670,100)) * 4.0
+            (1.0 - s.gaussian(670, 100)) * 4.0
             
         # Also make the glass dispersive
         self.materials['glass']['ior'] = s.linear_dispersion_ior(1.5, 60.0)

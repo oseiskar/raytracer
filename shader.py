@@ -1,7 +1,10 @@
 
-from utils import *
 from accelerator import Accelerator
+import numpy as np
 import jinja2
+import utils
+
+# pylint: disable-msg=W0201
 
 class Shader:
     
@@ -10,7 +13,7 @@ class Shader:
         self.scene = scene
         
         self.acc = Accelerator(scene.get_number_of_camera_rays(), \
-            args.interactive_opencl_context)
+            args.choose_opencl_context)
         
         self._prepare()
         
@@ -72,14 +75,14 @@ class Shader:
         self.initialize_material_buffers()
 
         self.max_broadcast_vecs = 6
-        self.vec_broadcast = self.acc.new_const_buffer(np.zeros((self.max_broadcast_vecs,4)))
-        self.vec_param_buf = np.zeros((self.max_broadcast_vecs,4), dtype=np.float32)
+        self.vec_broadcast = self.acc.new_const_buffer(np.zeros((self.max_broadcast_vecs, 4)))
+        self.vec_param_buf = np.zeros((self.max_broadcast_vecs, 4), dtype=np.float32)
 
         self.cam = self.acc.make_vec3_array(cam)
         imgshape = scene.image_size[::-1]
 
         # Randomization init
-        self.qdirs = quasi_random_direction_sample(scene.samples_per_pixel)
+        self.qdirs = utils.quasi_random_direction_sample(scene.samples_per_pixel)
         self.qdirs = np.random.permutation(self.qdirs)
 
         # Device buffers. 
@@ -99,12 +102,6 @@ class Shader:
             if scene.root_object == scene.objects[i]:
                 self.root_object_id = i+1
         
-        # Find lights
-        def has_emission(o):
-            em = scene.materials[o.material].get('emission',0.0)
-            if isinstance(em, float): return em > 0.0
-            else: return any([e > 0 for e in em])
-        
         self.bidirectional_light_ids = [i
             for i in range(len(self.scene.objects))
             if self.scene.objects[i].bidirectional_light]
@@ -116,10 +113,10 @@ class Shader:
         
     # helpers
     
-    def _fill_vec(self,data, vec):
+    def _fill_vec(self, data, vec):
         hostbuf = np.float32(vec)
         self.acc.enqueue_copy(self.vec_broadcast, hostbuf)
-        self.acc.call('fill_vec_broadcast', (data,), (self.vec_broadcast,))
+        self.acc.call('fill_vec_broadcast', (data, ), (self.vec_broadcast, ))
 
     def each_object_material(self, property_list):
         
@@ -139,9 +136,10 @@ class Shader:
                 
                 yield((i+1, p_idx, prop))
 
-    def extra_stuff(self): pass
+    def extra_stuff(self):
+        pass
 
-    def render_sample(self,sample_index):
+    def render_sample(self, sample_index):
     
         scene = self.scene
         acc = self.acc
@@ -156,8 +154,10 @@ class Shader:
         if self.scene.tent_filter:
             def tent_filter_transformation(x):
                 x *= 2
-                if x < 1: return np.sqrt(x)-1
-                else: return 1-np.sqrt(2-x)
+                if x < 1:
+                    return np.sqrt(x)-1
+                else:
+                    return 1-np.sqrt(2-x)
             
             sx = tent_filter_transformation(sx)
             sy = tent_filter_transformation(sy)
@@ -166,23 +166,23 @@ class Shader:
         thetax = (sx-0.5)*self.pixel_angle*(1.0+overlap)
         thetay = (sy-0.5)*self.pixel_angle*(1.0+overlap)
         
-        dofx, dofy = random_dof_sample()
+        dofx, dofy = utils.random_dof_sample()
         
-        dof_pos = (dofx * self.rotmat[:,0] + dofy * self.rotmat[:,1]) * scene.camera_dof_fstop
+        dof_pos = (dofx * self.rotmat[:, 0] + dofy * self.rotmat[:, 1]) * scene.camera_dof_fstop
         
         sharp_distance = scene.camera_sharp_distance
         
-        tilt = rotmat_tilt_camera(thetax,thetay)
-        mat = np.dot(np.dot(self.rotmat,tilt),self.rotmat.transpose())
-        mat4 = np.zeros((4,4))
-        mat4[0:3,0:3] = mat
-        mat4[3,0:3] = dof_pos
-        mat4[3,3] = sharp_distance
+        tilt = utils.rotmat_tilt_camera(thetax, thetay)
+        mat = np.dot(np.dot(self.rotmat, tilt), self.rotmat.transpose())
+        mat4 = np.zeros((4, 4))
+        mat4[0:3, 0:3] = mat
+        mat4[3, 0:3] = dof_pos
+        mat4[3, 3] = sharp_distance
         
         cam_origin = cam_origin + dof_pos
         
         acc.enqueue_copy(self.vec_broadcast,  mat4.astype(np.float32))
-        acc.call('subsample_transform_camera', (self.cam,self.ray,), (self.vec_broadcast,))
+        acc.call('subsample_transform_camera', (self.cam, self.ray,), (self.vec_broadcast,))
         
         self._fill_vec(self.pos, cam_origin)
         self.whichobject.fill(0)
@@ -209,9 +209,10 @@ class Shader:
                     r_prob = 1.0/(1-scene.russian_roulette_prob)
                 else: break_next = True
             
-            self.compute_next_path_segment(path_index, break_next)
+            self.compute_next_path_segment(sample_index, path_index, break_next)
             
-            if break_next: break
+            if break_next:
+                break
             
             path_index += 1
     
@@ -219,16 +220,16 @@ class Shader:
         
         return path_index
 
-    def compute_next_path_segment(self, path_index, is_last):
+    def compute_next_path_segment(self, sample_index, path_index, is_last):
         
         acc = self.acc
-        scene = self.scene
         
         self.isec_dist.fill(self.scene.max_ray_length)
-        acc.call('trace', (self.pos,self.ray,self.normal,self.isec_dist,self.whichobject,self.inside))
+        acc.call('trace', (self.pos, self.ray, self.normal, self.isec_dist, self.whichobject, self.inside))
         
         if self.bidirectional:
-            if path_index == 0: self.suppress_emission.fill(0)
+            if path_index == 0:
+                self.suppress_emission.fill(0)
         
             light_id, light_area, light_point, light_normal, \
                 light_center, min_light_sampling_distance = self.get_light_point()
@@ -239,31 +240,32 @@ class Shader:
             light_area = np.float32(light_area)
             min_light_sampling_distance = np.float32(min_light_sampling_distance)
                 
-            if is_last: light_id = np.int32(0)
+            if is_last:
+                light_id = np.int32(0)
             else:
                 light_id = np.int32(light_id+1)
-                self.vec_param_buf[0,:3] = light_point
+                self.vec_param_buf[0, :3] = light_point
 
                 acc.enqueue_copy(self.vec_broadcast, self.vec_param_buf)
                 acc.call('shadow_trace', \
-                    (self.pos,self.normal,self.whichobject,self.inside,self.shadow_mask), \
-                    (self.vec_broadcast,light_id))
+                    (self.pos, self.normal, self.whichobject, self.inside, self.shadow_mask), \
+                    (self.vec_broadcast, light_id))
     
         if self.scene.quasirandom and path_index == 1:
-            rand_vec = self.qdirs[sample_index,:]
+            rand_vec = self.qdirs[sample_index, :]
         else:
-            rand_vec = normalize(np.random.normal(0,1,(3,)))
+            rand_vec = utils.normalize(np.random.normal(0, 1, (3, )))
             
         rand_vec = np.array(rand_vec).astype(np.float32) 
         rand_01 = np.float32(np.random.rand())
         
-        self.vec_param_buf[0,:3] = rand_vec
-        self.vec_param_buf[1,:3] = np.random.normal(0,1,(3,))
+        self.vec_param_buf[0, :3] = rand_vec
+        self.vec_param_buf[1, :3] = np.random.normal(0, 1,( 3, ))
         # element 2 has color mask
         if self.bidirectional:
-            self.vec_param_buf[3,:3] = light_point
-            self.vec_param_buf[4,:3] = light_normal
-            self.vec_param_buf[5,:3] = light_center
+            self.vec_param_buf[3, :3] = light_point
+            self.vec_param_buf[4, :3] = light_normal
+            self.vec_param_buf[5, :3] = light_center
         acc.enqueue_copy(self.vec_broadcast, self.vec_param_buf)
         
         buffer_params = [self.img, self.whichobject,
@@ -273,15 +275,15 @@ class Shader:
         constant_params = self.material_buffers + [rand_01, self.vec_broadcast]
         
         if self.bidirectional:
-            buffer_params += [self.shadow_mask,self.suppress_emission]
-            constant_params = [light_id,light_area,min_light_sampling_distance] + constant_params
+            buffer_params += [self.shadow_mask, self.suppress_emission]
+            constant_params = [light_id, light_area, min_light_sampling_distance] + constant_params
         
         acc.call(self.shader_name, tuple(buffer_params), tuple(constant_params))
         
     def get_light_point(self):
         light_id = self.bidirectional_light_ids[np.random.randint(len(self.bidirectional_light_ids))]
         light = self.scene.objects[light_id]
-        return (light_id,light.tracer.surface_area()) + \
+        return (light_id, light.tracer.surface_area()) + \
             light.tracer.random_surface_point_and_normal() + \
             light.tracer.center_and_min_sampling_distance()
 
@@ -325,17 +327,22 @@ class RgbShader(Shader):
             
             property_list = self.material_property_sets[int(not color)]
             
-            if color: buf = np.zeros((p_buf_len*len(property_list),4))
-            else: buf = np.zeros((p_buf_len*len(property_list),1))
+            if color:
+                buf = np.zeros((p_buf_len*len(property_list), 4))
+            else:
+                buf = np.zeros((p_buf_len*len(property_list), 1))
                 
             for obj_idx, p_idx, value in self.each_object_material(property_list):
                 
                 if np.array(value).size == 1:
-                    if color: value = [value]*3
-                    else: value = [value]
+                    if color:
+                        value = [value]*3
+                    else:
+                        value = [value]
                 value = np.array(value)
-                if color and value.size == 1: value = np.ones((3,))*value[0]
-                buf[p_idx * p_buf_len + obj_idx,:value.size] = value
+                if color and value.size == 1:
+                    value = np.ones((3, ))*value[0]
+                buf[p_idx * p_buf_len + obj_idx, :value.size] = value
             
             device_buffer = self.acc.new_const_buffer(buf)
             
@@ -369,9 +376,6 @@ class SpectrumShader(Shader):
     
     def initialize_material_buffers(self):
         
-        n_objects = len(self.scene.objects)
-        p_buf_len = n_objects+1
-        
         spectrum = self.scene.spectrum
         
         property_list = self.material_property_sets[0]
@@ -383,15 +387,15 @@ class SpectrumShader(Shader):
         self.color_intensity_pdf = spectrum.visible_intensity()
         self.color_intensity_cdf = np.cumsum(self.color_intensity_pdf)
             
-        for obj_idx, p_idx, value in self.each_object_material(property_list):
+        for _, __, value in self.each_object_material(property_list):
             
             y = np.ravel(np.array(value))
             x = np.linspace( *spectrum.wavelength_range, num=y.size )
             
-            host_mat_y.append( spectrum.map_left(x,y) )
+            host_mat_y.append( spectrum.map_left(x, y) )
         
         self.host_mat_y = np.vstack(host_mat_y).astype(np.float32)
-        self.device_material_buffer = self.acc.new_const_buffer(self.host_mat_y[:,0])
+        self.device_material_buffer = self.acc.new_const_buffer(self.host_mat_y[:, 0])
         
         self.material_buffers = [self.device_material_buffer]
     
@@ -409,12 +413,12 @@ class SpectrumShader(Shader):
         self.raycolor *= 1.0 / wavelength_prob
         
         wave_interp = lambda y: \
-            spectrum.map_right([wavelength],y).astype(np.float32)
+            spectrum.map_right([wavelength], y).astype(np.float32)
         
         mat_props = wave_interp(self.host_mat_y)
         self.acc.enqueue_copy(self.device_material_buffer, mat_props)
         
         color_mask = wave_interp(self.color_responses)
         #print wavelength, color_mask
-        self.vec_param_buf[2,:3] = np.ravel(color_mask)
+        self.vec_param_buf[2, :3] = np.ravel(color_mask)
     

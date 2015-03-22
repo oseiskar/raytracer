@@ -1,6 +1,5 @@
 from tracer import Tracer
 from objects import ConvexIntersection
-from utils import normalize_tuple, vec_norm
 import numpy
 import math
 
@@ -15,7 +14,7 @@ class Sphere(Tracer):
 
     def random_surface_point_and_normal(self):
         p = numpy.array(self.pos)
-        rand = numpy.random.normal(0,1,p.shape)
+        rand = numpy.random.normal(0, 1, p.shape)
         rand = rand / numpy.linalg.norm(rand)
         return (p + rand * self.R, rand)
     
@@ -28,6 +27,6 @@ class SphereComponent(ConvexIntersection.Component):
     n_subobjects = 1
     
     def __init__(self, pos, R):
-        ConvexIntersection.Component.__init__(self,pos)
+        ConvexIntersection.Component.__init__(self, pos)
         self.R = R
     

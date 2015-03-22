@@ -1,7 +1,4 @@
 
-from utils import normalize_tuple, vec_norm
-import numpy
-
 class Tracer:
     """
     A Tracer instance represents the shape of a three-dimensional body.

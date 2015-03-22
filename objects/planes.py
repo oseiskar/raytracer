@@ -24,8 +24,10 @@ class LayerComponent(ConvexIntersection.Component):
     def __init__(self, axis, h = None):
         ConvexIntersection.Component.__init__(self)
         self.uax = normalize_tuple(axis)
-        if h == None: self.h = vec_norm(axis)
-        else: self.h = h
+        if h == None:
+            self.h = vec_norm(axis)
+        else:
+            self.h = h
     
     n_subobjects = 2
 

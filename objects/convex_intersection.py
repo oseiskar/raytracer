@@ -1,18 +1,17 @@
 
 from tracer import Tracer
-from utils import normalize_tuple, vec_norm
-import numpy
 
 class ConvexIntersection(Tracer):
     """Intersection of convex objects represented by Components"""
     
     class Component(Tracer):
         
-        def __init__( self, pos = (0,0,0) ):
+        def __init__( self, pos = (0, 0, 0) ):
             self.pos = tuple(pos)
     
     # freeze template name
-    def template_name(self): return 'ConvexIntersection'
+    def template_name(self):
+        return 'ConvexIntersection'
     
     def make_functions( self, template_env ):
         funcs = Tracer.make_functions( self, template_env )

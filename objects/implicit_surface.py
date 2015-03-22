@@ -1,10 +1,7 @@
 
 # Tracer objects: Implicit surfaces
 
-from tracer import *
-from utils import normalize_tuple, vec_norm
-import numpy
-from objects import Sphere
+from tracer import Tracer
 
 class ImplicitSurface(Tracer):
 
@@ -12,7 +9,7 @@ class ImplicitSurface(Tracer):
     # (multiply eq. by -1 if things do not work)
     
     def __init__(self, eq,
-                center=(0,0,0), scale=1.0, bndR=None,
+                center=(0, 0, 0), scale=1.0, bndR=None,
                 max_itr=1500, precision=0.001, self_intersection=True):
         
         self.unique_tracer_id = str(id(self))
@@ -47,7 +44,7 @@ class ImplicitSurface(Tracer):
             self.scaled_and_shifted.subs([(xyz[i], pos[i]) for i in range(3)])
         
         self.gradient = [sympy.diff(scaled_and_shifted_pos, pos[i]) for i in range(3)]
-        self.derivative = sympy.diff(self.ray_paramd,t)
+        self.derivative = sympy.diff(self.ray_paramd, t)
         
         # Must replace some expressions to make them OpenCL
         class Printer(sympy.printing.str.StrPrinter):
@@ -56,7 +53,7 @@ class ImplicitSurface(Tracer):
         
         old_ptr = sympy.Basic.__str__
         
-        sympy.Basic.__str__ = lambda self: Printer().doprint(self)
+        sympy.Basic.__str__ = Printer().doprint
         
         # Print as an interval arithmetic macro expression
         class IAPrinter(sympy.printing.str.StrPrinter):
@@ -67,12 +64,13 @@ class ImplicitSurface(Tracer):
                 return "ia_pow%d(%s)" % (int(exponent), base)
                 
             
-            def _print_mul_rec(self,args):
+            def _print_mul_rec(self, args):
                 
                 a = args[0]
                 b = args[1]
                 
-                if b.is_number: a,b = b,a
+                if b.is_number:
+                    a, b = b, a
                 
                 if len(args) > 2:
                     bstr = self._print_mul_rec(args[1:])
@@ -80,13 +78,15 @@ class ImplicitSurface(Tracer):
                     bstr = str(b)
                 
                 if a.is_number: 
-                    if b.is_number: return "((%s)*(%s))" % (a,b)
+                    if b.is_number:
+                        return "((%s)*(%s))" % (a, b)
+                    
                     if a >= 0:
-                        return "ia_mul_pos_exact(%s,%s)" % (bstr,a)
+                        return "ia_mul_pos_exact(%s,%s)" % (bstr, a)
                     else:
-                        return "ia_mul_neg_exact(%s,%s)" % (bstr,a)
+                        return "ia_mul_neg_exact(%s,%s)" % (bstr, a)
                 else:
-                    return "ia_mul(%s,%s)" % (a,bstr)
+                    return "ia_mul(%s,%s)" % (a, bstr)
             
             def _print_Mul(self, expr):
                 return self._print_mul_rec(expr.args)
@@ -102,20 +102,11 @@ class ImplicitSurface(Tracer):
         #print self.tracer_code
     
     # freeze template name
-    def template_name(self): return 'ImplicitSurface'
+    def template_name(self):
+        return 'ImplicitSurface'
     
-    def f_code_template(self): return None
-    
-    def ia_poly(self, coeffs, n_coeff, var):
-        s = []
-        for i in range(n_coeff):
-            if i == 0: c = '%s_0' % coeffs
-            else:
-                x = var;
-                if i > 1: x = 'ia_pow%d(%s)' % (i,x)
-                c = 'ia_mul_exact(%s,%s_%d)' % (x,coeffs,i)
-            s.append(c)
-        return ' + '.join(s);
+    def f_code_template(self):
+        return None
         
     def compute_f_code(self):
         return """
@@ -140,4 +131,3 @@ class ImplicitSurface(Tracer):
                 return "("+('*'.join([base_str]*n))+")" 
             
         return "%s(%s,%s)" % (f, base, exponent)
-

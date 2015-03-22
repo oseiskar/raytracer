@@ -1,9 +1,9 @@
 import numpy as np
 import time, sys, os, os.path, argparse
-#import objgraph
 
 from imgutils import Image
-from shader import Shader
+
+# pylint: disable-msg=C0103
 
 startup_time = time.time()
 
@@ -15,7 +15,7 @@ RAW_OUTPUT_FILE = 'out.raw.npy'
 arg_parser = argparse.ArgumentParser()
 arg_parser.add_argument('-a', '--append', action='store_true')
 arg_parser.add_argument('-n', '--no_window', action='store_true')
-arg_parser.add_argument('-i', '--interactive_opencl_context', action='store_true')
+arg_parser.add_argument('-c', '--choose_opencl_context', action='store_true')
 arg_parser.add_argument('-itr', '--itr_per_refresh', type=int, default=100)
 arg_parser.add_argument('scene')
 args = arg_parser.parse_args()
@@ -31,12 +31,13 @@ scene = import_scene()
 # ------------- Initialize image
 
 def init_image():
-    if args.append: old_raw_file = RAW_OUTPUT_FILE
+    if args.append:
+        old_raw_file = RAW_OUTPUT_FILE
     else: old_raw_file = None
-    image = Image( old_raw_file )
-    image.gamma = scene.gamma
-    image.brightness = scene.brightness
-    return image
+    img = Image( old_raw_file )
+    img.gamma = scene.gamma
+    img.brightness = scene.brightness
+    return img
 image = init_image()
 
 # ------------- Initialize CL
@@ -58,17 +59,23 @@ for j in xrange(scene.samples_per_pixel):
     eta = samples_left / samples_per_second
     rays_per_second = int(shader.rays_per_sample() * samples_per_second)
     
-    print '%d/%d,'%(samples_done,scene.samples_per_pixel), "depth: %d,"%depth,
+    print '%d/%d,' % (samples_done, scene.samples_per_pixel), \
+        "depth: %d," % depth,
+    
     #print "s/sample: %.3f," % (tcur-t0),
     print '%d rays/s' % rays_per_second,
     print "elapsed: %.2f s," % (tcur-startup_time),
     print "eta: %.1f min" % (eta/60.0)
     
-    if j % args.itr_per_refresh == 0 or j==scene.samples_per_pixel-1 or \
-       (j % max(1,int(args.itr_per_refresh/10)) == 0 and j < args.itr_per_refresh):
-        imgdata = shader.img.get().astype(np.float32)[...,0:3]
+    if j % args.itr_per_refresh == 0 or j == scene.samples_per_pixel-1 or \
+       (j % max(1,int(args.itr_per_refresh/10)) == 0 and \
+        j < args.itr_per_refresh):
         
-        if not args.no_window: image.show( imgdata )
+        imgdata = shader.img.get().astype(np.float32)[..., 0:3]
+        
+        if not args.no_window:
+            image.show( imgdata )
+        
         image.save_raw( RAW_OUTPUT_FILE, imgdata )
         image.save_png( PNG_OUTPUT_FILE, imgdata )
         

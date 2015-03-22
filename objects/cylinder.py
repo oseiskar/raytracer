@@ -4,7 +4,7 @@ from utils import normalize_tuple
 class Cylinder(ConvexIntersection):
     
     def __init__(self, bottom_center, axis, height, R):
-        components = [ LayerComponent(axis, height), CylinderComponent(axis,R) ]
+        components = [LayerComponent(axis, height), CylinderComponent(axis, R)]
         ConvexIntersection.__init__(self, bottom_center, components)
         self.unique_tracer_id = ''
 
