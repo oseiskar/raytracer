@@ -6,6 +6,7 @@ last_code.cl
 *.npy
 img/
 unversioned/
+pylintrc
 
 # needed for the spectrum shader to work. not sure about the IPR of these...
 data/cie-1931.csv

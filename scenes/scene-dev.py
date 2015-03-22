@@ -39,7 +39,7 @@ scene.objects.append( Object(
 	] ), 'glass') )
 """
 
-szmul = 150
+szmul = 120
 scene.image_size = (8*szmul,6*szmul)
 
 #tanglecube_eq = 'x**4 - 5*x**2 + y**4 - 5*y**2 + z**4 - 5*z**2 + 11.8'

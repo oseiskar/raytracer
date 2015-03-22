@@ -8,6 +8,12 @@ import utils
 
 class Shader:
     
+    def get_image(self):
+        imgdata = self.img.get().astype(np.float32)
+        img = np.empty(self.img_shape + (3,))
+        img[self.image_order[:, 0], self.image_order[:, 1], :] = imgdata[..., 0:3]
+        return img
+    
     def initialize(self, scene, args):
         
         self.scene = scene
@@ -20,7 +26,7 @@ class Shader:
         self.prog = self.acc.build_program( self._make_program() )
         
     def rays_per_sample(self):
-        return self.img.shape[0]*self.img.shape[1]
+        return self.img_shape[0]*self.img_shape[1]
     
     def get_material_property_offsets(self):
         properties = []
@@ -78,23 +84,29 @@ class Shader:
         self.vec_broadcast = self.acc.new_const_buffer(np.zeros((self.max_broadcast_vecs, 4)))
         self.vec_param_buf = np.zeros((self.max_broadcast_vecs, 4), dtype=np.float32)
 
+        self.img_shape = scene.image_size[::-1]
+        n_pixels = self.img_shape[0] * self.img_shape[1]
+        
+        self.image_order = self.get_image_order()
+        
+        cam = cam[self.image_order[:, 0], self.image_order[:, 1], 0:3]
+                
         self.cam = self.acc.make_vec3_array(cam)
-        imgshape = scene.image_size[::-1]
 
         # Randomization init
         self.qdirs = utils.quasi_random_direction_sample(scene.samples_per_pixel)
         self.qdirs = np.random.permutation(self.qdirs)
 
         # Device buffers. 
-        self.img = self.acc.new_vec3_array(imgshape)
-        self.whichobject = self.acc.new_array(imgshape, np.uint32, True)
+        self.img = self.acc.new_vec3_array((n_pixels, ))
+        self.whichobject = self.acc.new_array((n_pixels, ), np.uint32, True)
         self.pos = self.acc.zeros_like(self.cam)
         self.ray = self.acc.zeros_like(self.pos)
         self.inside = self.acc.zeros_like(self.whichobject)
         self.normal = self.acc.zeros_like(self.pos)
         self.isec_dist = self.acc.zeros_like(self.img)
         
-        self.raycolor = self.new_ray_color_buffer(imgshape)
+        self.raycolor = self.new_ray_color_buffer((n_pixels, ))
         
         # ------------- Find root container object
         self.root_object_id = 0
@@ -109,7 +121,7 @@ class Shader:
         self.bidirectional = len(self.bidirectional_light_ids) > 0
         if self.bidirectional:
             self.shadow_mask = self.acc.zeros_like(self.isec_dist)
-            self.suppress_emission = self.acc.new_array(imgshape, np.int32, True)
+            self.suppress_emission = self.acc.new_array((n_pixels, ), np.int32, True)
         
     # helpers
     
@@ -286,6 +298,29 @@ class Shader:
         return (light_id, light.tracer.surface_area()) + \
             light.tracer.random_surface_point_and_normal() + \
             light.tracer.center_and_min_sampling_distance()
+    
+    def get_image_order(self):
+        order = []
+        
+        width, height = self.img_shape
+        
+        block_w = 8
+        block_h = 4
+        
+        if width % block_w == 0 and height % block_h == 0:
+            for y_block in range(height / block_h):
+                for x_block in range(width / block_w):
+                    for by in range(block_h):
+                        for bx in range(block_w):
+                            order.append([bx+x_block*block_w, by+y_block*block_h])
+        else:
+            print "WARNING: image size should be (%d*x, %d*y)" % (block_w, block_h)
+        
+            for x in range(width):
+                for y in range(height):
+                    order.append([x,y])
+            
+        return np.array(order)
 
 class RgbShader(Shader):
     
