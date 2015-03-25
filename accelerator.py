@@ -41,7 +41,12 @@ class Accelerator:
         
         t1 = time.time()
         kernel = getattr(self.prog, kernel_name)
-        arg =  tuple([x.data for x in buffer_args]) + value_args
+        arg = []
+        for x in buffer_args:
+            if x is not None:
+                x = x.data
+            arg.append(x)
+        arg = tuple(arg) + value_args
         event = kernel(self.queue, (self.buffer_size, ), None, *arg)
         event.wait()
         

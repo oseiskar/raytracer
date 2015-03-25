@@ -2,13 +2,11 @@
 
 ### macro tracer_function(obj)
     ### call tracer_function_base(obj, 'const float3 base')
-    
-		if (origin_self && !inside) return;
 		
 		float3 rel = origin - base;
 		float ibegin  = 0.0, iend = old_isec_dist;
 		float cur_ibegin, cur_iend;
-		uint subobj, cur_subobj;
+		uint subobj, cur_subobj, last_subobject = *p_subobject;
 		
 		### set subobj_offset = 0
         ### for c in obj.components
@@ -18,6 +16,9 @@
 			cur_iend = iend;
             
             ### import c.template_file_name() as t
+            if (origin_self && last_subobject > {{ subobj_offset }})
+                cur_subobj = last_subobject - {{ subobj_offset }};
+            
             {{ t.tracer_call(c, obj.component_tracer_call_params(c)) }}
 			
 			if (cur_ibegin > ibegin) {

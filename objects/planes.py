@@ -7,6 +7,10 @@ class HalfSpace(Tracer):
     def __init__(self, normal, h):
         self.normal = normalize_tuple(normal)
         self.h = h
+    
+    @property
+    def convex(self):
+        return True
 
 class HalfSpaceComponent(ConvexIntersection.Component):
     """Half-space"""

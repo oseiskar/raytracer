@@ -51,4 +51,17 @@ class Tracer:
             self.normal_function_name : self.make_normal_function(template_env)
         }
 
+    def has_vector_data(self):
+        return hasattr(self, 'get_vector_data')
+    
+    @property
+    def auto_flip_normal(self):
+        """
+        Automatically flip computed normal to correct direction?
+        """
+        return False
+    
+    @property
+    def convex(self):
+        return False
 

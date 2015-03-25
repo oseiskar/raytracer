@@ -2,12 +2,6 @@
 
 ### macro tracer_function(obj)
     ### call tracer_function_base(obj, 'const float3 center, const float R2')
-    
-        if (origin_self && !inside)
-        {
-            // convex body
-            return;
-        }
         
         float3 rel = center - origin;
         float dotp = dot(ray, rel);

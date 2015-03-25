@@ -20,6 +20,10 @@ class Sphere(Tracer):
     
     def center_and_min_sampling_distance(self):
         return (numpy.array(self.pos), self.R * 2.0)
+    
+    @property
+    def convex(self):
+        return True
 
 class SphereComponent(ConvexIntersection.Component):
     """Sphere"""

@@ -55,10 +55,8 @@ class Shader:
 
         return template_env.get_template('main.cl').render({
             'shader': self,
-            'objects': {
-                'length': len(scene.objects),
-                'tracers': [o.tracer for o in scene.objects]
-            },
+            'objects': scene.objects,
+            'n_objects': len(scene.objects),
             'kernels': {
                 'declarations': kernel_declarations,
                 'functions': kernels
@@ -100,6 +98,7 @@ class Shader:
         # Device buffers. 
         self.img = self.acc.new_vec3_array((n_pixels, ))
         self.whichobject = self.acc.new_array((n_pixels, ), np.uint32, True)
+        self.which_subobject = self.acc.zeros_like(self.whichobject)
         self.pos = self.acc.zeros_like(self.cam)
         self.ray = self.acc.zeros_like(self.pos)
         self.inside = self.acc.zeros_like(self.whichobject)
@@ -107,6 +106,10 @@ class Shader:
         self.isec_dist = self.acc.zeros_like(self.img)
         
         self.raycolor = self.new_ray_color_buffer((n_pixels, ))
+        
+        self.vector_data = scene.collect_vector_data()
+        if self.vector_data is not None:
+            self.vector_data = self.acc.make_vec3_array(self.vector_data)
         
         # ------------- Find root container object
         self.root_object_id = 0
@@ -237,7 +240,8 @@ class Shader:
         acc = self.acc
         
         self.isec_dist.fill(self.scene.max_ray_length)
-        acc.call('trace', (self.pos, self.ray, self.normal, self.isec_dist, self.whichobject, self.inside))
+        acc.call('trace', (self.pos, self.ray, self.normal, self.isec_dist, \
+            self.whichobject, self.which_subobject, self.inside, self.vector_data))
         
         if self.bidirectional:
             if path_index == 0:
@@ -260,7 +264,9 @@ class Shader:
 
                 acc.enqueue_copy(self.vec_broadcast, self.vec_param_buf)
                 acc.call('shadow_trace', \
-                    (self.pos, self.normal, self.whichobject, self.inside, self.shadow_mask), \
+                    (self.pos, self.normal, self.whichobject, \
+                        self.which_subobject, self.inside, self.shadow_mask, \
+                        self.vector_data), \
                     (self.vec_broadcast, light_id))
     
         if self.scene.quasirandom and path_index == 1:
@@ -280,7 +286,7 @@ class Shader:
             self.vec_param_buf[5, :3] = light_center
         acc.enqueue_copy(self.vec_broadcast, self.vec_param_buf)
         
-        buffer_params = [self.img, self.whichobject,
+        buffer_params = [self.img, self.whichobject, 
             self.normal, self.isec_dist, self.pos, self.ray,
             self.raycolor, self.inside]
              

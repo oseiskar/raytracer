@@ -7,9 +7,12 @@
     at the given point
 */#}
 void {{ obj.normal_function_name }}(
-        const float3 pos,          {# a point on the surface of the object #}
-        const uint subobject,      {# subobject number (computed by the tracer) #}
-        __global float3 *p_normal  {# [out] the computed normal #}
+    ### if obj.has_vector_data()
+        __global const float4 *vector_data,    {# vector data for this object #}
+    ### endif
+        const float3 pos,            {# a point on the surface of the object #}
+        const uint subobject,        {# subobject number (computed by the tracer) #}
+        __global float3 *p_normal    {# [out] the computed normal #}
         {%- if extra_params -%},{%- endif %}
         {{ extra_params }}) {
 {{ caller() }}
@@ -23,9 +26,11 @@ void {{ obj.normal_function_name }}(
     represents
 */#}
 void {{ obj.tracer_function_name }}(
+    ### if obj.has_vector_data()
+        __global const float4 *vector_data,    {# vector data for this object #}
+    ### endif
         const float3 origin,              {# ray origin #}
         const float3 ray,                 {# ray direction #}
-        const float3 last_normal,         {# previous normal (for computing self-intersections) #}
         const float old_isec_dist,        {# upper bound for isec. distance #}
         __private float *p_new_isec_dist, {# [out] computed isec. distance #}
         __private uint *p_subobject,      {# [out] (optional) subobject number (e.g., which face of a cube),

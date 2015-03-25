@@ -35,3 +35,7 @@ class ConvexIntersection(Tracer):
     def component_normal_call_params(self, component, subobject_offset):
         return 'p - (float3)%s, subobject - %d, p_normal' \
              % (tuple(component.pos), subobject_offset)
+
+    @property
+    def convex(self):
+        return True
