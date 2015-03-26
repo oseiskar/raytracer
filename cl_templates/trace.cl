@@ -5,7 +5,8 @@ uint trace_core(
     __private float3 *p_pos,
     __private uint *p_subobject,
     __private float *p_isec_dist,
-    __global const float4 *vector_data)
+    __global const float4 *vector_data,
+    __global const int *integer_data)
 {
 
     float3 pos = *p_pos;
@@ -14,6 +15,7 @@ uint trace_core(
     
     float new_isec_dist = 0;
     __global const float3 *obj_vec_data;
+    __global const int *obj_int_data;
 
     ### for i in range(n_objects)
         
@@ -34,9 +36,10 @@ uint trace_core(
         if (origin_self) cur_subobject = *p_subobject;
         
         ### set params = "pos, ray, old_isec_dist, &new_isec_dist, &cur_subobject, inside_current, origin_self"
-        ### if obj.tracer.has_vector_data()
+        ### if obj.tracer.has_data()
             obj_vec_data = vector_data + {{ obj.vector_data_offset }};
-            ### set params = "obj_vec_data, " + params
+            obj_int_data = integer_data + {{ obj.integer_data_offset }};
+            ### set params = "obj_vec_data, obj_int_data, " + params
         ### endif
         {{ t.tracer_call(obj.tracer, params) }}
                 
@@ -73,7 +76,7 @@ __kernel void shadow_trace(
     __global const uint *p_inside,
     __global float *p_shadow_mask,
     __global const float4 *vector_data,
-    // a random unit vector and color mask
+    __global const int *integer_data,
     constant float4 *p_dest_point,
     uint light_id)
 {
@@ -98,7 +101,7 @@ __kernel void shadow_trace(
         p_whichobject[gid],
         p_inside[gid],
         &pos,&subobject,&isec_dist,
-        vector_data);
+        vector_data, integer_data);
     
     // no light self-intersection (light objects must be convex)
     if (whichobject == 0 || whichobject == light_id) {
@@ -119,7 +122,8 @@ __kernel void trace(
     __global uint *p_whichobject,
     __global uint *p_which_subobject,
     __global const uint *p_inside,
-    __global const float4 *vector_data)
+    __global const float4 *vector_data,
+    __global const int *integer_data)
 {
     const int gid = get_global_id(0);
     
@@ -141,9 +145,10 @@ __kernel void trace(
         *p_whichobject,
         inside,
         &pos,&subobject,&isec_dist,
-        vector_data);
+        vector_data, integer_data);
         
     __global const float3 *obj_vec_data;
+    __global const int *obj_int_data;
     
     ### for i in range(n_objects)
         
@@ -154,9 +159,10 @@ __kernel void trace(
             ### import obj.tracer.template_file_name() as t
             
             ### set params = "pos, subobject, p_normal"
-            ### if obj.tracer.has_vector_data()
+            ### if obj.tracer.has_data()
                 obj_vec_data = vector_data + {{ obj.vector_data_offset }};
-                ### set params = "obj_vec_data, " + params
+                obj_int_data = integer_data + {{ obj.integer_data_offset }};
+                ### set params = "obj_vec_data, obj_int_data, " + params
             ### endif
             {{ t.normal_call(obj.tracer, params) }}
             

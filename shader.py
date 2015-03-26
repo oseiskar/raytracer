@@ -50,7 +50,7 @@ class Shader:
             trim_blocks=False,
             lstrip_blocks=False)
     
-        kernels = scene.get_kernels(template_env)
+        kernels = self.collect_tracer_kernels(template_env)
         kernel_declarations = [kernel[:kernel.find('{')] + ';' for kernel in kernels]
 
         return template_env.get_template('main.cl').render({
@@ -107,9 +107,7 @@ class Shader:
         
         self.raycolor = self.new_ray_color_buffer((n_pixels, ))
         
-        self.vector_data = scene.collect_vector_data()
-        if self.vector_data is not None:
-            self.vector_data = self.acc.make_vec3_array(self.vector_data)
+        self.collect_tracer_data()
         
         # ------------- Find root container object
         self.root_object_id = 0
@@ -125,7 +123,64 @@ class Shader:
         if self.bidirectional:
             self.shadow_mask = self.acc.zeros_like(self.isec_dist)
             self.suppress_emission = self.acc.new_array((n_pixels, ), np.int32, True)
+
+    def collect_tracer_kernels(self, template_env):
+        kernel_map = {}
+        for obj in self.scene.objects:
+            for (k, v) in obj.tracer.make_functions(template_env).items():
+                if k in kernel_map and kernel_map[k] != v:
+                    print kernel_map[k]
+                    print '------'
+                    print v
+                    raise RuntimeError("kernel name clash!!")
+                kernel_map[k] = v
+        return list(set(kernel_map.values()))
+    
+    def collect_tracer_data(self):
         
+        data_items = ['vector', 'integer']
+        data = { k : [] for k in data_items }
+        data_sizes = { k : 0 for k in data_items }
+        
+        for obj in self.scene.objects:
+            if obj.tracer.has_data():
+                
+                cur_data = obj.tracer.get_data()
+                
+                for dtype in data_items:
+                    cur = cur_data.get(dtype)
+                    n_data = data_sizes[dtype]
+                    
+                    setattr(obj, dtype + '_data_offset', n_data)
+                    
+                    if cur is not None:
+                        if dtype == 'vector':
+                            if cur.shape[1] != 3:
+                                raise RuntimeError('invalid vector data shape')
+                            n_data += cur.shape[0]
+                        else:
+                            cur = np.ravel(cur)
+                            n_data += cur.size
+                        
+                        data[dtype].append(cur)
+                        data_sizes[dtype] = n_data
+        
+        self.tracer_data_buffers = []
+        for dtype in data_items:
+            values = data[dtype]
+            if len(values) == 0: values = None
+            else:
+                if dtype == 'vector':
+                    values = np.vstack(values)
+                    values = self.acc.make_vec3_array(values)
+                elif dtype == 'integer':
+                    values = np.concatenate(values)
+                    values = self.acc.to_device(values.astype(np.int32))
+                else:
+                    assert(False)
+            
+            self.tracer_data_buffers.append(values)
+
     # helpers
     
     def _fill_vec(self, data, vec):
@@ -241,7 +296,8 @@ class Shader:
         
         self.isec_dist.fill(self.scene.max_ray_length)
         acc.call('trace', (self.pos, self.ray, self.normal, self.isec_dist, \
-            self.whichobject, self.which_subobject, self.inside, self.vector_data))
+            self.whichobject, self.which_subobject, self.inside) + \
+            tuple(self.tracer_data_buffers))
         
         if self.bidirectional:
             if path_index == 0:
@@ -265,8 +321,8 @@ class Shader:
                 acc.enqueue_copy(self.vec_broadcast, self.vec_param_buf)
                 acc.call('shadow_trace', \
                     (self.pos, self.normal, self.whichobject, \
-                        self.which_subobject, self.inside, self.shadow_mask, \
-                        self.vector_data), \
+                        self.which_subobject, self.inside, self.shadow_mask) + \
+                        tuple(self.tracer_data_buffers), \
                     (self.vec_broadcast, light_id))
     
         if self.scene.quasirandom and path_index == 1:

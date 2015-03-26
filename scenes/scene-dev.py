@@ -13,7 +13,7 @@ scene.materials['black'] = { 'diffuse': 0.2 }
 
 def poly_to_triangle_fan(vertices):
     for offset in range(len(vertices)-2):
-        yield((vertices[0],vertices[offset+1],vertices[offset+2]))
+        yield([vertices[0],vertices[offset+1],vertices[offset+2]])
 
 def read_off(filename):
     with open(filename, 'r') as off:
@@ -39,11 +39,10 @@ def read_off(filename):
             if face_vertices[0] != len(face_vertices)-1:
                 raise "invalid format"
             
-            for v1,v2,v3 in poly_to_triangle_fan(face_vertices[1:]):
-                faces.append([vertices[int(i)] for i in (v1,v2,v3)])
+            faces += list(poly_to_triangle_fan(face_vertices[1:]))
             
         print "constructed", len(faces), "triangles"
-        return faces
+        return vertices, faces
 
 objR = .6
 objPos = (0,0,objR)
@@ -55,8 +54,8 @@ objMat = 'white'
 #objType = Sphere
 #scene.objects.append( Object( objType( objPos, objR ), objMat ) )
 
-mesh = read_off('data/socket.off')
-obj = TriangleMesh( mesh, center=objPos, scale=objR, auto_scale=True, auto_normal=False )
+vertices,faces = read_off('data/socket.off')
+obj = TriangleMesh( vertices, faces, center=objPos, scale=objR, auto_scale=True, auto_normal=False )
 scene.objects.append( Object( obj, objMat ) )
 
 szmul = 120

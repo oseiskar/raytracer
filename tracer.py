@@ -51,8 +51,8 @@ class Tracer:
             self.normal_function_name : self.make_normal_function(template_env)
         }
 
-    def has_vector_data(self):
-        return hasattr(self, 'get_vector_data')
+    def has_data(self):
+        return hasattr(self, 'get_data')
     
     @property
     def auto_flip_normal(self):

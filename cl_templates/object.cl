@@ -7,8 +7,9 @@
     at the given point
 */#}
 void {{ obj.normal_function_name }}(
-    ### if obj.has_vector_data()
-        __global const float4 *vector_data,    {# vector data for this object #}
+    ### if obj.has_data()
+        __global const float4 *vector_data,   {# vector data for this object #}
+        __global const int *integer_data,     {# integer data for this object #}
     ### endif
         const float3 pos,            {# a point on the surface of the object #}
         const uint subobject,        {# subobject number (computed by the tracer) #}
@@ -26,8 +27,9 @@ void {{ obj.normal_function_name }}(
     represents
 */#}
 void {{ obj.tracer_function_name }}(
-    ### if obj.has_vector_data()
-        __global const float4 *vector_data,    {# vector data for this object #}
+    ### if obj.has_data()
+        __global const float4 *vector_data,   {# vector data for this object #}
+        __global const int *integer_data,     {# integer data for this object #}
     ### endif
         const float3 origin,              {# ray origin #}
         const float3 ray,                 {# ray direction #}

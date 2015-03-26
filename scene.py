@@ -2,7 +2,7 @@
 from objects import *
 import utils
 import numpy as np
-import shader
+import shader, tracer
 from spectrum import Spectrum
 
 class Object:
@@ -50,37 +50,5 @@ class Scene:
     
     def add_object(self, tracer, material, name=None):
         self.objects.append(Object(tracer, material, name))
-
-    def get_kernels(self, template_env):
-        kernel_map = {}
-        for obj in self.objects:
-            for (k, v) in obj.tracer.make_functions(template_env).items():
-                if k in kernel_map and kernel_map[k] != v:
-                    print kernel_map[k]
-                    print '------'
-                    print v
-                    raise RuntimeError("kernel name clash!!")
-                kernel_map[k] = v
-        return list(set(kernel_map.values()))
-    
-    def collect_vector_data(self):
-        datas = []
-        n_data = 0
-        for obj in self.objects:
-            if obj.tracer.has_vector_data():
-                cur_data = np.array(obj.tracer.get_vector_data())
-                if cur_data.shape[1] != 3:
-                    raise RuntimeError('invalid vector data shape')
-                datas.append(np.array(cur_data))
-                obj.vector_data_offset = n_data
-                cur_data_len = cur_data.shape[0]
-            else:
-                cur_data_len = 0
-            
-            obj.vector_data_len = cur_data_len
-            n_data += cur_data_len
-            
-        if len(datas) == 0: return None
-        return np.vstack(datas)
 
 from scenes.default_scenes import DefaultBoxScene, DefaultSpectrumBoxScene

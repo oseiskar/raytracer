@@ -61,6 +61,11 @@ class Accelerator:
     def enqueue_copy( self, dest, src ):
         cl.enqueue_copy(self.queue, dest, src)
     
+    def to_device( self, cpuarray ):
+        arr = cl_array.to_device(self.queue, cpuarray)
+        self._cl_arrays.append(arr)
+        return arr
+    
     def new_array( self, shape, datatype=np.float32, zeros=False ):
         if zeros:
             ctor = cl_array.zeros
@@ -91,9 +96,7 @@ class Accelerator:
         cpuarray[..., 1] = y
         cpuarray[..., 2] = z
         cpuarray[..., 3] = np.zeros_like(x)
-        arr = cl_array.to_device(self.queue, cpuarray)
-        self._cl_arrays.append(arr)
-        return arr
+        return self.to_device(cpuarray)
         
     def make_vec3_array( self, a ):
         assert( a.shape[-1]==3 )
