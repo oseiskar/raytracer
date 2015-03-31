@@ -54,9 +54,18 @@ objMat = 'white'
 #objType = Sphere
 #scene.objects.append( Object( objType( objPos, objR ), objMat ) )
 
-vertices,faces = read_off('data/socket.off')
+vertices,faces = read_off('data/S.off')
 obj = TriangleMesh( vertices, faces, center=objPos, scale=objR, auto_scale=True, auto_normal=False )
-scene.objects.append( Object( obj, objMat ) )
+print 'computing octree'
+octree = Octree(obj)
+print 'done'
+#scene.objects.append( Object( obj, objMat ) )
+scene.objects.append( Object(octree, objMat) )
+
+#for node in octree.leafs:
+#    if node.is_empty(): continue
+#    obj = Sphere( *node.get_bounding_sphere() )
+#    scene.objects.append( Object( obj, objMat ) )
 
 szmul = 120
 scene.image_size = (8*szmul,6*szmul)
