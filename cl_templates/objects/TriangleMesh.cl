@@ -6,10 +6,6 @@
 
 ### macro tracer_function_core()
 
-    #ifndef EPSILON
-    #define EPSILON 0.00001
-    #endif
-    
     for (uint j=0; j<n_triangles; ++j) {
         
         const int face_index = {{ caller('j') }};
@@ -27,8 +23,6 @@
         const float3 P = cross(ray, e2);
         //if determinant is near zero, ray lies in plane of triangle
         const float det = dot(e1, P);
-        
-        if (det > -EPSILON && det < EPSILON) continue;
         
         const float inv_det = 1.f / det;
 

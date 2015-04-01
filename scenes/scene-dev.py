@@ -55,12 +55,21 @@ objMat = 'white'
 #scene.objects.append( Object( objType( objPos, objR ), objMat ) )
 
 vertices,faces = read_off('data/S.off')
+#print faces
 obj = TriangleMesh( vertices, faces, center=objPos, scale=objR, auto_scale=True, auto_normal=False )
 print 'computing octree'
 octree = Octree(obj)
 print 'done'
 #scene.objects.append( Object( obj, objMat ) )
 scene.objects.append( Object(octree, objMat) )
+
+dat = octree.get_data()
+#print dat
+#print octree.total_faces
+#print octree.root_data_offset
+print dat['integer'][octree.total_faces*3:]
+print dat['integer'][octree.total_faces*3+octree.root_data_offset:]
+#print len(octree.leafs)
 
 #for node in octree.leafs:
 #    if node.is_empty(): continue
@@ -75,5 +84,5 @@ scene.camera_position = (-2,-3,1)
 scene.direct_camera_towards((0,0,0.6))
 scene.camera_fov = 50
 
-scene.min_bounces = 2
-scene.max_bounces = 2
+scene.min_bounces = 1
+scene.max_bounces = 1

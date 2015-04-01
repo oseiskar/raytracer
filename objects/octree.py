@@ -40,7 +40,7 @@ class Octree(Tracer):
                         [self.coordinates[i] + [xyz[i]] for i in range(3)]))
             return self.children
     
-    def __init__(self, triangle_mesh, max_depth=0, max_faces_per_leaf=5):
+    def __init__(self, triangle_mesh, max_depth=2, max_faces_per_leaf=5):
         self.triangle_mesh = triangle_mesh
         self.max_depth = max_depth
         self.max_faces_per_leaf = max_faces_per_leaf
@@ -101,34 +101,39 @@ class Octree(Tracer):
             ])
         
         self.center = [sum(x)*0.5 for x in self.coord_ranges]
-        self.size = max([abs(x[1]-x[0]) for x in self.coord_ranges])
+        self.size = max([abs(x[1]-x[0]) for x in self.coord_ranges])*1.01
         
     def get_data(self):
         """serializes the octree data structure"""
         
-        tree_data = []
         
         def write_node(node, tree_data):
             child_mask = 0
             if node.is_leaf():
-                data = [len(node.faces)] + node.faces
+                if node.is_empty():
+                    child_mask = 0x100
+                    data = []
+                else:
+                    data = [len(node.faces)] + node.faces
             else:
                 data = []
                 for i in range(len(node.children)):
                     c = node.children[i]
-                    if c.is_empty():
-                        node_header = [0,0]
+                    if c.is_empty() and c.is_leaf():
+                        node_header = [0x100,0]
                     else:
                         child_mask = child_mask | (0x1 << i)
                         node_header = write_node(c, tree_data)
                     data += node_header
             data_offset = len(tree_data)
-            tree_data += data
+            tree_data.extend(data)
             return [child_mask, data_offset]
         
+        tree_data = []
         root_data = write_node(self.root, tree_data)
         self.root_data_offset = len(tree_data)
-        tree_data += root_data
+        tree_data.extend(root_data)
+        print root_data
 
         return {
             'vector': self.triangle_mesh.vertices,
