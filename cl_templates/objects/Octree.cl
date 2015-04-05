@@ -70,6 +70,7 @@
         
         for(int itr=0; itr < MAX_TOTAL_ITR; itr++) {
             
+            
             float3 ray_pos = origin + isec_begin * ray, node_origin;
             int child_mask, data_ptr, child_idx;
             
@@ -120,7 +121,7 @@
                 }
             }
             
-            //int3 coord_hop = (isec_end == isec2)*slope_signs;
+            //int3 coord_hop = (isec_end == isec2)*slope_signs; // does not seem to work either
             int3 coord_hop = (int3)(0,0,0);
             
             if (isec_end == isec2.x) {
@@ -130,12 +131,6 @@
             } else if (isec_end == isec2.z) {
                 coord_hop.z = slope_signs.z;
             }
-            
-            /*if (itr == 0 && depth == 1 && (coord_hop.z == -1)) {
-                *p_new_isec_dist = max(max(isec1.x,isec1.y),isec1.z);
-                *p_subobject = 0;
-                return;
-            }*/
             
             // travel up the current tree branch as long as necessary
             while (depth > 0) {

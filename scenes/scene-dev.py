@@ -54,11 +54,11 @@ objMat = 'white'
 #objType = Sphere
 #scene.objects.append( Object( objType( objPos, objR ), objMat ) )
 
-vertices,faces = read_off('data/S.off')
+vertices,faces = read_off('data/socket.off')
 #print faces
 obj = TriangleMesh( vertices, faces, center=objPos, scale=objR, auto_scale=True, auto_normal=False )
 print 'computing octree'
-octree = Octree(obj)
+octree = Octree(obj, max_depth=3)
 print 'done'
 #scene.objects.append( Object( obj, objMat ) )
 scene.objects.append( Object(octree, objMat) )

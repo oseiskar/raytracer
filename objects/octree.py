@@ -40,7 +40,7 @@ class Octree(Tracer):
                         [self.coordinates[i] + [xyz[i]] for i in range(3)]))
             return self.children
     
-    def __init__(self, triangle_mesh, max_depth=2, max_faces_per_leaf=5):
+    def __init__(self, triangle_mesh, max_depth=3, max_faces_per_leaf=5):
         self.triangle_mesh = triangle_mesh
         self.max_depth = max_depth
         self.max_faces_per_leaf = max_faces_per_leaf
@@ -106,7 +106,6 @@ class Octree(Tracer):
     def get_data(self):
         """serializes the octree data structure"""
         
-        
         def write_node(node, tree_data):
             child_mask = 0
             if node.is_leaf():
@@ -149,7 +148,7 @@ def face_bounding_spheres(vertices, faces):
     
     centers = numpy.mean(triangles,-1)
     sq_distances = numpy.sum((triangles - centers[...,numpy.newaxis])**2,1)
-    radii = numpy.sqrt(numpy.min(sq_distances,-1))
+    radii = numpy.sqrt(numpy.max(sq_distances,-1))
     
     return centers, radii
 
