@@ -51,11 +51,11 @@
         __global const int *octree_data = integer_data + face_data_length;
         
         #ifndef MAX_OCTREE_DEPTH
-        #define MAX_OCTREE_DEPTH 5
+        #define MAX_OCTREE_DEPTH {{obj.__class__.MAX_DEPTH + 1}}
         #endif
         
         #ifndef MAX_TOTAL_ITR
-        #define MAX_TOTAL_ITR 100
+        #define MAX_TOTAL_ITR 200
         #endif
         
         int3 octree_coords = (int3)(0,0,0);

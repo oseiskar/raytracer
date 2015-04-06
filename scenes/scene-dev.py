@@ -54,11 +54,11 @@ objMat = 'white'
 #objType = Sphere
 #scene.objects.append( Object( objType( objPos, objR ), objMat ) )
 
-vertices,faces = read_off('data/socket.off')
+vertices,faces = read_off('data/S.off')
 #print faces
 obj = TriangleMesh( vertices, faces, center=objPos, scale=objR, auto_scale=True, auto_normal=False )
 print 'computing octree'
-octree = Octree(obj, max_depth=3)
+octree = Octree(obj, max_depth=3, max_faces_per_leaf=30)
 print 'done'
 #scene.objects.append( Object( obj, objMat ) )
 scene.objects.append( Object(octree, objMat) )
@@ -71,10 +71,24 @@ print dat['integer'][octree.total_faces*3:]
 print dat['integer'][octree.total_faces*3+octree.root_data_offset:]
 #print len(octree.leafs)
 
-#for node in octree.leafs:
-#    if node.is_empty(): continue
-#    obj = Sphere( *node.get_bounding_sphere() )
-#    scene.objects.append( Object( obj, objMat ) )
+"""
+face_center, face_radii = face_bounding_spheres(octree.triangle_mesh.vertices, octree.triangle_mesh.faces)
+
+for node in octree.leaves:
+    if node.is_empty(): continue
+    if len(node.faces) < 30: continue
+    
+    obj = Sphere( *node.get_bounding_sphere() )
+    scene.objects.append( Object( obj, objMat ) )
+    
+    fs = node.faces[0::2]
+    for f in fs:
+        scene.objects.append( Object( Sphere( face_center[f,:], face_radii[f]*0.2 ), 'black' ) )
+    
+    obj = TriangleMesh( octree.triangle_mesh.vertices, octree.triangle_mesh.faces[fs,:] )
+    scene.objects.append( Object( obj, objMat ) )
+    break
+"""
 
 szmul = 120
 scene.image_size = (8*szmul,6*szmul)

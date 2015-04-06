@@ -4,6 +4,16 @@ import numpy
 
 class Octree(Tracer):
     
+    MAX_DEPTH=7
+    
+    def __init__(self, triangle_mesh, max_depth=3, max_faces_per_leaf=5):
+        self.triangle_mesh = triangle_mesh
+        self.max_depth = max_depth
+        self.max_faces_per_leaf = max_faces_per_leaf
+        if self.max_depth >= self.__class__.MAX_DEPTH:
+            raise RuntimeError("max_depth >= MAX_DEPTH")
+        self.build()
+    
     class Node:
         
         child_order = [[x,y,z] for x in [0,1] for y in [0,1] for z in [0,1]]
@@ -40,12 +50,6 @@ class Octree(Tracer):
                         [self.coordinates[i] + [xyz[i]] for i in range(3)]))
             return self.children
     
-    def __init__(self, triangle_mesh, max_depth=3, max_faces_per_leaf=5):
-        self.triangle_mesh = triangle_mesh
-        self.max_depth = max_depth
-        self.max_faces_per_leaf = max_faces_per_leaf
-        self.build()
-    
     def build(self):
         
         self._compute_coord_ranges()
@@ -56,7 +60,7 @@ class Octree(Tracer):
         face_centers, face_radii = face_bounding_spheres(\
             self.triangle_mesh.vertices, self.triangle_mesh.faces)
         
-        self.leafs = []
+        self.leaves = []
         
         depth = 0
         active_nodes = [self.root]
@@ -80,10 +84,12 @@ class Octree(Tracer):
             for node in active_nodes:
                 if len(node.faces) <= self.max_faces_per_leaf \
                         or depth == self.max_depth:
-                    self.leafs.append(node)
+                    self.leaves.append(node)
                 else:
                     node.faces = []
                     new_active += node.get_children()
+            
+            print 'depth', depth, 'active_nodes', len(active_nodes), 'total leaves', len(self.leaves)
             
             active_nodes = new_active
             depth += 1

@@ -14,7 +14,7 @@ uint trace_core(
     uint whichobject = 0, subobject = *p_subobject, cur_subobject, i, origin_self, inside_current;
     
     float new_isec_dist = 0;
-    __global const float3 *obj_vec_data;
+    __global const float4 *obj_vec_data;
     __global const int *obj_int_data;
 
     ### for i in range(n_objects)
@@ -147,7 +147,7 @@ __kernel void trace(
         &pos,&subobject,&isec_dist,
         vector_data, integer_data);
         
-    __global const float3 *obj_vec_data;
+    __global const float4 *obj_vec_data;
     __global const int *obj_int_data;
     
     ### for i in range(n_objects)
