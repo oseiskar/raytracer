@@ -12,3 +12,4 @@ pylintrc
 data/cie-1931.csv
 data/cie-1964.csv
 data/*.off
+data/*.ply

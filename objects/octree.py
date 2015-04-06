@@ -60,36 +60,41 @@ class Octree(Tracer):
         face_centers, face_radii = face_bounding_spheres(\
             self.triangle_mesh.vertices, self.triangle_mesh.faces)
         
+        face_normals, face_h = face_planes(\
+            self.triangle_mesh.vertices, self.triangle_mesh.faces)
+        
         self.leaves = []
         
         depth = 0
         active_nodes = [self.root]
+        active_faces = range(self.triangle_mesh.n_faces)
         
         while len(active_nodes) > 0:
             
-            node_centers = []
-            node_radii = []
-            for node in active_nodes:
-                c, r = node.get_bounding_sphere()
-                node_centers.append(c)
-                node_radii.append(r)
-            node_centers = numpy.array(node_centers)
-            node_radii = numpy.array(node_radii)
+            intersections, active_faces = all_intersections(\
+                active_nodes, active_faces, \
+                self.triangle_mesh.faces, self.triangle_mesh.vertices,
+                face_centers, face_radii, face_normals, face_h)
             
-            for node, face in all_intersections(node_centers, node_radii, \
-                                                face_centers, face_radii):
-                active_nodes[node].faces.append(face)
+            for node, face_idx in intersections:
+                node.faces.append(face_idx)
             
             new_active = []
             for node in active_nodes:
-                if len(node.faces) <= self.max_faces_per_leaf \
+                n_smaller_faces = len([f for f in node.faces \
+                    if face_radii[f] < node.size*0.5])
+                
+                if n_smaller_faces <= self.max_faces_per_leaf \
                         or depth == self.max_depth:
                     self.leaves.append(node)
                 else:
                     node.faces = []
                     new_active += node.get_children()
             
-            print 'depth', depth, 'active_nodes', len(active_nodes), 'total leaves', len(self.leaves)
+            print 'depth:', depth, \
+                'active nodes:', len(active_nodes), \
+                'total leaves:', len(self.leaves), \
+                'active faces:', len(active_faces)
             
             active_nodes = new_active
             depth += 1
@@ -158,12 +163,48 @@ def face_bounding_spheres(vertices, faces):
     
     return centers, radii
 
-def all_intersections(node_centers, node_radii, face_centers, face_radii):
+def face_planes(vertices, faces):
+    tri_vertices = ([vertices[faces[:,i], :] for i in range(3)])
+    
+    p0 = tri_vertices[0]
+    e1 = tri_vertices[1] - p0
+    e2 = tri_vertices[2] - p0
+    
+    normals = numpy.cross(e1,e2)
+    normals = normals / numpy.sqrt(numpy.sum(normals**2,1))[:,numpy.newaxis]
+    plane_h = numpy.sum(p0*normals,1)
+    return (normals, plane_h)
+
+def all_intersections(active_nodes, active_faces, \
+    faces, vertices, \
+    face_centers, face_radii, \
+    face_normals, face_h):
+    
+    node_centers = []
+    node_radii = []
+    for node in active_nodes:
+        c, r = node.get_bounding_sphere()
+        node_centers.append(c)
+        node_radii.append(r)
+    node_centers = numpy.array(node_centers)
+    node_radii = numpy.array(node_radii)
+    
     nc = numpy.transpose(node_centers[...,numpy.newaxis], (0,2,1))
     fc = numpy.transpose(face_centers[...,numpy.newaxis], (2,0,1))
+    fn = numpy.transpose(face_normals[...,numpy.newaxis], (2,0,1))
     
     dist_mat = numpy.sqrt(numpy.sum((nc-fc)**2,2))
     dist_mat = dist_mat - node_radii[:,numpy.newaxis] - face_radii[numpy.newaxis,:]
     
-    return numpy.transpose(numpy.nonzero(dist_mat < 0))
+    dot_prod_mat = numpy.sum(nc*fn,2)
+    dist_mat = numpy.maximum(dist_mat, \
+        numpy.abs(dot_prod_mat - face_h[numpy.newaxis,:]) - node_radii[:,numpy.newaxis])
     
+    isecs = numpy.transpose(numpy.nonzero(dist_mat < 0))
+    
+    isecs = [(active_nodes[ni], active_faces[fi])  for ni, fi in isecs]
+    
+    any_intersections = numpy.any(dist_mat < 0, 0)
+    active_faces = numpy.array(active_faces)[any_intersections]
+    
+    return (isecs, active_faces)
