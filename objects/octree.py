@@ -8,6 +8,7 @@ class Octree(Tracer):
     
     def __init__(self, triangle_mesh, max_depth=3, max_faces_per_leaf=5):
         self.triangle_mesh = triangle_mesh
+        self.auto_flip_normal = self.triangle_mesh.auto_flip_normal
         self.max_depth = max_depth
         self.max_faces_per_leaf = max_faces_per_leaf
         if self.max_depth >= self.__class__.MAX_DEPTH:
@@ -52,7 +53,8 @@ class Octree(Tracer):
     
     def build(self):
         
-        self._compute_coord_ranges()
+        self.center, self.size = self.triangle_mesh.get_bounding_cube()
+        self.size *= 1.01
         
         self.origin = numpy.array(self.center) - numpy.array([self.size*0.5]*3) 
         self.root = Octree.Node(self.origin, self.size)
@@ -98,21 +100,6 @@ class Octree(Tracer):
             
             active_nodes = new_active
             depth += 1
-    
-    def _compute_coord_ranges(self):
-        
-        vertices = self.triangle_mesh.vertices
-        faces = self.triangle_mesh.faces
-        self.coord_ranges = []
-        
-        for coord in range(3):
-            values = vertices[:,coord]
-            self.coord_ranges.append([
-                numpy.min(values), numpy.max(values)
-            ])
-        
-        self.center = [sum(x)*0.5 for x in self.coord_ranges]
-        self.size = max([abs(x[1]-x[0]) for x in self.coord_ranges])*1.01
         
     def get_data(self):
         """serializes the octree data structure"""
@@ -121,8 +108,7 @@ class Octree(Tracer):
             child_mask = 0
             if node.is_leaf():
                 if node.is_empty():
-                    child_mask = 0x100
-                    data = []
+                    return [0x100, -99999]
                 else:
                     data = [len(node.faces)] + node.faces
             else:
@@ -130,11 +116,13 @@ class Octree(Tracer):
                 for i in range(len(node.children)):
                     c = node.children[i]
                     if c.is_empty() and c.is_leaf():
-                        node_header = [0x100,0]
+                        node_header = [0x100, -99999]
                     else:
                         child_mask = child_mask | (0x1 << i)
                         node_header = write_node(c, tree_data)
+                        #assert(node_header[0] != 0x100)
                     data += node_header
+                if child_mask == 0: return [0x100, -99999]
             data_offset = len(tree_data)
             tree_data.extend(data)
             return [child_mask, data_offset]
@@ -143,7 +131,6 @@ class Octree(Tracer):
         root_data = write_node(self.root, tree_data)
         self.root_data_offset = len(tree_data)
         tree_data.extend(root_data)
-        print root_data
 
         return {
             'vector': self.triangle_mesh.vertices,

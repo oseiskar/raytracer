@@ -82,7 +82,6 @@ float4 quaternion_square( float4 q )
    return r;
 }
 
-
 __kernel void fill_vec_broadcast(global float3 *a, constant float3 *v)
 {
 	const int gid = get_global_id(0);

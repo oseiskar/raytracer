@@ -55,7 +55,7 @@
         #endif
         
         #ifndef MAX_TOTAL_ITR
-        #define MAX_TOTAL_ITR 200
+        #define MAX_TOTAL_ITR 300
         #endif
         
         int3 octree_coords = (int3)(0,0,0);
@@ -69,7 +69,6 @@
         float node_size = root_size;
         
         for(int itr=0; itr < MAX_TOTAL_ITR; itr++) {
-            
             
             float3 ray_pos = origin + isec_begin * ray, node_origin;
             int child_mask, data_ptr, child_idx;
@@ -91,6 +90,10 @@
                 
                 {{ coords_to_child_idx('child_idx', 'local_coords') }}
                 path[depth+1] = data_ptr + child_idx*2;
+                
+                //if (child_idx < 0 || child_idx >= 8)
+                //    printf("invalid child_idx %d\n", child_idx);
+                
                 octree_coords = (octree_coords << 1) | local_coords;
                 
                 node_size *= 0.5;

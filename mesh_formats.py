@@ -25,12 +25,51 @@ def read_off(filename):
         faces = []
         for f in xrange(n_faces):
             face_vertices = [int(x) for x in off.readline().split()]
-            if face_vertices[0] != len(face_vertices)-1:
-                raise "invalid format"
+            assert(face_vertices[0] == len(face_vertices)-1)
             
             faces += list(poly_to_triangle_fan(face_vertices[1:]))
             
         print "constructed", len(faces), "triangles"
         return vertices, faces
 
+def read_zipper(filename):
+    """the Stanford bunny is published in this format"""
+    
+    with open(filename, 'r') as zipper:
+        
+        while True:
+            line = zipper.readline().strip().split()
+            if len(line) == 0: raise RuntimeError("unexpected eof/empty line")
+            if line[0] == 'element':
+                if line[1] == 'vertex':
+                    n_vertices = int(line[2])
+                elif line[1] == 'face':
+                    n_faces = int(line[2])
+            elif line[0] == 'end_header':
+                break
+        
+        vertices = []
+        faces = []
+        
+        for i in xrange(n_vertices):
+            line = zipper.readline().strip().split()
+            vertices.append([float(line[c]) for c in range(3)])
+        
+        for i in xrange(n_faces):
+            face_vertices = [int(x) for x in zipper.readline().strip().split()]
+            assert(face_vertices[0] == len(face_vertices)-1)
+            faces += list(poly_to_triangle_fan(face_vertices[1:]))
+    
+        return vertices, faces
 
+def remove_duplicate_faces(faces, verbose=False):
+    face_set = set([])
+    new_faces = []
+    for face in faces:
+        f = frozenset(face)
+        if f in face_set:
+            if verbose: print "WARNING: removed duplicate face %s" % face
+        else:
+            face_set.add(f)
+            new_faces.append(face)
+    return new_faces

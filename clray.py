@@ -17,6 +17,7 @@ if __name__ == '__main__':
     arg_parser.add_argument('-a', '--append', action='store_true')
     arg_parser.add_argument('-n', '--no_window', action='store_true')
     arg_parser.add_argument('-itr', '--itr_per_refresh', type=int, default=100)
+    arg_parser.add_argument('-o', '--cl_build_options', default='')
     arg_parser.add_argument('-c', '--choose_opencl_context', \
         action='store_true')
     

@@ -12,9 +12,13 @@
         
         if (old_subobject == face_index && origin_self) continue;
         
-        const float3 v1 = vector_data[integer_data[3*face_index]].xyz;
-        const float3 v2 = vector_data[integer_data[3*face_index+1]].xyz;
-        const float3 v3 = vector_data[integer_data[3*face_index+2]].xyz;
+        const int v1i = integer_data[3*face_index];
+        const int v2i = integer_data[3*face_index+1];
+        const int v3i = integer_data[3*face_index+2];
+        
+        const float3 v1 = vector_data[v1i].xyz;
+        const float3 v2 = vector_data[v2i].xyz;
+        const float3 v3 = vector_data[v3i].xyz;
         
         const float3 e1 = v2 - v1;
         const float3 e2 = v3 - v1;

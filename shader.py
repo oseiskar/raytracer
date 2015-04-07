@@ -23,7 +23,7 @@ class Shader:
         
         self._prepare()
         
-        self.prog = self.acc.build_program( self._make_program() )
+        self.prog = self.acc.build_program( self._make_program(), args.cl_build_options )
         
     def rays_per_sample(self):
         return self.img_shape[0]*self.img_shape[1]
