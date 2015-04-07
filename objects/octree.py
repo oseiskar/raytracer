@@ -131,15 +131,22 @@ class Octree(Tracer):
         root_data = write_node(self.root, tree_data)
         self.root_data_offset = len(tree_data)
         tree_data.extend(root_data)
-
-        return {
-            'vector': self.triangle_mesh.vertices,
-            'integer': numpy.concatenate([numpy.ravel(self.triangle_mesh.faces), tree_data])
-        }
+        
+        mesh_data = self.triangle_mesh.get_data()
+        mesh_data['integer'] = numpy.concatenate([
+            numpy.ravel(mesh_data['integer']),
+            tree_data
+        ])
+        
+        return mesh_data
     
     @property
     def total_faces(self):
         return len(self.triangle_mesh.faces)
+    
+    @property
+    def normal_function_name(self):
+        return self.triangle_mesh.normal_function_name
 
 def face_bounding_spheres(vertices, faces):
     triangles = numpy.dstack([vertices[faces[:,i], :] for i in range(3)])

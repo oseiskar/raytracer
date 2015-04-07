@@ -75,13 +75,41 @@
 ### endmacro
 
 ### macro normal_function(obj)
-    ### call normal_function_base(obj)
-    
-        const float3 v1 = vector_data[integer_data[3*subobject]].xyz;
-        const float3 v2 = vector_data[integer_data[3*subobject+1]].xyz;
-        const float3 v3 = vector_data[integer_data[3*subobject+2]].xyz;
+    ### call normal_function_base(obj, 'uint n_vertices')
+        const int v1i = integer_data[3*subobject],
+                  v2i = integer_data[3*subobject+1],
+                  v3i = integer_data[3*subobject+2];
         
-        *p_normal = fast_normalize(cross(v2-v1, v3-v1));
+        const float3 v1 = vector_data[v1i].xyz;
+        const float3 v2 = vector_data[v2i].xyz;
+        const float3 v3 = vector_data[v3i].xyz;
+        
+        const float3 e1 = v2-v1;
+        const float3 e2 = v3-v1;
+        float3 normal = cross(e1, e2);
+    
+        ### if obj.shading != 'flat'
+            __global const float4 *normal_data = vector_data + n_vertices;
+        
+            // compute barycentric coordinates
+            const float3 f1 = v1 - pos;
+            const float3 f2 = v2 - pos;
+            
+            const float normal_length = length(normal);
+            const float3 tri_normal = normal / length(normal);
+            
+            const float a3 = dot(tri_normal, cross(e1,f1)) / normal_length;
+            const float a2 = dot(tri_normal, cross(f1,e2)) / normal_length;
+            const float a1 = dot(tri_normal, cross(v3-v2,f2)) / normal_length;
+            
+            const float3 n1 = normal_data[v1i].xyz;
+            const float3 n2 = normal_data[v2i].xyz;
+            const float3 n3 = normal_data[v3i].xyz;
+            
+            normal = n1*a1 + n2*a2 + n3*a3;
+            
+        ### endif
+        *p_normal = fast_normalize(normal);
         
     ### endcall
 ### endmacro
@@ -91,5 +119,5 @@
 ### endmacro
 
 ### macro normal_call(obj, params)
-{{ obj.normal_function_name }}({{params}});
+{{ obj.normal_function_name }}({{params}}, {{obj.n_vertices}});
 ### endmacro

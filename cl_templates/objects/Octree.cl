@@ -4,7 +4,7 @@
 
 ### extends 'object.cl'
 
-### import 'objects/TriangleMesh.cl' as triangle_mesh
+### import 'objects/TriangleMesh.cl' as tri_mesh
 
 ### macro coords_to_child_idx(target_var, coord_var)
     {{target_var}} = 0;
@@ -111,7 +111,7 @@
                     
                     float isec_dist = isec_end;
                 
-                    ### call(triangle_index) triangle_mesh.tracer_function_core()
+                    ### call(triangle_index) tri_mesh.tracer_function_core()
                         octree_data[data_ptr + 1 + {{triangle_index}}]
                     ### endcall
                     
@@ -162,14 +162,14 @@
     ### endcall
 ### endmacro
 
-### macro normal_function(obj)
-    {{ triangle_mesh.normal_function(obj) }}
-### endmacro
-
 ### macro tracer_call(obj, params)
 {{ obj.tracer_function_name }}({{params}}, {{obj.root_data_offset}}, {{obj.total_faces*3}}, {{vec3(obj.root.origin)}}, {{obj.root.size}});
 ### endmacro
 
+### macro normal_function(obj)
+    {{ tri_mesh.normal_function(obj.triangle_mesh) }}
+### endmacro
+
 ### macro normal_call(obj, params)
-{{ obj.normal_function_name }}({{params}});
+    {{ tri_mesh.normal_call(obj.triangle_mesh, params) }}
 ### endmacro

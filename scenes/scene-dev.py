@@ -6,10 +6,11 @@ scene = DefaultBoxScene()
 
 for obj in scene.get_objects('wall'): obj.material = 'red'
 scene.get_object('floor').material = 'white'
-scene.get_object('ceiling').material = 'white'
+scene.get_object('ceiling').material = 'green'
 #scene.get_object('light').material = 'white'
 scene.get_object('light').bidirectional_light = True
 scene.materials['black'] = { 'diffuse': 0.2 }
+scene.objects.append( Object(HalfSpace( (-1,-1,-2), 5 ), 'sky') )
 
 import mesh_formats
 
@@ -23,15 +24,18 @@ objMat = 'white'
 #objType = Sphere
 #scene.objects.append( Object( objType( objPos, objR ), objMat ) )
 
-vertices,faces = mesh_formats.read_zipper('data/bun_zipper.ply')
+#vertices,faces = mesh_formats.read_off('data/socket.off')
+vertices,faces = mesh_formats.read_zipper('data/bun_zipper_res2.ply')
 faces = mesh_formats.remove_duplicate_faces(faces)
-#vertices,faces = mesh_formats.read_off('data/S.off')
 vertices = [[x,-z,y] for x,y,z in vertices]
 
 print "%d vertices, %d faces" % (len(vertices),len(faces))
 
 #print faces
-obj = TriangleMesh( vertices, faces, center=objPos, scale=objR, auto_scale=True, auto_normal=False )
+obj = TriangleMesh( vertices, faces, center=objPos, scale=objR, \
+    auto_scale=True, auto_flip_normal=True, \
+    shading='smooth', auto_smooth_normals=True )
+
 do_octree = True
 
 if do_octree:
@@ -50,5 +54,5 @@ scene.camera_position = (-2,-3,1)
 scene.direct_camera_towards((0,0,0.6))
 scene.camera_fov = 50
 
-scene.min_bounces = 1
-scene.max_bounces = 1
+scene.min_bounces = 2
+scene.max_bounces = 2
