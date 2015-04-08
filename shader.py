@@ -128,7 +128,7 @@ class Shader:
         kernel_map = {}
         for obj in self.scene.objects:
             for (k, v) in obj.tracer.make_functions(template_env).items():
-                if k in kernel_map and kernel_map[k] != v:
+                if k in kernel_map and kernel_map[k].strip() != v.strip():
                     print kernel_map[k]
                     print '------'
                     print v

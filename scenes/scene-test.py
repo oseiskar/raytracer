@@ -5,6 +5,38 @@ Test scene: should contain all different objects
 from scene import *
 import math
 import numpy
+import mesh_formats
+
+def load_triangle_mesh(p, R, **kwargs):
+    from StringIO import StringIO
+    
+    mesh_data = "\n".join([
+        'OFF',
+        '8 6 24',
+        '0 0 0',
+        '0 0 1',
+        '0 1 0',
+        '0 1 1',
+        '1 0 0',
+        '1 0 1',
+        '1 1 0',
+        '1 1 1',
+        '4 0 1 3 2',
+        '4 2 3 7 6',
+        '4 4 6 7 5',
+        '4 0 4 5 1',
+        '4 1 5 7 3',
+        '4 0 2 6 4'
+    ])
+    
+    vertices, faces = mesh_formats.read_off(StringIO(mesh_data))
+    faces = mesh_formats.remove_duplicate_faces(faces)
+    triangle_mesh = TriangleMesh(vertices, faces, \
+        auto_scale=True, center=p, scale=R, **kwargs)
+    return triangle_mesh
+
+def load_triangle_mesh_in_octree(p, R, **kwargs):
+    return Octree(load_triangle_mesh(p,R, **kwargs), max_depth=2, max_faces_per_leaf=1)
 
 test_objects = [
     lambda p, R: Sphere(p,R),
@@ -25,6 +57,10 @@ test_objects = [
         LayerComponent( (1,0,0), 0.3 ) ]),
     # TODO: does not have a scale argument
     #lambda p, R: QuaternionJuliaSet2( (-0.2,-0.4,-0.4,-0.4), 4, center=p, scale=R )
+    load_triangle_mesh,
+    lambda p,R: load_triangle_mesh(p,R, auto_flip_normal=True),
+    lambda p,R: load_triangle_mesh(p,R, shading='smooth', auto_smooth_normals=True),
+    load_triangle_mesh_in_octree
 ]
 
 test_materials = [

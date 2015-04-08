@@ -1,11 +1,18 @@
 # 10-minute implementations of reading different mesh formats
 
+def open_or_yield(filename_or_file):
+    if isinstance(filename_or_file, str):
+        with open(filename_or_file, 'r') as f:
+            yield(f)
+    else:
+        yield(filename_or_file)
+
 def poly_to_triangle_fan(vertices):
     for offset in range(len(vertices)-2):
         yield([vertices[0],vertices[offset+1],vertices[offset+2]])
 
-def read_off(filename):
-    with open(filename, 'r') as off:
+def read_off(f):
+    for off in open_or_yield(f):
         
         first_line = off.readline().strip()
         none, sep, rest = first_line.partition('OFF')
@@ -32,10 +39,10 @@ def read_off(filename):
         print "constructed", len(faces), "triangles"
         return vertices, faces
 
-def read_zipper(filename):
+def read_zipper(f):
     """the Stanford bunny is published in this format"""
     
-    with open(filename, 'r') as zipper:
+    for zipper in open_or_yield(f):
         
         while True:
             line = zipper.readline().strip().split()
