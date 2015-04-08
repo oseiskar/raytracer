@@ -157,6 +157,7 @@
             path[depth] = data_ptr + child_idx*2;
             
             isec_begin = isec_end;
+            if (isec_begin > old_isec_dist) return;
         }
     
     ### endcall
