@@ -15,20 +15,13 @@ __kernel void trace_object_{{ i }}(
 {
     const int gid = get_global_id(0);
     
-    p_whichobject += gid;
-    p_which_subobject += gid;
-    p_isec_dist += gid;
-    
-    const float3 ray = p_ray[gid];
-    const float3 pos = p_pos[gid];
-    
     const uint i = {{ i+1 }};
-    float isec_dist = *p_isec_dist;
     uint subobject = p_last_which_subobject[gid];
     
     const uint inside_current = p_inside[gid] == i,
                origin_self = p_last_whichobject[gid] == i;
     
+    float isec_dist = p_isec_dist[gid];
     float new_isec_dist = 0;
     
     // call tracer
@@ -39,7 +32,7 @@ __kernel void trace_object_{{ i }}(
     if (!origin_self || inside_current) {
     ### endif
     
-    ### set params = "pos, ray, isec_dist, &new_isec_dist, &subobject, inside_current, origin_self"
+    ### set params = "p_pos[gid], p_ray[gid], isec_dist, &new_isec_dist, &subobject, inside_current, origin_self"
     ### if obj.tracer.has_data()
         __global const float4 *obj_vec_data = vector_data + {{ obj.vector_data_offset }};
         __global const int *obj_int_data = integer_data + {{ obj.integer_data_offset }};
@@ -49,9 +42,9 @@ __kernel void trace_object_{{ i }}(
             
     if (new_isec_dist > 0 && new_isec_dist < isec_dist)
     {
-        *p_isec_dist = new_isec_dist;
-        *p_whichobject = i;
-        *p_which_subobject = subobject;
+        p_isec_dist[gid] = new_isec_dist;
+        p_whichobject[gid] = i;
+        p_which_subobject[gid] = subobject;
     }
     
     ### if obj.tracer.convex
