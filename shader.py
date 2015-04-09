@@ -99,6 +99,8 @@ class Shader:
         self.img = self.acc.new_vec3_array((n_pixels, ))
         self.whichobject = self.acc.new_array((n_pixels, ), np.uint32, True)
         self.which_subobject = self.acc.zeros_like(self.whichobject)
+        self.last_which_object = self.acc.zeros_like(self.whichobject)
+        self.last_which_subobject = self.acc.zeros_like(self.whichobject)
         self.pos = self.acc.zeros_like(self.cam)
         self.ray = self.acc.zeros_like(self.pos)
         self.inside = self.acc.zeros_like(self.whichobject)
@@ -295,7 +297,14 @@ class Shader:
         acc = self.acc
         
         self.isec_dist.fill(self.scene.max_ray_length)
-        acc.call('trace', (self.pos, self.ray, self.normal, self.isec_dist, \
+        self.last_whichobject = self.whichobject * 1
+        self.last_which_subobject = self.which_subobject * 1
+        
+        for i in range(len(self.scene.objects)):
+            acc.call('trace_object_%d' % i, (self.pos, self.ray, self.isec_dist, \
+                self.whichobject, self.which_subobject, self.last_whichobject, self.last_which_subobject, self.inside) + \
+                tuple(self.tracer_data_buffers))
+        acc.call('advance_and_compute_normal', (self.pos, self.ray, self.normal, self.isec_dist, \
             self.whichobject, self.which_subobject, self.inside) + \
             tuple(self.tracer_data_buffers))
         
@@ -303,7 +312,7 @@ class Shader:
             if path_index == 0:
                 self.suppress_emission.fill(0)
         
-            light_id, light_area, light_point, light_normal, \
+            light_id0, light_area, light_point, light_normal, \
                 light_center, min_light_sampling_distance = self.get_light_point()
             
             light_point = np.array(light_point).astype(np.float32)
@@ -313,17 +322,20 @@ class Shader:
             min_light_sampling_distance = np.float32(min_light_sampling_distance)
                 
             if is_last:
-                light_id = np.int32(0)
+                light_id1 = np.int32(0)
             else:
-                light_id = np.int32(light_id+1)
+                light_id1 = np.int32(light_id0+1)
                 self.vec_param_buf[0, :3] = light_point
 
                 acc.enqueue_copy(self.vec_broadcast, self.vec_param_buf)
-                acc.call('shadow_trace', \
-                    (self.pos, self.normal, self.whichobject, \
-                        self.which_subobject, self.inside, self.shadow_mask) + \
-                        tuple(self.tracer_data_buffers), \
-                    (self.vec_broadcast, light_id))
+                self.shadow_mask.fill(1.0)
+                for i in range(len(self.scene.objects)):
+                    if light_id0 == i: continue
+                    acc.call('shadow_trace_object_%d' % i, \
+                        (self.pos, self.normal, self.whichobject, \
+                            self.which_subobject, self.inside, self.shadow_mask) + \
+                            tuple(self.tracer_data_buffers), \
+                        (self.vec_broadcast,))
     
         if self.scene.quasirandom and path_index == 1:
             rand_vec = self.qdirs[sample_index, :]
@@ -350,7 +362,7 @@ class Shader:
         
         if self.bidirectional:
             buffer_params += [self.shadow_mask, self.suppress_emission]
-            constant_params = [light_id, light_area, min_light_sampling_distance] + constant_params
+            constant_params = [light_id1, light_area, min_light_sampling_distance] + constant_params
         
         acc.call(self.shader_name, tuple(buffer_params), tuple(constant_params))
         
