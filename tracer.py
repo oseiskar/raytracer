@@ -61,6 +61,9 @@ class Tracer:
     def parameter_declaration_string(self):
         return cl_parameter_string(self.parameter_declarations())
     
+    def parameter_types(self):
+        return [cl_type for cl_type, _ in self._typed_parameters()]
+    
     def _typed_parameters(self):
         for p in self.parameter_declarations():
             cl_type, name = p.split()

@@ -1,6 +1,4 @@
 
-### from 'helpers.cl' import vec3
-
 ### macro normal_function_base(obj, extra_params)
 {#/*
     The normal functions are supposed to compute the exterior normal

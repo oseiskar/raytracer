@@ -1,4 +1,21 @@
 
+#define DATA_float3 0
+#define DATA_int 1
+#define DATA_PARAM_float3 2
+#define DATA_PARAM_int 3
+#define DATA_PARAM_float 4
+#define DATA_N_TYPES 5
+
+### macro tracer_params(obj)
+    ### set names = obj.tracer.parameter_declarations()
+    ### set n_params = names|length
+    ### for i in range(n_params)
+        ### set cl_type = obj.tracer.parameter_types()[i]
+        , param_{{ cl_type }}_data[data_offsets[DATA_PARAM_{{cl_type}}] + {{ obj.local_param_offsets[i] }}]{% if cl_type == 'float3' %}.xyz{% endif %} // {{ names[i] }}
+    ### endfor
+
+### endmacro
+
 ### for i in range(n_objects)
     
 __kernel void trace_object_{{ i }}(
@@ -11,7 +28,10 @@ __kernel void trace_object_{{ i }}(
     __global const uint *p_last_which_subobject,
     __global const uint *p_inside,
     __global const float4 *vector_data,
-    __global const int *integer_data)
+    __global const int *integer_data,
+    constant const float4 *param_vector_data,
+    constant const int *param_integer_data,
+    constant const float *param_float_data)
 {
     const int gid = get_global_id(0);
     
@@ -62,6 +82,9 @@ __kernel void shadow_trace_object_{{ i }}(
     __global float *p_shadow_mask,
     __global const float4 *vector_data,
     __global const int *integer_data,
+    constant const float4 *param_vector_data,
+    constant const int *param_integer_data,
+    constant const float *param_float_data,
     constant float4 *p_dest_point)
 {
     const int gid = get_global_id(0);
@@ -125,7 +148,10 @@ __kernel void advance_and_compute_normal(
     __global const uint *p_which_subobject,
     __global const uint *p_inside,
     __global const float4 *vector_data,
-    __global const int *integer_data)
+    __global const int *integer_data,
+    constant float4 *param_float3_data,
+    constant int *param_int_data,
+    constant float *param_float_data)
 {
     const int gid = get_global_id(0);
     
@@ -145,25 +171,25 @@ __kernel void advance_and_compute_normal(
     
     const uint whichobject = *p_whichobject;
     const uint subobject = *p_which_subobject;
-        
-    __global const float4 *obj_vec_data;
-    __global const int *obj_int_data;
+    
+    constant int *data_offsets = param_int_data + DATA_N_TYPES*(whichobject-1) + {{shader.object_data_pointer_buffer_offset}};
     
     ### for i in range(n_objects)
-        
+    
         {% if i %}else {% endif %}if (whichobject == {{ i + 1 }})
         {
             // call normal
             ### set obj = objects[i]
             ### import obj.tracer.template_file_name() as t
             
-            ### set params = "pos, subobject, p_normal"
+            {{ obj.tracer.normal_function_name }}(
             ### if obj.tracer.has_data()
-                obj_vec_data = vector_data + {{ obj.vector_data_offset }};
-                obj_int_data = integer_data + {{ obj.integer_data_offset }};
-                ### set params = "obj_vec_data, obj_int_data, " + params
+                vector_data + data_offsets[DATA_float3],
+                integer_data + data_offsets[DATA_int],
             ### endif
-            {{ t.normal_call(obj.tracer, params) }}
+                pos, subobject, p_normal
+                {{ tracer_params(obj) }}
+            );
             
             ### if obj.tracer.auto_flip_normal
                 if (dot(*p_normal, ray) > 0) *p_normal = -*p_normal;

@@ -1,4 +1,5 @@
 ### extends 'object.cl'
+### from 'helpers.cl' import vec3
 
 ### from 'objects/bounding_volumes.cl' import sphere_bounding_volume
 

@@ -140,55 +140,108 @@ class Shader:
     
     def collect_tracer_data(self):
         
-        data_items = ['vector', 'integer']
+        data_items = ['vector', 'integer',
+            'param_float3', 'param_int', 'param_float']
+        
         data = { k : [] for k in data_items }
         data_sizes = { k : 0 for k in data_items }
         
+        object_data_pointer_buffer = []
+        
         for obj in self.scene.objects:
+            
             if obj.tracer.has_data():
-                
                 cur_data = obj.tracer.get_data()
+            else:
+                cur_data = {}
                 
-                for dtype in data_items:
-                    cur = cur_data.get(dtype)
-                    n_data = data_sizes[dtype]
+            param_values_by_type = {}
+            local_param_offsets = []
+            
+            parameter_types = obj.tracer.parameter_types()
+            param_values = obj.tracer.parameter_values()
+            
+            for p_idx in range(len(parameter_types)):
+                cl_type = parameter_types[p_idx]
+                old = param_values_by_type.get(cl_type, [])
+                local_param_offsets.append(len(old))
+                param_values_by_type[cl_type] = old + [param_values[p_idx]]
+            
+            obj.local_param_offsets = local_param_offsets
+            
+            for cl_type, params in param_values_by_type.items():
+                param_type = 'param_' + cl_type
+                assert(param_type in data_items)
+                cur_data[param_type] = np.array(params)
+            
+            offset_buffer = []
+            
+            for dtype in data_items:
+                cur = cur_data.get(dtype)
+                n_data = data_sizes[dtype]
+                
+                offset_buffer.append(n_data)
+                
+                setattr(obj, dtype + '_data_offset', n_data)
+                
+                if cur is not None:
+                    if dtype in ['vector','param_float3']:
+                        if cur.shape[1] != 3:
+                            raise RuntimeError('invalid vector data shape')
+                        n_data += cur.shape[0]
+                    else:
+                        cur = np.ravel(cur)
+                        n_data += cur.size
                     
-                    setattr(obj, dtype + '_data_offset', n_data)
-                    
-                    if cur is not None:
-                        if dtype == 'vector':
-                            if cur.shape[1] != 3:
-                                raise RuntimeError('invalid vector data shape')
-                            n_data += cur.shape[0]
-                        else:
-                            cur = np.ravel(cur)
-                            n_data += cur.size
-                        
-                        data[dtype].append(cur)
-                        data_sizes[dtype] = n_data
+                    data[dtype].append(cur)
+                    data_sizes[dtype] = n_data
+            
+            object_data_pointer_buffer.append(offset_buffer)
         
         self.tracer_data_buffers = []
+        self.tracer_const_data_buffers = []
+        
         for dtype in data_items:
             values = data[dtype]
+            
+            if dtype == 'param_int':
+                self.object_data_pointer_buffer_offset = data_sizes[dtype]
+                values += object_data_pointer_buffer
+            
             if len(values) == 0: values = None
             else:
-                if dtype == 'vector':
+                if dtype in ['vector', 'param_float3']:
                     values = np.vstack(values)
-                    values = self.acc.make_vec3_array(values)
-                elif dtype == 'integer':
+                else:
                     values = np.concatenate(values)
+                
+                if dtype == 'vector':
+                    values = self.acc.make_vec3_array(values)
+                    buffers = self.tracer_data_buffers
+                elif dtype == 'integer':
                     values = self.acc.to_device(values.astype(np.int32))
+                    buffers = self.tracer_data_buffers
+                elif dtype == 'param_float3':
+                    values = self.acc.make_const_vec3_buffer(values)
+                    buffers = self.tracer_const_data_buffers
+                elif dtype == 'param_float':
+                    values = self.acc.new_const_buffer(values)
+                    buffers = self.tracer_const_data_buffers
+                elif dtype == 'param_int':
+                    values = self.acc.new_const_buffer(values, np.int32)
+                    buffers = self.tracer_const_data_buffers
                 else:
                     assert(False)
             
-            self.tracer_data_buffers.append(values)
+            buffers.append(values)
 
     # helpers
     
     def _fill_vec(self, data, vec):
         hostbuf = np.float32(vec)
         self.acc.enqueue_copy(self.vec_broadcast, hostbuf)
-        self.acc.call('fill_vec_broadcast', (data, ), (self.vec_broadcast, ))
+        self.acc.call('fill_vec_broadcast', (data, ), \
+            value_args=(self.vec_broadcast, ))
 
     def each_object_material(self, property_list):
         
@@ -254,7 +307,8 @@ class Shader:
         cam_origin = cam_origin + dof_pos
         
         acc.enqueue_copy(self.vec_broadcast,  mat4.astype(np.float32))
-        acc.call('subsample_transform_camera', (self.cam, self.ray,), (self.vec_broadcast,))
+        acc.call('subsample_transform_camera', (self.cam, self.ray,), \
+            value_args=(self.vec_broadcast,))
         
         self._fill_vec(self.pos, cam_origin)
         self.whichobject.fill(0)
@@ -301,12 +355,18 @@ class Shader:
         self.last_which_subobject = self.which_subobject * 1
         
         for i in range(len(self.scene.objects)):
-            acc.call('trace_object_%d' % i, (self.pos, self.ray, self.isec_dist, \
-                self.whichobject, self.which_subobject, self.last_whichobject, self.last_which_subobject, self.inside) + \
-                tuple(self.tracer_data_buffers))
-        acc.call('advance_and_compute_normal', (self.pos, self.ray, self.normal, self.isec_dist, \
-            self.whichobject, self.which_subobject, self.inside) + \
-            tuple(self.tracer_data_buffers))
+            acc.call('trace_object_%d' % i, (self.pos, self.ray, \
+                    self.isec_dist, self.whichobject, self.which_subobject, \
+                    self.last_whichobject, self.last_which_subobject,
+                    self.inside) + \
+                    tuple(self.tracer_data_buffers),
+                value_args=tuple(self.tracer_const_data_buffers))
+        
+        acc.call('advance_and_compute_normal', (self.pos, self.ray, \
+                self.normal, self.isec_dist, self.whichobject, \
+                self.which_subobject, self.inside) + \
+                tuple(self.tracer_data_buffers),
+            value_args=tuple(self.tracer_const_data_buffers))
         
         if self.bidirectional:
             if path_index == 0:
@@ -333,9 +393,11 @@ class Shader:
                     if light_id0 == i: continue
                     acc.call('shadow_trace_object_%d' % i, \
                         (self.pos, self.normal, self.whichobject, \
-                            self.which_subobject, self.inside, self.shadow_mask) + \
-                            tuple(self.tracer_data_buffers), \
-                        (self.vec_broadcast,))
+                                self.which_subobject, self.inside, \
+                                self.shadow_mask) + \
+                                tuple(self.tracer_data_buffers), \
+                        value_args = tuple(self.tracer_const_data_buffers) + \
+                            (self.vec_broadcast,))
     
         if self.scene.quasirandom and path_index == 1:
             rand_vec = self.qdirs[sample_index, :]
@@ -364,7 +426,8 @@ class Shader:
             buffer_params += [self.shadow_mask, self.suppress_emission]
             constant_params = [light_id1, light_area, min_light_sampling_distance] + constant_params
         
-        acc.call(self.shader_name, tuple(buffer_params), tuple(constant_params))
+        acc.call(self.shader_name, tuple(buffer_params), \
+            value_args=tuple(constant_params))
         
     def get_light_point(self):
         light_id = self.bidirectional_light_ids[np.random.randint(len(self.bidirectional_light_ids))]

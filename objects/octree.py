@@ -146,10 +146,10 @@ class Octree(Tracer):
         
     def parameter_declarations(self):
         return [
-            'uint n_vertices',
-            'uint n_triangles',
-            'uint root_data_offset',
-            'uint face_data_length',
+            'int n_vertices',
+            'int n_triangles',
+            'int root_data_offset',
+            'int face_data_length',
             'float3 root_origin',
             'float root_size']
     

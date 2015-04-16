@@ -76,9 +76,9 @@ class Accelerator:
         self._cl_arrays.append(arr)
         return arr
     
-    def new_const_buffer( self, buf ):
+    def new_const_buffer( self, buf, dtype=np.float32 ):
         mf = cl.mem_flags
-        return cl.Buffer(self.ctx, mf.READ_ONLY | mf.COPY_HOST_PTR, hostbuf=buf.astype(np.float32))
+        return cl.Buffer(self.ctx, mf.READ_ONLY | mf.COPY_HOST_PTR, hostbuf=buf.astype(dtype))
         
     def new_vec3_array( self, shape ):
         shape = shape + (4, )
@@ -86,8 +86,7 @@ class Accelerator:
         self._cl_arrays.append(arr)
         return arr
     
-    def make_vec3_array_xyz( self, x, y, z ):
-        
+    def _make_host_vec3_array_xyz( self, x, y, z ):
         assert( x.shape == y.shape and y.shape == z.shape )
         
         shape = x.shape + (4,)
@@ -96,11 +95,19 @@ class Accelerator:
         cpuarray[..., 1] = y
         cpuarray[..., 2] = z
         cpuarray[..., 3] = np.zeros_like(x)
-        return self.to_device(cpuarray)
+        return cpuarray
+    
+    def make_vec3_array_xyz( self, *args ):
+        return self.to_device(self._make_host_vec3_array_xyz(*args))
         
     def make_vec3_array( self, a ):
         assert( a.shape[-1]==3 )
         return self.make_vec3_array_xyz( a[..., 0], a[..., 1], a[..., 2] )
+    
+    def make_const_vec3_buffer( self, a ):
+        assert( a.shape[-1]==3 )
+        cpuarray = self._make_host_vec3_array_xyz( a[..., 0], a[..., 1], a[..., 2] )
+        return self.new_const_buffer(cpuarray)
     
     def empty_like( self, a ):
         arr = cl_array.empty_like(a)
