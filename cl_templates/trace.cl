@@ -7,6 +7,13 @@
 #define DATA_N_TYPES 5
 
 ### macro tracer_params(obj)
+
+    ### if obj.tracer.has_data()
+        ,
+        vector_data + data_offsets[DATA_float3],
+        integer_data + data_offsets[DATA_int]
+    ### endif
+
     ### set names = obj.tracer.parameter_declarations()
     ### set n_params = names|length
     ### for i in range(n_params)
@@ -29,8 +36,8 @@ __kernel void trace_object_{{ i }}(
     __global const uint *p_inside,
     __global const float4 *vector_data,
     __global const int *integer_data,
-    constant const float4 *param_vector_data,
-    constant const int *param_integer_data,
+    constant const float4 *param_float3_data,
+    constant const int *param_int_data,
     constant const float *param_float_data)
 {
     const int gid = get_global_id(0);
@@ -44,21 +51,19 @@ __kernel void trace_object_{{ i }}(
     float isec_dist = p_isec_dist[gid];
     float new_isec_dist = 0;
     
+    constant int *data_offsets = param_int_data + DATA_N_TYPES*(i-1) + {{shader.object_data_pointer_buffer_offset}};
+    
     // call tracer
     ### set obj = objects[i]
-    ### import obj.tracer.template_file_name() as t
     
     ### if obj.tracer.convex
     if (!origin_self || inside_current) {
     ### endif
     
-    ### set params = "p_pos[gid], p_ray[gid], isec_dist, &new_isec_dist, &subobject, inside_current, origin_self"
-    ### if obj.tracer.has_data()
-        __global const float4 *obj_vec_data = vector_data + {{ obj.vector_data_offset }};
-        __global const int *obj_int_data = integer_data + {{ obj.integer_data_offset }};
-        ### set params = "obj_vec_data, obj_int_data, " + params
-    ### endif
-    {{ t.tracer_call(obj.tracer, params) }}
+        {{ obj.tracer.tracer_function_name }}(
+            p_pos[gid], p_ray[gid], isec_dist, &new_isec_dist, &subobject, inside_current, origin_self
+            {{ tracer_params(obj) }}
+        );
             
     if (new_isec_dist > 0 && new_isec_dist < isec_dist)
     {
@@ -82,8 +87,8 @@ __kernel void shadow_trace_object_{{ i }}(
     __global float *p_shadow_mask,
     __global const float4 *vector_data,
     __global const int *integer_data,
-    constant const float4 *param_vector_data,
-    constant const int *param_integer_data,
+    constant const float4 *param_float3_data,
+    constant const int *param_int_data,
     constant const float *param_float_data,
     constant float4 *p_dest_point)
 {
@@ -111,22 +116,20 @@ __kernel void shadow_trace_object_{{ i }}(
     
     float new_isec_dist = 0;
     
+    constant int *data_offsets = param_int_data + DATA_N_TYPES*(i-1) + {{shader.object_data_pointer_buffer_offset}};
+    
     // call tracer
     ### set obj = objects[i]
-    ### import obj.tracer.template_file_name() as t
     
     ### if obj.tracer.convex
     if (!origin_self || inside_current) {
     ### endif
     
-    ### set params = "pos, ray, isec_dist, &new_isec_dist, &subobject, inside_current, origin_self"
-    ### if obj.tracer.has_data()
-        __global const float4 *obj_vec_data = vector_data + {{ obj.vector_data_offset }};
-        __global const int *obj_int_data = integer_data + {{ obj.integer_data_offset }};
-        ### set params = "obj_vec_data, obj_int_data, " + params
-    ### endif
-    {{ t.tracer_call(obj.tracer, params) }}
-            
+        {{ obj.tracer.tracer_function_name }}(
+            pos, ray, isec_dist, &new_isec_dist, &subobject, inside_current, origin_self
+            {{ tracer_params(obj) }}
+        );
+    
     if (new_isec_dist > 0 && new_isec_dist < isec_dist)
     {
         p_shadow_mask[gid] = 0.0;
@@ -180,13 +183,8 @@ __kernel void advance_and_compute_normal(
         {
             // call normal
             ### set obj = objects[i]
-            ### import obj.tracer.template_file_name() as t
             
             {{ obj.tracer.normal_function_name }}(
-            ### if obj.tracer.has_data()
-                vector_data + data_offsets[DATA_float3],
-                integer_data + data_offsets[DATA_int],
-            ### endif
                 pos, subobject, p_normal
                 {{ tracer_params(obj) }}
             );

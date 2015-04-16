@@ -5,10 +5,6 @@
     at the given point
 */#}
 void {{ obj.normal_function_name }}(
-    ### if obj.has_data()
-        __global const float4 *vector_data,   {# vector data for this object #}
-        __global const int *integer_data,     {# integer data for this object #}
-    ### endif
         const float3 pos,            {# a point on the surface of the object #}
         const uint subobject,        {# subobject number (computed by the tracer) #}
         __global float3 *p_normal    {# [out] the computed normal #}
@@ -24,10 +20,6 @@ void {{ obj.normal_function_name }}(
     represents
 */#}
 void {{ obj.tracer_function_name }}(
-    ### if obj.has_data()
-        __global const float4 *vector_data,   {# vector data for this object #}
-        __global const int *integer_data,     {# integer data for this object #}
-    ### endif
         const float3 origin,              {# ray origin #}
         const float3 ray,                 {# ray direction #}
         const float old_isec_dist,        {# upper bound for isec. distance #}
@@ -53,12 +45,4 @@ void {{ obj.tracer_function_name }}(
         {{ obj.parameter_declaration_string() }}) {
 {{ caller() }}
 }
-### endmacro
-
-### macro tracer_call(obj, params)
-{{ obj.tracer_function_name }}({{params}} {{ obj.parameter_value_string() }});
-### endmacro
-
-### macro normal_call(obj, params)
-{{ obj.normal_function_name }}({{params}} {{ obj.parameter_value_string() }});
 ### endmacro

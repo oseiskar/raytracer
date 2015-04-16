@@ -59,7 +59,13 @@ class Tracer:
         return [getattr(self, name) for _, name in self._typed_parameters()]
     
     def parameter_declaration_string(self):
-        return cl_parameter_string(self.parameter_declarations())
+        params = self.parameter_declarations()
+        if self.has_data():
+            params = [
+                    "__global const float4 *vector_data",
+                    "__global const int *integer_data"
+                ] + params
+        return cl_parameter_string(params)
     
     def parameter_types(self):
         return [cl_type for cl_type, _ in self._typed_parameters()]

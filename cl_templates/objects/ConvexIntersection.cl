@@ -15,11 +15,13 @@
 			cur_ibegin = ibegin;
 			cur_iend = iend;
             
-            ### import c.template_file_name() as t
             if (origin_self && last_subobject > {{ subobj_offset }})
                 cur_subobj = last_subobject - {{ subobj_offset }};
             
-            {{ t.tracer_call(c, obj.component_tracer_call_params(c)) }}
+            {{ c.tracer_function_name }}(
+                {{ obj.component_tracer_call_params(c) }}
+                {{ c.parameter_value_string() }} // TODO
+            );
 			
 			if (cur_ibegin > ibegin) {
 				ibegin = cur_ibegin;
@@ -53,8 +55,10 @@
         
             {% if subobj_offset > 0 %}else {% endif %}if ({% if subobj_offset > 0 %}subobject >= {{ subobj_offset }} && {% endif %}subobject < {{ subobj_offset + c.n_subobjects }})
             
-                ### import c.template_file_name() as t
-                {{ t.normal_call(c, obj.component_normal_call_params(c, subobj_offset)) }}
+                {{ c.normal_function_name }}(
+                    {{ obj.component_normal_call_params(c, subobj_offset) }}
+                    {{ c.parameter_value_string() }} // TODO
+                );
                 
 			### set subobj_offset = subobj_offset + c.n_subobjects
         
