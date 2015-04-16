@@ -120,11 +120,3 @@
         
     ### endcall
 ### endmacro
-
-### macro tracer_call(obj, params)
-{{ obj.tracer_function_name }}({{params}});
-### endmacro
-
-### macro normal_call(obj, params)
-{{ obj.normal_function_name }}({{params}});
-### endmacro

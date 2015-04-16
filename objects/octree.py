@@ -143,10 +143,24 @@ class Octree(Tracer):
     @property
     def total_faces(self):
         return len(self.triangle_mesh.faces)
+        
+    def parameter_declarations(self):
+        return [
+            'uint n_vertices',
+            'uint n_triangles',
+            'uint root_data_offset',
+            'uint face_data_length',
+            'float3 root_origin',
+            'float root_size']
     
-    @property
-    def normal_function_name(self):
-        return self.triangle_mesh.normal_function_name
+    def parameter_values(self):
+        return [
+            self.triangle_mesh.n_vertices,
+            self.triangle_mesh.n_faces,
+            self.root_data_offset,
+            self.total_faces*3,
+            self.root.origin,
+            self.root.size]
 
 def face_bounding_spheres(vertices, faces):
     triangles = numpy.dstack([vertices[faces[:,i], :] for i in range(3)])

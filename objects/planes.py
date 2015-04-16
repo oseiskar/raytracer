@@ -2,36 +2,41 @@ from tracer import Tracer
 from objects import ConvexIntersection
 from utils import normalize_tuple, vec_norm
 
-class HalfSpace(Tracer):
+class BasicHalfSpace(Tracer):
     
     def __init__(self, normal, h):
         self.normal = normalize_tuple(normal)
         self.h = h
     
+    def parameter_declarations(self):
+        return ['float3 normal', 'float h']
+        
     @property
     def convex(self):
         return True
 
-class HalfSpaceComponent(ConvexIntersection.Component):
+class HalfSpace(BasicHalfSpace):
+    def __init__(self, normal, h):
+        BasicHalfSpace.__init__(self,normal,h)
+
+class HalfSpaceComponent(BasicHalfSpace, ConvexIntersection.Component):
     """Half-space"""
     
     def __init__(self, normal, h):
         ConvexIntersection.Component.__init__(self)
-        self.normal_vec = normalize_tuple(normal)
-        self.h = h
+        BasicHalfSpace.__init__(self, normal, h)
     
     n_subobjects = 1
 
-class LayerComponent(ConvexIntersection.Component):
+class LayerComponent(HalfSpaceComponent):
     """Infinite layer with finite thickness"""
     
     def __init__(self, axis, h = None):
-        ConvexIntersection.Component.__init__(self)
-        self.uax = normalize_tuple(axis)
-        if h == None:
-            self.h = vec_norm(axis)
+        if h is None:
+            h = vec_norm(axis)
         else:
-            self.h = h
+            h = h
+        HalfSpaceComponent.__init__(self, axis, h)
     
     n_subobjects = 2
 

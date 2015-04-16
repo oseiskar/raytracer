@@ -14,8 +14,7 @@ void {{ obj.normal_function_name }}(
         const float3 pos,            {# a point on the surface of the object #}
         const uint subobject,        {# subobject number (computed by the tracer) #}
         __global float3 *p_normal    {# [out] the computed normal #}
-        {%- if extra_params -%},{%- endif %}
-        {{ extra_params }}) {
+        {{ obj.parameter_declaration_string() }}) {
 {{ caller() }}
 }
 ### endmacro
@@ -39,8 +38,7 @@ void {{ obj.tracer_function_name }}(
                                              passed to the normal computation function #}
         bool inside,                      {# is the ray travelling inside the object #}
         bool origin_self                  {# self-intersection? #}
-        {%- if extra_params -%},{%- endif %}
-        {{ extra_params }}) {
+        {{ obj.parameter_declaration_string() }}) {
 {{ caller() }}
 }
 ### endmacro
@@ -54,8 +52,15 @@ void {{ obj.tracer_function_name }}(
         __private uint *p_subobject,    {# [out] (optional) subobject number (e.g., which face of a cube),
                                             passed to the normal computation function #}
         bool inside                     {# is the ray travelling inside the object #}
-        {%- if extra_params -%},{%- endif %}   
-        {{ extra_params }}) {
+        {{ obj.parameter_declaration_string() }}) {
 {{ caller() }}
 }
+### endmacro
+
+### macro tracer_call(obj, params)
+{{ obj.tracer_function_name }}({{params}} {{ obj.parameter_value_string() }});
+### endmacro
+
+### macro normal_call(obj, params)
+{{ obj.normal_function_name }}({{params}} {{ obj.parameter_value_string() }});
 ### endmacro

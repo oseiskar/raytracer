@@ -57,7 +57,7 @@
 ### endmacro
 
 ### macro tracer_function(obj)
-    ### call tracer_function_base(obj, 'uint n_triangles')
+    ### call tracer_function_base(obj)
         
         uint old_subobject = *p_subobject, subobject;
         float isec_dist = old_isec_dist;
@@ -75,7 +75,7 @@
 ### endmacro
 
 ### macro normal_function(obj)
-    ### call normal_function_base(obj, 'uint n_vertices')
+    ### call normal_function_base(obj)
         const int v1i = integer_data[3*subobject],
                   v2i = integer_data[3*subobject+1],
                   v3i = integer_data[3*subobject+2];
@@ -112,12 +112,4 @@
         *p_normal = fast_normalize(normal);
         
     ### endcall
-### endmacro
-
-### macro tracer_call(obj, params)
-{{ obj.tracer_function_name }}({{params}}, {{obj.n_faces}});
-### endmacro
-
-### macro normal_call(obj, params)
-{{ obj.normal_function_name }}({{params}}, {{obj.n_vertices}});
 ### endmacro

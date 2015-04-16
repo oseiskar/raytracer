@@ -30,7 +30,7 @@
 
 
 ### macro tracer_function(obj)
-    ### call tracer_function_base(obj, 'uint root_data_offset, uint face_data_length, float3 root_origin, float root_size')
+    ### call tracer_function_base(obj)
     
         // intersection with cube
         const float3 slopes = 1.0 / ray;
@@ -163,14 +163,6 @@
     ### endcall
 ### endmacro
 
-### macro tracer_call(obj, params)
-{{ obj.tracer_function_name }}({{params}}, {{obj.root_data_offset}}, {{obj.total_faces*3}}, {{vec3(obj.root.origin)}}, {{obj.root.size}});
-### endmacro
-
 ### macro normal_function(obj)
-    {{ tri_mesh.normal_function(obj.triangle_mesh) }}
-### endmacro
-
-### macro normal_call(obj, params)
-    {{ tri_mesh.normal_call(obj.triangle_mesh, params) }}
+    {{ tri_mesh.normal_function(obj) }}
 ### endmacro

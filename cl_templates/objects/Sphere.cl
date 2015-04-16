@@ -1,7 +1,7 @@
 ### extends 'object.cl'
 
 ### macro tracer_function(obj)
-    ### call tracer_function_base(obj, 'const float3 center, const float R2')
+    ### call tracer_function_base(obj)
         
         float3 rel = center - origin;
         float dotp = dot(ray, rel);
@@ -16,7 +16,7 @@
             return;
         }
         
-        discr = dotp*dotp - psq + R2;
+        discr = dotp*dotp - psq + R*R;
         if(discr < 0) return;
         
         sqrdiscr = native_sqrt(discr);
@@ -31,17 +31,9 @@
 ### endmacro
 
 ### macro normal_function(obj)
-    ### call normal_function_base(obj, 'const float3 center, const float invR')
+    ### call normal_function_base(obj)
     
-        *p_normal = (pos - center) * invR;
+        *p_normal = (pos - center) / R;
         
     ### endcall
-### endmacro
-
-### macro tracer_call(obj, params)
-{{ obj.tracer_function_name }}({{params}}, {{vec3(obj.pos)}}, {{obj.R*obj.R}});
-### endmacro
-
-### macro normal_call(obj, params)
-{{ obj.normal_function_name }}({{params}}, {{vec3(obj.pos)}}, {{1.0/obj.R}});
 ### endmacro

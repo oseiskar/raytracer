@@ -39,3 +39,9 @@ class ConvexIntersection(Tracer):
     @property
     def convex(self):
         return True
+        
+    def parameter_declarations(self):
+        return ['float3 base']
+    
+    def parameter_values(self):
+        return [self.origin]

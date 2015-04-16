@@ -1,3 +1,4 @@
+import numpy
 
 class Tracer:
     """
@@ -50,6 +51,31 @@ class Tracer:
             self.tracer_function_name : self.make_tracer_function(template_env),
             self.normal_function_name : self.make_normal_function(template_env)
         }
+        
+    def parameter_declarations(self):
+        return []
+    
+    def parameter_values(self):
+        return [getattr(self, name) for _, name in self._typed_parameters()]
+    
+    def parameter_declaration_string(self):
+        return cl_parameter_string(self.parameter_declarations())
+    
+    def _typed_parameters(self):
+        for p in self.parameter_declarations():
+            cl_type, name = p.split()
+            yield((cl_type,name))
+        
+    def parameter_value_string(self):
+        params = []
+        for p in self.parameter_values():
+            arr = tuple(numpy.ravel(p))
+            if len(arr) == 1:
+                v = str(arr[0])
+            else:
+                v = "(float%d)%s" % (len(arr),arr)
+            params.append(v)
+        return cl_parameter_string(params)
 
     def has_data(self):
         return hasattr(self, 'get_data')
@@ -65,3 +91,6 @@ class Tracer:
     def convex(self):
         return False
 
+def cl_parameter_string(params):
+    if len(params) == 0: return ''
+    else: return ', '.join([''] + params)

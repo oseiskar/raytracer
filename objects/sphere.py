@@ -21,6 +21,12 @@ class Sphere(Tracer):
     def center_and_min_sampling_distance(self):
         return (numpy.array(self.pos), self.R * 2.0)
     
+    def parameter_declarations(self):
+        return ['float3 center', 'float R']
+    
+    def parameter_values(self):
+        return [self.pos, self.R]
+    
     @property
     def convex(self):
         return True
@@ -33,4 +39,7 @@ class SphereComponent(ConvexIntersection.Component):
     def __init__(self, pos, R):
         ConvexIntersection.Component.__init__(self, pos)
         self.R = R
+        
+    def parameter_declarations(self):
+        return ['float R']
     

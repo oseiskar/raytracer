@@ -20,3 +20,6 @@ class ConeComponent(ConvexIntersection.Component):
         self.slope = slope
     
     n_subobjects = 1
+
+    def parameter_declarations(self):
+        return ['float3 axis', 'float slope']

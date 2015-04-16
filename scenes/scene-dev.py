@@ -23,9 +23,10 @@ objMat = 'white'
 #objType = Icosahedron
 #objType = Sphere
 #scene.objects.append( Object( objType( objPos, objR ), objMat ) )
+scene.objects.append( Object( Sphere( objPos, objR ), 'black' ) )
 
 #vertices,faces = mesh_formats.read_off('data/socket.off')
-vertices,faces = mesh_formats.read_zipper('data/bun_zipper_res2.ply')
+vertices,faces = mesh_formats.read_zipper('data/bun_zipper_res3.ply')
 faces = mesh_formats.remove_duplicate_faces(faces)
 vertices = [[x,-z,y] for x,y,z in vertices]
 

@@ -13,7 +13,10 @@ class CylinderComponent(ConvexIntersection.Component):
     
     def __init__(self, axis, R):
         ConvexIntersection.Component.__init__(self)
-        self.uax = normalize_tuple(axis)
+        self.axis = normalize_tuple(axis)
         self.R = R
     
     n_subobjects = 1
+    
+    def parameter_declarations(self):
+        return ['float3 axis', 'float R']

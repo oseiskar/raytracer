@@ -71,6 +71,12 @@ class TriangleMesh(Tracer):
     def n_vertices(self):
         return self.vertices.shape[0]
 
+    def parameter_declarations(self):
+        return ['int n_vertices', 'int n_triangles']
+    
+    def parameter_values(self):
+        return [self.n_vertices, self.n_faces]
+
 def to_vector_array(array_of_arrays, dtype=numpy.float32):
     vec_array = numpy.array(array_of_arrays, dtype=dtype)
     if len(vec_array.shape) != 2 or vec_array.shape[-1] != 3:

@@ -1,7 +1,7 @@
 ### extends 'object.cl'
 
 ### macro tracer_function(obj)
-    ### call tracer_function_base(obj, 'const float3 base')
+    ### call tracer_function_base(obj)
 		
 		float3 rel = origin - base;
 		float ibegin  = 0.0, iend = old_isec_dist;
@@ -44,7 +44,7 @@
 ### endmacro
 
 ### macro normal_function(obj)
-    ### call normal_function_base(obj, 'const float3 base')
+    ### call normal_function_base(obj)
     
 		const float3 p = pos - base;
 		
@@ -61,12 +61,4 @@
         ### endfor
         
     ### endcall
-### endmacro
-
-### macro tracer_call(obj, params)
-{{ obj.tracer_function_name }}({{params}}, {{vec3(obj.origin)}});
-### endmacro
-
-### macro normal_call(obj, params)
-{{ obj.normal_function_name }}({{params}}, {{vec3(obj.origin)}});
 ### endmacro

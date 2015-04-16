@@ -1,7 +1,7 @@
 ### extends 'object.cl'
 
 ### macro tracer_function(obj)
-    ### call tracer_component_function_base(obj, 'const float3 axis, const float R2')
+    ### call tracer_component_function_base(obj)
     
         float z0 = dot(origin,axis), zslope = dot(ray,axis);
         
@@ -13,7 +13,7 @@
         float perp2 = dot(perp,perp);
         float ray_perp2 = dot(ray_perp,ray_perp);
         
-        float discr = dotp*dotp - ray_perp2*(perp2 - R2);
+        float discr = dotp*dotp - ray_perp2*(perp2 - R*R);
         
         if (discr < 0)
         {
@@ -35,18 +35,10 @@
 ### endmacro
 
 ### macro normal_function(obj)
-    ### call normal_function_base(obj, 'const float3 axis, const float invR')
+    ### call normal_function_base(obj)
     
         float3 perp = pos - dot(pos,axis)*axis;
-        *p_normal = perp * invR;
+        *p_normal = perp / R;
         
     ### endcall
-### endmacro
-
-### macro tracer_call(obj, params)
-{{ obj.tracer_function_name }}({{params}}, {{vec3(obj.uax)}}, {{obj.R*obj.R}});
-### endmacro
-
-### macro normal_call(obj, params)
-{{ obj.normal_function_name }}({{params}}, {{vec3(obj.uax)}}, {{1.0 / obj.R}});
 ### endmacro
