@@ -23,6 +23,14 @@ class Tracer:
     @property
     def normal_function_name(self):
         return self._function_name_prefix() + '_normal'
+        
+    @property
+    def tracer_kernel_name(self):
+        return self._function_name_prefix() + '_tracer_kernel'
+    
+    @property
+    def shadow_kernel_name(self):
+        return self._function_name_prefix() + '_shadow_kernel'
     
     def template_file_name(self):
         return 'objects/%s.cl' % self.template_name()
@@ -40,6 +48,12 @@ class Tracer:
         
     def make_normal_function(self, template_env):
         return self._make_code('normal_function(obj)', template_env)
+        
+    def make_tracer_kernel(self, template_env):
+        return self._make_code('tracer_kernel(obj)', template_env)
+        
+    def make_shadow_kernel(self, template_env):
+        return self._make_code('shadow_kernel(obj)', template_env)
     
     def make_functions(self, template_env):
         """
@@ -50,6 +64,18 @@ class Tracer:
         return { \
             self.tracer_function_name : self.make_tracer_function(template_env),
             self.normal_function_name : self.make_normal_function(template_env)
+        }
+
+
+    def make_kernels(self, template_env):
+        """
+        Make necessary OpenCL kernels for tracing objects of this class
+        Returns a dictionary OpenCL kernel name -> function contents
+        """
+        
+        return { \
+            self.tracer_kernel_name : self.make_tracer_kernel(template_env),
+            self.shadow_kernel_name : self.make_shadow_kernel(template_env)
         }
         
     def parameter_declarations(self):

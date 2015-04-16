@@ -50,16 +50,17 @@ class Shader:
             trim_blocks=False,
             lstrip_blocks=False)
     
-        kernels = self.collect_tracer_kernels(template_env)
-        kernel_declarations = [kernel[:kernel.find('{')] + ';' for kernel in kernels]
+        kernels, functions = self.collect_tracer_kernels(template_env)
+        function_declarations = [body[:body.find('{')] + ';' for body in functions]
 
         return template_env.get_template('main.cl').render({
             'shader': self,
             'objects': scene.objects,
             'n_objects': len(scene.objects),
-            'kernels': {
-                'declarations': kernel_declarations,
-                'functions': kernels
+            'functions': {
+                'declarations': function_declarations,
+                'definitions': functions,
+                'kernels': kernels
             }
         })
     
@@ -127,16 +128,29 @@ class Shader:
             self.suppress_emission = self.acc.new_array((n_pixels, ), np.int32, True)
 
     def collect_tracer_kernels(self, template_env):
-        kernel_map = {}
+        name_map = {}
+        
+        def push_func(name, body):
+            if name in name_map and name_map[name].strip() != body.strip():
+                print name_map[name]
+                print '------'
+                print body
+                raise RuntimeError("function name clash!!")
+        
+        functions = set([])
+        kernels = set([])
+        
         for obj in self.scene.objects:
-            for (k, v) in obj.tracer.make_functions(template_env).items():
-                if k in kernel_map and kernel_map[k].strip() != v.strip():
-                    print kernel_map[k]
-                    print '------'
-                    print v
-                    raise RuntimeError("kernel name clash!!")
-                kernel_map[k] = v
-        return list(set(kernel_map.values()))
+            
+            for (name, body) in obj.tracer.make_functions(template_env).items():
+                push_func(name,body)
+                functions.add(body)
+                
+            for (name, body) in obj.tracer.make_kernels(template_env).items():
+                push_func(name,body)
+                kernels.add(body)
+        
+        return (list(kernels),list(functions))
     
     def collect_tracer_data(self):
         
@@ -167,7 +181,7 @@ class Shader:
                 local_param_offsets.append(len(old))
                 param_values_by_type[cl_type] = old + [param_values[p_idx]]
             
-            obj.local_param_offsets = local_param_offsets
+            obj.tracer.local_param_offsets = local_param_offsets
             
             for cl_type, params in param_values_by_type.items():
                 param_type = 'param_' + cl_type
@@ -181,8 +195,6 @@ class Shader:
                 n_data = data_sizes[dtype]
                 
                 offset_buffer.append(n_data)
-                
-                setattr(obj, dtype + '_data_offset', n_data)
                 
                 if cur is not None:
                     if dtype in ['vector','param_float3']:
@@ -355,12 +367,14 @@ class Shader:
         self.last_which_subobject = self.which_subobject * 1
         
         for i in range(len(self.scene.objects)):
-            acc.call('trace_object_%d' % i, (self.pos, self.ray, \
+            tracer = self.scene.objects[i].tracer
+            acc.call(tracer.tracer_kernel_name, (self.pos, self.ray, \
                     self.isec_dist, self.whichobject, self.which_subobject, \
                     self.last_whichobject, self.last_which_subobject,
                     self.inside) + \
                     tuple(self.tracer_data_buffers),
-                value_args=tuple(self.tracer_const_data_buffers))
+                value_args=tuple(self.tracer_const_data_buffers) + \
+                    (np.int32(i+1),))
         
         acc.call('advance_and_compute_normal', (self.pos, self.ray, \
                 self.normal, self.isec_dist, self.whichobject, \
@@ -390,14 +404,15 @@ class Shader:
                 acc.enqueue_copy(self.vec_broadcast, self.vec_param_buf)
                 self.shadow_mask.fill(1.0)
                 for i in range(len(self.scene.objects)):
+                    tracer = self.scene.objects[i].tracer
                     if light_id0 == i: continue
-                    acc.call('shadow_trace_object_%d' % i, \
+                    acc.call(tracer.shadow_kernel_name, \
                         (self.pos, self.normal, self.whichobject, \
                                 self.which_subobject, self.inside, \
                                 self.shadow_mask) + \
                                 tuple(self.tracer_data_buffers), \
                         value_args = tuple(self.tracer_const_data_buffers) + \
-                            (self.vec_broadcast,))
+                            (self.vec_broadcast, np.int32(i+1)))
     
         if self.scene.quasirandom and path_index == 1:
             rand_vec = self.qdirs[sample_index, :]
