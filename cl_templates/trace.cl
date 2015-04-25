@@ -1,7 +1,7 @@
 
 ### from 'object.cl' import tracer_params
 
-#define DATA_POINTER_BUFFER_OFFSET {{shader.object_data_pointer_buffer_offset}}
+#define DATA_POINTER_BUFFER_OFFSET {{renderer.object_data_pointer_buffer_offset}}
 
 #define DATA_float3 0
 #define DATA_int 1
@@ -43,7 +43,7 @@ __kernel void advance_and_compute_normal(
     const uint whichobject = *p_whichobject;
     const uint subobject = *p_which_subobject;
     
-    constant int *data_offsets = param_int_data + DATA_N_TYPES*(whichobject-1) + {{shader.object_data_pointer_buffer_offset}};
+    constant int *data_offsets = param_int_data + DATA_N_TYPES*(whichobject-1) + DATA_POINTER_BUFFER_OFFSET;
     
     ### for i in range(n_objects)
     

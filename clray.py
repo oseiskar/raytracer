@@ -3,6 +3,7 @@ if __name__ == '__main__':
     
     import numpy as np
     import time, sys, os, os.path, argparse
+    import renderer
 
     from imgutils import Image
 
@@ -46,14 +47,14 @@ if __name__ == '__main__':
 
     # ------------- Initialize CL
 
-    shader = scene.shader(scene, args)
-    acc = shader.acc
+    renderer = renderer.Renderer(scene, args)
+    acc = renderer.acc
 
     # Do it
     for j in xrange(scene.samples_per_pixel):
         
         t0 = time.time()
-        depth = shader.render_sample(j)
+        depth = renderer.render_sample(j)
         tcur = time.time()
         
         elapsed = (tcur-startup_time)
@@ -61,7 +62,7 @@ if __name__ == '__main__':
         samples_per_second = float(j+1) / elapsed
         samples_left = scene.samples_per_pixel - samples_done
         eta = samples_left / samples_per_second
-        rays_per_second = int(shader.rays_per_sample() * samples_per_second)
+        rays_per_second = int(renderer.rays_per_sample() * samples_per_second)
         
         print '%d/%d,' % (samples_done, scene.samples_per_pixel), \
             "depth: %d," % depth,
@@ -75,7 +76,7 @@ if __name__ == '__main__':
            (j % max(1,int(args.itr_per_refresh/10)) == 0 and \
             j < args.itr_per_refresh):
             
-            imgdata = shader.get_image()
+            imgdata = renderer.get_image()
             
             if not args.no_window:
                 image.show( imgdata )

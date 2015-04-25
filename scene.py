@@ -2,7 +2,7 @@
 from objects import *
 import utils
 import numpy as np
-import shader, tracer
+import tracer
 from spectrum import Spectrum
 
 class Object:

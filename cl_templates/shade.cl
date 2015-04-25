@@ -1,5 +1,5 @@
 
-### if shader.bidirectional
+### if renderer.bidirectional
     #define BIDIRECTIONAL
 ### endif
 
