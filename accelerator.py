@@ -13,12 +13,15 @@ class Accelerator:
     kernel calls and command queues are encapsulated here
     """
     
-    def __init__(self, buffer_size, interactive=False):
+    def __init__(self, interactive=False):
         self.ctx = cl.create_some_context(interactive)
         prop = cl.command_queue_properties.PROFILING_ENABLE
         self.queue = cl.CommandQueue(self.ctx, properties=prop)
         self._cl_arrays = []
-        self.buffer_size = buffer_size
+        
+        devices = self.ctx.get_info(cl.context_info.DEVICES)
+        assert(len(devices) == 1)
+        self.device = devices[0]
         
         self.profiling_info = {}
     
@@ -37,17 +40,33 @@ class Accelerator:
             
         self.prog = cl.Program(self.ctx, prog_code).build(options)
     
-    def call(self, kernel_name, buffer_args, value_args=tuple([])):
+    def get_max_work_group_size(self, kernel_name):
+        return self._get_kernel_work_group_info(\
+            cl.kernel_work_group_info.WORK_GROUP_SIZE)
+    
+    def get_preferred_local_work_group_size_multiple(self, kernel_name):
+        return self._get_kernel_work_group_info(\
+            cl.kernel_work_group_info.PREFERRED_WORK_GROUP_SIZE_MULTIPLE)
+        
+    def _get_kernel_work_group_info(self, kernel_name, param):
+        kernel = getattr(self.prog, kernel_name)
+        return kernel.get_work_group_info(param, self.device)
+    
+    def call(self, kernel_name, ndrange_size, buffer_args, value_args=tuple([])):
         
         t1 = time.time()
         kernel = getattr(self.prog, kernel_name)
+        
+        if isinstance(ndrange_size, int):
+            ndrange_size = (ndrange_size,)
+        
         arg = []
         for x in buffer_args:
             if x is not None:
                 x = x.data
             arg.append(x)
         arg = tuple(arg) + value_args
-        event = kernel(self.queue, (self.buffer_size, ), None, *arg)
+        event = kernel(self.queue, ndrange_size, None, *arg)
         event.wait()
         
         t = (event.profile.end - event.profile.start)

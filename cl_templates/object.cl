@@ -80,42 +80,55 @@ __kernel void {{ obj.tracer_kernel_name }}(
     constant const float4 *param_float3_data,
     constant const int *param_int_data,
     constant const float *param_float_data,
-    int object_id)
+    int offset, int count)
 {
     const int gid = get_global_id(0);
+    const float old_isec_dist = p_isec_dist[gid];
+    float isec_dist = old_isec_dist;
+    const uint old_subobject =  p_last_which_subobject[gid];
+    uint subobject, whichobject;
     
-    const uint i = object_id;
-    uint subobject = p_last_which_subobject[gid];
-    
-    const uint inside_current = p_inside[gid] == i,
-               origin_self = p_last_whichobject[gid] == i;
-    
-    float isec_dist = p_isec_dist[gid];
-    float new_isec_dist = 0;
-    
-    constant int *data_offsets = param_int_data + DATA_N_TYPES*(i-1) + DATA_POINTER_BUFFER_OFFSET;
-    
-    // call tracer
-    
-    ### if obj.convex
-    if (!origin_self || inside_current) {
-    ### endif
-    
-        {{ obj.tracer_function_name }}(
-            p_pos[gid], p_ray[gid], isec_dist, &new_isec_dist, &subobject, inside_current, origin_self
-            {{ tracer_params(obj) }}
-        );
-            
-    if (new_isec_dist > 0 && new_isec_dist < isec_dist)
+    for (uint i = offset; i < offset + count; i++)
     {
-        p_isec_dist[gid] = new_isec_dist;
-        p_whichobject[gid] = i;
+        const uint inside_current = p_inside[gid] == i,
+                   origin_self = p_last_whichobject[gid] == i;
+        
+        constant int *data_offsets = param_int_data + DATA_N_TYPES*(i-1) + DATA_POINTER_BUFFER_OFFSET;
+        
+        // call tracer
+        
+        ### if obj.convex
+        if (!origin_self || inside_current) {
+        ### endif
+    
+            float new_isec_dist = 0;
+            uint cur_subobject = old_subobject;
+        
+            {{ obj.tracer_function_name }}(
+                p_pos[gid], p_ray[gid], isec_dist, &new_isec_dist, &cur_subobject,
+                inside_current, origin_self
+                {{ tracer_params(obj) }}
+            );
+                    
+            if (new_isec_dist > 0 && new_isec_dist < isec_dist)
+            {
+                isec_dist = new_isec_dist;
+                subobject = cur_subobject;
+                whichobject = i;
+            }
+        
+        ### if obj.convex
+        }
+        ### endif
+    
+    }
+    
+    if (isec_dist < old_isec_dist)
+    {
+        p_isec_dist[gid] = isec_dist;
+        p_whichobject[gid] = whichobject;
         p_which_subobject[gid] = subobject;
     }
-    
-    ### if obj.convex
-    }
-    ### endif
 }
 
 

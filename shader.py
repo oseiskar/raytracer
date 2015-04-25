@@ -3,6 +3,7 @@ from accelerator import Accelerator
 import numpy as np
 import jinja2
 import utils
+import itertools
 
 # pylint: disable-msg=W0201
 
@@ -17,9 +18,10 @@ class Shader:
     def initialize(self, scene, args):
         
         self.scene = scene
+        self._sort_objects()
         
-        self.acc = Accelerator(scene.get_number_of_camera_rays(), \
-            args.choose_opencl_context)
+        self.n_pixels = scene.get_number_of_camera_rays()
+        self.acc = Accelerator(args.choose_opencl_context)
         
         self._prepare()
         
@@ -63,6 +65,25 @@ class Shader:
                 'kernels': kernels
             }
         })
+    
+    def _sort_objects(self):
+        get_tracer_name = lambda obj: obj.tracer.tracer_kernel_name
+        self.scene.objects.sort(key=get_tracer_name)
+        
+        groups = itertools.groupby(self.scene.objects, key=get_tracer_name)
+        groups = [ (k,list(g)) for k,g in groups ]
+        object_counts = { k : len(g) for k, g in groups }
+        
+        offset = 0
+        self.object_groups = []
+        for name in sorted([k for k,_ in groups]):
+            
+            count = object_counts[name]
+            tracer = self.scene.objects[offset].tracer
+            
+            self.object_groups.append((tracer,count,offset))
+            
+            offset += count
     
     def _prepare(self):
         
@@ -252,7 +273,7 @@ class Shader:
     def _fill_vec(self, data, vec):
         hostbuf = np.float32(vec)
         self.acc.enqueue_copy(self.vec_broadcast, hostbuf)
-        self.acc.call('fill_vec_broadcast', (data, ), \
+        self.acc.call('fill_vec_broadcast', self.n_pixels, (data, ), \
             value_args=(self.vec_broadcast, ))
 
     def each_object_material(self, property_list):
@@ -319,7 +340,8 @@ class Shader:
         cam_origin = cam_origin + dof_pos
         
         acc.enqueue_copy(self.vec_broadcast,  mat4.astype(np.float32))
-        acc.call('subsample_transform_camera', (self.cam, self.ray,), \
+        acc.call('subsample_transform_camera', self.n_pixels, \
+            (self.cam, self.ray,), \
             value_args=(self.vec_broadcast,))
         
         self._fill_vec(self.pos, cam_origin)
@@ -366,17 +388,19 @@ class Shader:
         self.last_whichobject = self.whichobject * 1
         self.last_which_subobject = self.which_subobject * 1
         
-        for i in range(len(self.scene.objects)):
-            tracer = self.scene.objects[i].tracer
-            acc.call(tracer.tracer_kernel_name, (self.pos, self.ray, \
-                    self.isec_dist, self.whichobject, self.which_subobject, \
-                    self.last_whichobject, self.last_which_subobject,
-                    self.inside) + \
-                    tuple(self.tracer_data_buffers),
-                value_args=tuple(self.tracer_const_data_buffers) + \
-                    (np.int32(i+1),))
+        for tracer, count, offset in self.object_groups:
+            
+            acc.call(tracer.tracer_kernel_name, self.n_pixels, \
+                (self.pos, self.ray, \
+                self.isec_dist, self.whichobject, self.which_subobject, \
+                self.last_whichobject, self.last_which_subobject,
+                self.inside) + \
+                tuple(self.tracer_data_buffers),
+            value_args=tuple(self.tracer_const_data_buffers) + \
+                (np.int32(offset+1), np.int32(count)))
         
-        acc.call('advance_and_compute_normal', (self.pos, self.ray, \
+        acc.call('advance_and_compute_normal', self.n_pixels, \
+                (self.pos, self.ray, \
                 self.normal, self.isec_dist, self.whichobject, \
                 self.which_subobject, self.inside) + \
                 tuple(self.tracer_data_buffers),
@@ -406,7 +430,7 @@ class Shader:
                 for i in range(len(self.scene.objects)):
                     tracer = self.scene.objects[i].tracer
                     if light_id0 == i: continue
-                    acc.call(tracer.shadow_kernel_name, \
+                    acc.call(tracer.shadow_kernel_name, self.n_pixels, \
                         (self.pos, self.normal, self.whichobject, \
                                 self.which_subobject, self.inside, \
                                 self.shadow_mask) + \
@@ -441,7 +465,7 @@ class Shader:
             buffer_params += [self.shadow_mask, self.suppress_emission]
             constant_params = [light_id1, light_area, min_light_sampling_distance] + constant_params
         
-        acc.call(self.shader_name, tuple(buffer_params), \
+        acc.call(self.shader_name, self.n_pixels, tuple(buffer_params), \
             value_args=tuple(constant_params))
         
     def get_light_point(self):
