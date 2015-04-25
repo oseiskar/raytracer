@@ -93,7 +93,7 @@ __kernel void {{ obj.tracer_kernel_name }}(
         const uint inside_current = p_inside[gid] == i,
                    origin_self = p_last_whichobject[gid] == i;
         
-        constant int *data_offsets = param_int_data + DATA_N_TYPES*(i-1) + DATA_POINTER_BUFFER_OFFSET;
+        constant const int *data_offsets = param_int_data + DATA_N_TYPES*(i-1) + DATA_POINTER_BUFFER_OFFSET;
         
         // call tracer
         
@@ -175,7 +175,7 @@ __kernel void {{ obj.shadow_kernel_name }}(
     
     float new_isec_dist = 0;
     
-    constant int *data_offsets = param_int_data + DATA_N_TYPES*(i-1) + DATA_POINTER_BUFFER_OFFSET;
+    constant const int *data_offsets = param_int_data + DATA_N_TYPES*(i-1) + DATA_POINTER_BUFFER_OFFSET;
     
     // call tracer
     
@@ -196,6 +196,62 @@ __kernel void {{ obj.shadow_kernel_name }}(
     ### if obj.convex
     }
     ### endif
+}
+
+### endmacro
+
+### macro normal_kernel(obj)
+
+__kernel void {{ obj.normal_kernel_name }}(
+    __global float3 *p_pos,
+    __global const float3 *p_ray,
+    __global float3 *p_normal,
+    __global const float *p_isec_dist,
+    __global const uint *p_whichobject,
+    __global const uint *p_which_subobject,
+    __global const uint *p_inside,
+    __global const float4 *vector_data,
+    __global const int *integer_data,
+    constant float4 *param_float3_data,
+    constant int *param_int_data,
+    constant float *param_float_data,
+    int offset, int count)
+{
+    const int gid = get_global_id(0);
+    
+    p_whichobject += gid;
+    const uint whichobject = *p_whichobject;
+    
+    if (whichobject >= offset && whichobject < offset+count) {
+    
+        p_which_subobject += gid;
+        p_normal += gid;
+        p_pos += gid;
+        p_isec_dist += gid;
+        
+        const float3 ray = p_ray[gid];
+        const uint inside = p_inside[gid];
+        float3 pos = *p_pos;
+        
+        // advance pos along ray by isec_dist
+        pos += (*p_isec_dist) * ray;
+        *p_pos = pos;
+        const uint subobject = *p_which_subobject;
+        
+        constant const int *data_offsets = param_int_data + DATA_N_TYPES*(whichobject-1) + DATA_POINTER_BUFFER_OFFSET;
+        
+        {{ obj.normal_function_name }}(
+            pos, subobject, p_normal
+            {{ tracer_params(obj) }}
+        );
+        
+        {#/* TODO: move this to triangle mesh */#}
+        ### if obj.auto_flip_normal
+            if (dot(*p_normal, ray) > 0) *p_normal = -*p_normal;
+        ### else
+            if (inside == whichobject) *p_normal = -*p_normal;
+        ### endif
+    }
 }
 
 ### endmacro

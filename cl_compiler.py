@@ -2,11 +2,8 @@
 from accelerator import Accelerator
 import numpy as np
 import jinja2
-import itertools
 
 class Compiler:
-    
-    class Data: pass
     
     def __init__(self, renderer):
         self.scene = renderer.scene

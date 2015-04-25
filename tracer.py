@@ -31,6 +31,10 @@ class Tracer:
     @property
     def shadow_kernel_name(self):
         return self._function_name_prefix() + '_shadow_kernel'
+        
+    @property
+    def normal_kernel_name(self):
+        return self._function_name_prefix() + '_normal_kernel'
     
     def template_file_name(self):
         return 'objects/%s.cl' % self.template_name()
@@ -43,18 +47,6 @@ class Tracer:
             ("{{ a.%s }}\n" % macro)
         return template_env.from_string(s).render(obj=self)
     
-    def make_tracer_function(self, template_env):
-        return self._make_code('tracer_function(obj)', template_env)
-        
-    def make_normal_function(self, template_env):
-        return self._make_code('normal_function(obj)', template_env)
-        
-    def make_tracer_kernel(self, template_env):
-        return self._make_code('tracer_kernel(obj)', template_env)
-        
-    def make_shadow_kernel(self, template_env):
-        return self._make_code('shadow_kernel(obj)', template_env)
-    
     def make_functions(self, template_env):
         """
         Make necessary OpenCL functions for tracing objects of this class
@@ -62,10 +54,11 @@ class Tracer:
         """
         
         return { \
-            self.tracer_function_name : self.make_tracer_function(template_env),
-            self.normal_function_name : self.make_normal_function(template_env)
+            self.tracer_function_name : \
+                self._make_code('tracer_function(obj)', template_env),
+            self.normal_function_name : \
+                self._make_code('normal_function(obj)', template_env)
         }
-
 
     def make_kernels(self, template_env):
         """
@@ -74,8 +67,12 @@ class Tracer:
         """
         
         return { \
-            self.tracer_kernel_name : self.make_tracer_kernel(template_env),
-            self.shadow_kernel_name : self.make_shadow_kernel(template_env)
+            self.tracer_kernel_name : \
+                self._make_code('tracer_kernel(obj)', template_env),
+            self.shadow_kernel_name : \
+                self._make_code('shadow_kernel(obj)', template_env),
+            self.normal_kernel_name : \
+                self._make_code('normal_kernel(obj)', template_env)
         }
         
     def parameter_declarations(self):

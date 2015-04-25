@@ -26,7 +26,7 @@ class TriangleMesh(Tracer):
         self.auto_flip_normal = auto_flip_normal
         self.shading = shading
         
-        self.unique_tracer_id = '_' + self.shading 
+        self.unique_tracer_id = '_' + self.shading + '_autoflip_%s' % self.auto_flip_normal
         if self.shading != 'flat':
             if auto_smooth_normals:
                 normals = generate_smooth_normals(self.vertices, self.faces)

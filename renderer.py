@@ -327,15 +327,17 @@ class Renderer:
                 self.last_whichobject, self.last_which_subobject,
                 self.inside) + \
                 tuple(self.tracer_data_buffers),
-            value_args=tuple(self.tracer_const_data_buffers) + \
-                (np.int32(offset+1), np.int32(count)))
+                value_args=tuple(self.tracer_const_data_buffers) + \
+                    (np.int32(offset+1), np.int32(count)))
         
-        acc.call('advance_and_compute_normal', self.n_pixels, \
-                (self.pos, self.ray, \
-                self.normal, self.isec_dist, self.whichobject, \
-                self.which_subobject, self.inside) + \
-                tuple(self.tracer_data_buffers),
-            value_args=tuple(self.tracer_const_data_buffers))
+        for tracer, count, offset in self.object_groups:
+            acc.call(tracer.normal_kernel_name, self.n_pixels, \
+                    (self.pos, self.ray, \
+                    self.normal, self.isec_dist, self.whichobject, \
+                    self.which_subobject, self.inside) + \
+                    tuple(self.tracer_data_buffers),
+                    value_args=tuple(self.tracer_const_data_buffers) + \
+                    (np.int32(offset+1), np.int32(count)))
         
         if self.bidirectional:
             if path_index == 0:
