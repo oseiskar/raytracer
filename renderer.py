@@ -205,11 +205,9 @@ class Renderer:
         self.acc.call('fill_vec_broadcast', self.n_pixels, (data, ), \
             value_args=(self.vec_broadcast, ))
 
-    def render_sample(self, sample_index):
-    
+    def new_camera_sample(self):
+        
         scene = self.scene
-        acc = self.acc
-    
         cam_origin = scene.camera_position
         
         # TODO: quasi random...
@@ -247,6 +245,15 @@ class Renderer:
         
         cam_origin = cam_origin + dof_pos
         
+        return cam_origin, mat4
+
+    def render_sample(self, sample_index):
+    
+        scene = self.scene
+        acc = self.acc
+    
+        cam_origin, mat4 = self.new_camera_sample()
+        
         acc.enqueue_copy(self.vec_broadcast,  mat4.astype(np.float32))
         acc.call('subsample_transform_camera', self.n_pixels, \
             (self.cam, self.ray_state.ray,), \
@@ -258,7 +265,6 @@ class Renderer:
         self.ray_state.raycolor.fill(1)
         
         self.ray_state.inside.fill(self.root_object_id)
-        self.ray_state.isec_dist.fill(0) # TODO
         
         path_index = 0
         r_prob = 1
