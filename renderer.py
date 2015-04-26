@@ -14,27 +14,28 @@ class Renderer:
         img = np.empty(self.img_shape + (3,))
         img[self.image_order[:, 0], self.image_order[:, 1], :] = imgdata[..., 0:3]
         return img
-    
-    def __init__(self, scene, args):
-        
-        
-        self.shader = scene.shader(scene)
-        
-        self.n_pixels = scene.get_number_of_camera_rays()
-        self.scene = scene
-        self._sort_objects()
-        
-        self.acc = Accelerator(args.choose_opencl_context)
-        self.collect_tracer_data()
-        self._prepare()
-        
-        program_code = Compiler(self).make_program()
-        self.prog = self.acc.build_program(program_code, args.cl_build_options)
         
     def rays_per_sample(self):
         return self.img_shape[0]*self.img_shape[1]
     
-    def _sort_objects(self):
+    def __init__(self, scene, args):
+        
+        self.shader = scene.shader(scene)
+        
+        self.scene = scene
+        self._group_objects()
+        
+        self.acc = Accelerator(args.choose_opencl_context)
+        self._collect_tracer_data()
+        self._init_camera_and_image()
+        self._init_ray_state_buffers()
+        self._init_lights()
+        self.shader.initialize_material_buffers(self.acc)
+        
+        program_code = Compiler(self).make_program()
+        self.prog = self.acc.build_program(program_code, args.cl_build_options)
+    
+    def _group_objects(self):
         get_tracer_name = lambda obj: obj.tracer.tracer_kernel_name
         self.scene.objects.sort(key=get_tracer_name)
         
@@ -52,42 +53,44 @@ class Renderer:
             self.object_groups.append((tracer,count,offset))
             
             offset += count
+
+        # ------------- Find root container object
+        self.root_object_id = 0
+        for i in range(len(self.scene.objects)):
+            if self.scene.root_object == self.scene.objects[i]:
+                self.root_object_id = i+1
     
-    def _prepare(self):
-        
+    def _init_camera_and_image(self):
         scene = self.scene
         
-        # ------------- Set up camera
-        
-        cam = scene.get_camera_rays()
+        cam = self.scene.get_camera_rays()
         self.rotmat = scene.get_camera_rotmat()
         fovx_rad = scene.camera_fov / 180.0 * np.pi
         self.pixel_angle = fovx_rad / scene.image_size[0]
-
-        # ------------- Parameter arrays
         
-        self.shader.initialize_material_buffers(self.acc)
-
-        self.max_broadcast_vecs = 6
-        self.vec_broadcast = self.acc.new_const_buffer(np.zeros((self.max_broadcast_vecs, 4)))
-        self.vec_param_buf = np.zeros((self.max_broadcast_vecs, 4), dtype=np.float32)
-
         self.img_shape = scene.image_size[::-1]
-        n_pixels = self.img_shape[0] * self.img_shape[1]
+        self.n_pixels = self.img_shape[0] * self.img_shape[1]
         
         self.image_order = self.get_image_order()
         
         cam = cam[self.image_order[:, 0], self.image_order[:, 1], 0:3]
-                
+        
+        # Device buffers
         self.cam = self.acc.make_vec3_array(cam)
-
+        self.img = self.acc.new_vec3_array((self.n_pixels, ))
+    
+    def _init_ray_state_buffers(self):
+        
+        self.max_broadcast_vecs = 6
+        self.vec_broadcast = self.acc.new_const_buffer(np.zeros((self.max_broadcast_vecs, 4)))
+        self.vec_param_buf = np.zeros((self.max_broadcast_vecs, 4), dtype=np.float32)
+        
         # Randomization init
-        self.qdirs = utils.quasi_random_direction_sample(scene.samples_per_pixel)
+        self.qdirs = utils.quasi_random_direction_sample(self.scene.samples_per_pixel)
         self.qdirs = np.random.permutation(self.qdirs)
 
         # Device buffers. 
-        self.img = self.acc.new_vec3_array((n_pixels, ))
-        self.whichobject = self.acc.new_array((n_pixels, ), np.uint32, True)
+        self.whichobject = self.acc.new_array((self.n_pixels, ), np.uint32, True)
         self.which_subobject = self.acc.zeros_like(self.whichobject)
         self.last_which_object = self.acc.zeros_like(self.whichobject)
         self.last_which_subobject = self.acc.zeros_like(self.whichobject)
@@ -97,17 +100,9 @@ class Renderer:
         self.normal = self.acc.zeros_like(self.pos)
         self.isec_dist = self.acc.zeros_like(self.img)
         
-        self.raycolor = self.shader.new_ray_color_buffer(self.acc, (n_pixels, ))
-        
-        # ------------- Find root container object
-        self.root_object_id = 0
-        for i in range(len(scene.objects)):
-            if scene.root_object == scene.objects[i]:
-                self.root_object_id = i+1
+        self.raycolor = self.shader.new_ray_color_buffer(self.acc, (self.n_pixels, ))
     
-        self.initialize_bidirectional()
-    
-    def initialize_bidirectional(self):
+    def _init_lights(self):
         
         self.bidirectional_light_ids = [i
             for i in range(len(self.scene.objects))
@@ -125,7 +120,7 @@ class Renderer:
             light.tracer.random_surface_point_and_normal() + \
             light.tracer.center_and_min_sampling_distance()
     
-    def collect_tracer_data(self):
+    def _collect_tracer_data(self):
         
         data_items = ['vector', 'integer',
             'param_float3', 'param_int', 'param_float']
@@ -320,8 +315,7 @@ class Renderer:
         self.last_which_subobject = self.which_subobject * 1
         
         for tracer, count, offset in self.object_groups:
-            
-            acc.call(tracer.tracer_kernel_name, self.n_pixels, \
+            self.call_grouped_kernel(tracer.tracer_kernel_name, count, \
                 (self.pos, self.ray, \
                 self.isec_dist, self.whichobject, self.which_subobject, \
                 self.last_whichobject, self.last_which_subobject,
@@ -331,7 +325,7 @@ class Renderer:
                     (np.int32(offset+1), np.int32(count)))
         
         for tracer, count, offset in self.object_groups:
-            acc.call(tracer.normal_kernel_name, self.n_pixels, \
+            self.call_grouped_kernel(tracer.normal_kernel_name, count, \
                     (self.pos, self.ray, \
                     self.normal, self.isec_dist, self.whichobject, \
                     self.which_subobject, self.inside) + \
@@ -401,6 +395,9 @@ class Renderer:
         acc.call(self.shader.shader_name, self.n_pixels, tuple(buffer_params), \
             value_args=tuple(constant_params))
         
+    def call_grouped_kernel(self, kernel_name, group_size, *args, **kwargs):
+        
+        self.acc.call(kernel_name,  self.n_pixels, *args, **kwargs)
     
     def get_image_order(self):
         order = []
