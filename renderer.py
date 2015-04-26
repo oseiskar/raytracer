@@ -24,12 +24,12 @@ class Renderer:
         
         self.scene = scene
         self._group_objects()
+        self._init_lights()
         
         self.acc = Accelerator(args.choose_opencl_context)
         self._collect_tracer_data()
         self._init_camera_and_image()
-        self._init_ray_state_buffers()
-        self._init_lights()
+        self.ray_state = RayStateBuffers(self)
         self.shader.initialize_material_buffers(self.acc)
         
         program_code = Compiler(self).make_program()
@@ -78,29 +78,14 @@ class Renderer:
         # Device buffers
         self.cam = self.acc.make_vec3_array(cam)
         self.img = self.acc.new_vec3_array((self.n_pixels, ))
-    
-    def _init_ray_state_buffers(self):
         
+        # Misc init
         self.max_broadcast_vecs = 6
         self.vec_broadcast = self.acc.new_const_buffer(np.zeros((self.max_broadcast_vecs, 4)))
         self.vec_param_buf = np.zeros((self.max_broadcast_vecs, 4), dtype=np.float32)
-        
         # Randomization init
         self.qdirs = utils.quasi_random_direction_sample(self.scene.samples_per_pixel)
         self.qdirs = np.random.permutation(self.qdirs)
-
-        # Device buffers. 
-        self.whichobject = self.acc.new_array((self.n_pixels, ), np.uint32, True)
-        self.which_subobject = self.acc.zeros_like(self.whichobject)
-        self.last_which_object = self.acc.zeros_like(self.whichobject)
-        self.last_which_subobject = self.acc.zeros_like(self.whichobject)
-        self.pos = self.acc.zeros_like(self.cam)
-        self.ray = self.acc.zeros_like(self.pos)
-        self.inside = self.acc.zeros_like(self.whichobject)
-        self.normal = self.acc.zeros_like(self.pos)
-        self.isec_dist = self.acc.zeros_like(self.img)
-        
-        self.raycolor = self.shader.new_ray_color_buffer(self.acc, (self.n_pixels, ))
     
     def _init_lights(self):
         
@@ -109,9 +94,6 @@ class Renderer:
             if self.scene.objects[i].bidirectional_light]
             
         self.bidirectional = len(self.bidirectional_light_ids) > 0
-        if self.bidirectional:
-            self.shadow_mask = self.acc.zeros_like(self.isec_dist)
-            self.suppress_emission = self.acc.new_array((self.n_pixels, ), np.int32, True)
     
     def get_light_point(self):
         light_id = self.bidirectional_light_ids[np.random.randint(len(self.bidirectional_light_ids))]
@@ -267,16 +249,16 @@ class Renderer:
         
         acc.enqueue_copy(self.vec_broadcast,  mat4.astype(np.float32))
         acc.call('subsample_transform_camera', self.n_pixels, \
-            (self.cam, self.ray,), \
+            (self.cam, self.ray_state.ray,), \
             value_args=(self.vec_broadcast,))
         
-        self._fill_vec(self.pos, cam_origin)
-        self.whichobject.fill(0)
-        self.normal.fill(0)
-        self.raycolor.fill(1)
+        self._fill_vec(self.ray_state.pos, cam_origin)
+        self.ray_state.whichobject.fill(0)
+        self.ray_state.normal.fill(0)
+        self.ray_state.raycolor.fill(1)
         
-        self.inside.fill(self.root_object_id)
-        self.isec_dist.fill(0) # TODO
+        self.ray_state.inside.fill(self.root_object_id)
+        self.ray_state.isec_dist.fill(0) # TODO
         
         path_index = 0
         r_prob = 1
@@ -285,7 +267,7 @@ class Renderer:
         
         while True:
             
-            self.raycolor *= r_prob
+            self.ray_state.raycolor *= r_prob
             
             r_prob = 1
             break_next = False
@@ -310,32 +292,27 @@ class Renderer:
         
         acc = self.acc
         
-        self.isec_dist.fill(self.scene.max_ray_length)
-        self.last_whichobject = self.whichobject * 1
-        self.last_which_subobject = self.which_subobject * 1
+        self.ray_state.isec_dist.fill(self.scene.max_ray_length)
+        self.ray_state.last_whichobject = self.ray_state.whichobject * 1
+        self.ray_state.last_which_subobject = self.ray_state.which_subobject * 1
         
         for tracer, count, offset in self.object_groups:
             self.call_grouped_kernel(tracer.tracer_kernel_name, count, \
-                (self.pos, self.ray, \
-                self.isec_dist, self.whichobject, self.which_subobject, \
-                self.last_whichobject, self.last_which_subobject,
-                self.inside) + \
+                self.ray_state.tracer_kernel_params() + \
                 tuple(self.tracer_data_buffers),
                 value_args=tuple(self.tracer_const_data_buffers) + \
                     (np.int32(offset+1), np.int32(count)))
         
         for tracer, count, offset in self.object_groups:
             self.call_grouped_kernel(tracer.normal_kernel_name, count, \
-                    (self.pos, self.ray, \
-                    self.normal, self.isec_dist, self.whichobject, \
-                    self.which_subobject, self.inside) + \
+                    self.ray_state.normal_kernel_params() + \
                     tuple(self.tracer_data_buffers),
                     value_args=tuple(self.tracer_const_data_buffers) + \
                     (np.int32(offset+1), np.int32(count)))
         
         if self.bidirectional:
             if path_index == 0:
-                self.suppress_emission.fill(0)
+                self.ray_state.suppress_emission.fill(0)
         
             light_id0, light_area, light_point, light_normal, \
                 light_center, min_light_sampling_distance = self.get_light_point()
@@ -353,15 +330,13 @@ class Renderer:
                 self.vec_param_buf[0, :3] = light_point
 
                 acc.enqueue_copy(self.vec_broadcast, self.vec_param_buf)
-                self.shadow_mask.fill(1.0)
+                self.ray_state.shadow_mask.fill(1.0)
                 for i in range(len(self.scene.objects)):
                     tracer = self.scene.objects[i].tracer
                     if light_id0 == i: continue
                     acc.call(tracer.shadow_kernel_name, self.n_pixels, \
-                        (self.pos, self.normal, self.whichobject, \
-                                self.which_subobject, self.inside, \
-                                self.shadow_mask) + \
-                                tuple(self.tracer_data_buffers), \
+                        self.ray_state.shadow_kernel_params() + \
+                        tuple(self.tracer_data_buffers), \
                         value_args = tuple(self.tracer_const_data_buffers) + \
                             (self.vec_broadcast, np.int32(i+1)))
     
@@ -382,17 +357,12 @@ class Renderer:
             self.vec_param_buf[5, :3] = light_center
         acc.enqueue_copy(self.vec_broadcast, self.vec_param_buf)
         
-        buffer_params = [self.img, self.whichobject, 
-            self.normal, self.isec_dist, self.pos, self.ray,
-            self.raycolor, self.inside]
-             
         constant_params = self.shader.material_buffers + [rand_01, self.vec_broadcast]
-        
         if self.bidirectional:
-            buffer_params += [self.shadow_mask, self.suppress_emission]
             constant_params = [light_id1, light_area, min_light_sampling_distance] + constant_params
         
-        acc.call(self.shader.shader_name, self.n_pixels, tuple(buffer_params), \
+        acc.call(self.shader.shader_name, self.n_pixels, \
+            (self.img, ) + self.ray_state.shader_kernel_params(),
             value_args=tuple(constant_params))
         
     def call_grouped_kernel(self, kernel_name, group_size, *args, **kwargs):
@@ -421,3 +391,52 @@ class Renderer:
                     order.append([x,y])
             
         return np.array(order)
+
+class RayStateBuffers:
+    def __init__(self, renderer):
+        n_pixels = renderer.n_pixels
+        acc = renderer.acc
+        self.bidirectional = renderer.bidirectional
+        
+        self.whichobject = acc.new_array((n_pixels, ), np.uint32, True)
+        self.which_subobject = acc.zeros_like(self.whichobject)
+        self.last_which_object = acc.zeros_like(self.whichobject)
+        self.last_which_subobject = acc.zeros_like(self.whichobject)
+        self.pos = acc.new_vec3_array((n_pixels, ))
+        self.ray = acc.zeros_like(self.pos)
+        self.inside = acc.zeros_like(self.whichobject)
+        self.normal = acc.zeros_like(self.pos)
+        self.isec_dist = acc.zeros_like(self.pos)
+        
+        self.raycolor = renderer.shader.new_ray_color_buffer(acc, (n_pixels, ))
+        
+        if self.bidirectional:
+            self.shadow_mask = acc.zeros_like(self.isec_dist)
+            self.suppress_emission = acc.new_array((n_pixels, ), np.int32, True)
+    
+    def tracer_kernel_params(self):
+        return (self.pos, self.ray, \
+                self.isec_dist, self.whichobject, self.which_subobject, \
+                self.last_whichobject, self.last_which_subobject,
+                self.inside)
+            
+    def shadow_kernel_params(self):
+        return (self.pos, self.normal, self.whichobject, \
+                self.which_subobject, self.inside, \
+                self.shadow_mask)
+
+    def normal_kernel_params(self):
+        return (self.pos, self.ray, \
+                self.normal, self.isec_dist, self.whichobject, \
+                self.which_subobject, self.inside)
+    
+    def shader_kernel_params(self):
+        buffer_params = [self.whichobject, 
+            self.normal, self.isec_dist, self.pos, self.ray,
+            self.raycolor, self.inside]
+        
+        if self.bidirectional:
+            buffer_params += [self.shadow_mask, self.suppress_emission]
+        
+        return tuple(buffer_params)
+        
