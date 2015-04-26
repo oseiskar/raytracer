@@ -37,7 +37,7 @@ class Shader:
         
         return properties
     
-    def extra_stuff(self, acc, vec_param_buf):
+    def init_sample(self, renderer):
         pass
 
 class RgbShader(Shader):
@@ -153,7 +153,7 @@ class SpectrumShader(Shader):
         
         self.material_buffers = [self.device_material_buffer]
     
-    def extra_stuff(self, acc, vec_param_buf):
+    def init_sample(self, renderer):
         
         spectrum = self.scene.spectrum
         
@@ -164,15 +164,15 @@ class SpectrumShader(Shader):
         
         #print wavelength, wavelength_prob
         
-        self.raycolor *= 1.0 / wavelength_prob
+        renderer.ray_state.raycolor *= 1.0 / wavelength_prob
         
         wave_interp = lambda y: \
             spectrum.map_right([wavelength], y).astype(np.float32)
         
         mat_props = wave_interp(self.host_mat_y)
-        acc.enqueue_copy(self.device_material_buffer, mat_props)
+        renderer.acc.enqueue_copy(self.device_material_buffer, mat_props)
         
         color_mask = wave_interp(self.color_responses)
         #print wavelength, color_mask
-        vec_param_buf[2, :3] = np.ravel(color_mask)
+        renderer.vec_param_buf[2, :3] = np.ravel(color_mask)
     

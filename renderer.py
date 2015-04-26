@@ -263,7 +263,7 @@ class Renderer:
         path_index = 0
         r_prob = 1
         
-        self.shader.extra_stuff(self.acc, self.vec_param_buf)
+        self.shader.init_sample(self)
         
         while True:
             
