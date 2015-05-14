@@ -14,6 +14,7 @@
 ### endfor
 
 #define DATA_POINTER_BUFFER_OFFSET {{renderer.object_data_pointer_buffer_offset}}
+#define N_RAYS {{renderer.n_pixels}}
 
 #define DATA_float3 0
 #define DATA_int 1

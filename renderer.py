@@ -8,6 +8,16 @@ from cl_compiler import Compiler
 # pylint: disable-msg=W0201
 
 class Renderer:
+    """
+    Main controller class that, when initialized with the Scene, generates
+    and compiles the OpenCL code for rendering it and provides methods:
+        
+        * render_sample for sampling a new batch of rays and accumulating
+          the results to an image
+        * get_image for accessing the currently rendered result
+
+    """
+    # TODO: refactor to better separated classes
     
     def get_image(self):
         imgdata = self.img.get().astype(np.float32)
@@ -28,6 +38,7 @@ class Renderer:
         
         self.acc = Accelerator(args.choose_opencl_context)
         self._collect_tracer_data()
+        self._init_misc()
         self._init_camera_and_image()
         self.ray_state = RayStateBuffers(self)
         self.shader.initialize_material_buffers(self.acc)
@@ -60,6 +71,20 @@ class Renderer:
             if self.scene.root_object == self.scene.objects[i]:
                 self.root_object_id = i+1
     
+    def _init_misc(self):
+        # TODO: bad
+        
+        self.max_broadcast_vecs = 6
+        self.vec_broadcast = self.acc.new_const_buffer(np.zeros((self.max_broadcast_vecs, 4)))
+        self.vec_param_buf = np.zeros((self.max_broadcast_vecs, 4), dtype=np.float32)
+        
+        # Randomization init
+        self.qdirs = utils.quasi_random_direction_sample(self.scene.samples_per_pixel)
+        self.qdirs = np.random.permutation(self.qdirs)
+        
+        self.kernel_work_groups = {}
+        self.zero_scratch = self.acc.new_local_buffer(1)
+    
     def _init_camera_and_image(self):
         scene = self.scene
         
@@ -78,14 +103,6 @@ class Renderer:
         # Device buffers
         self.cam = self.acc.make_vec3_array(cam)
         self.img = self.acc.new_vec3_array((self.n_pixels, ))
-        
-        # Misc init
-        self.max_broadcast_vecs = 6
-        self.vec_broadcast = self.acc.new_const_buffer(np.zeros((self.max_broadcast_vecs, 4)))
-        self.vec_param_buf = np.zeros((self.max_broadcast_vecs, 4), dtype=np.float32)
-        # Randomization init
-        self.qdirs = utils.quasi_random_direction_sample(self.scene.samples_per_pixel)
-        self.qdirs = np.random.permutation(self.qdirs)
     
     def _init_lights(self):
         
@@ -310,7 +327,7 @@ class Renderer:
                     (np.int32(offset+1), np.int32(count)))
         
         for tracer, count, offset in self.object_groups:
-            self.call_grouped_kernel(tracer.normal_kernel_name, count, \
+            self.acc.call(tracer.normal_kernel_name, self.n_pixels, \
                     self.ray_state.normal_kernel_params() + \
                     tuple(self.tracer_data_buffers),
                     value_args=tuple(self.tracer_const_data_buffers) + \
@@ -337,14 +354,14 @@ class Renderer:
 
                 acc.enqueue_copy(self.vec_broadcast, self.vec_param_buf)
                 self.ray_state.shadow_mask.fill(1.0)
-                for i in range(len(self.scene.objects)):
-                    tracer = self.scene.objects[i].tracer
-                    if light_id0 == i: continue
-                    acc.call(tracer.shadow_kernel_name, self.n_pixels, \
+                
+                
+                for tracer, count, offset in self.object_groups:
+                    self.call_grouped_kernel(tracer.shadow_kernel_name, count, \
                         self.ray_state.shadow_kernel_params() + \
-                        tuple(self.tracer_data_buffers), \
-                        value_args = tuple(self.tracer_const_data_buffers) + \
-                            (self.vec_broadcast, np.int32(i+1)))
+                        tuple(self.tracer_data_buffers),
+                        value_args=tuple(self.tracer_const_data_buffers) + \
+                            (self.vec_broadcast, light_id1, np.int32(offset+1), np.int32(count)))
     
         if self.scene.quasirandom and path_index == 1:
             rand_vec = self.qdirs[sample_index, :]
@@ -371,9 +388,13 @@ class Renderer:
             (self.img, ) + self.ray_state.shader_kernel_params(),
             value_args=tuple(constant_params))
         
-    def call_grouped_kernel(self, kernel_name, group_size, *args, **kwargs):
+    def call_grouped_kernel(self, kernel_name, group_size, buffer_args, value_args):
         
-        self.acc.call(kernel_name,  self.n_pixels, *args, **kwargs)
+        global_size, local_size, scratch_buffers = \
+            self.get_work_group_sizes_and_scratch(kernel_name, group_size)
+        
+        self.acc.call(kernel_name, global_size, buffer_args,
+            value_args + scratch_buffers, work_group_size=local_size)
     
     def get_image_order(self):
         order = []
@@ -397,6 +418,42 @@ class Renderer:
                     order.append([x,y])
             
         return np.array(order)
+        
+    def get_work_group_sizes_and_scratch(self, kernel_name, group_size):
+        
+        cache = self.kernel_work_groups
+        key = (kernel_name, group_size)
+        
+        if key in cache: return cache[key]
+        
+        if group_size == 1:
+            local_size = None
+            global_size = self.n_pixels
+            float_scratch = self.zero_scratch
+            int_scratch = self.zero_scratch
+        else:
+            #block_size = self.acc.get_preferred_local_work_group_size_multiple(kernel_name)
+            max_size = self.acc.get_max_work_group_size(kernel_name)
+            
+            whole_groups = max_size / group_size
+            assert(whole_groups > 0)
+            local_size = (whole_groups, group_size)
+            
+            if self.n_pixels % whole_groups != 0:
+                padding = whole_groups - (self.n_pixels % whole_groups)
+                global_size = (self.n_pixels+padding, group_size)
+            else:
+                global_size = (self.n_pixels, group_size)
+        
+            print "work_group sizes for", key, "=", global_size, local_size
+            
+            n_scratch = local_size[0]*local_size[1]
+            float_scratch = self.acc.new_local_buffer(n_scratch)
+            int_scratch = self.acc.new_local_buffer(n_scratch)
+        
+        cache[key] = (global_size, local_size, (float_scratch, int_scratch))
+        return cache[key]
+        
 
 class RayStateBuffers:
     def __init__(self, renderer):

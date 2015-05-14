@@ -19,6 +19,10 @@ class Object:
         self.bidirectional_light = False
 
 class Scene:
+    """
+    Defines a 3D scene consisting of a camera, objects, materials and
+    some rendering settings such as image size
+    """
     
     def get_camera_rotmat(self):
         return utils.camera_rotmat(self.camera_direction, self.camera_up)

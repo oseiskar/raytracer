@@ -10,6 +10,11 @@ def interp1d(x, data_x, data_y):
         for i in range(data_y.shape[0])])
 
 class Spectrum:
+    """
+    Helper for generating representations of emission, absorption etc.
+    spectra of light and converting wavelengths of photons on these spectra
+    to RGB colors
+    """
 
     def __init__(self, wavelength_range_nm = None, resolution = None):
         

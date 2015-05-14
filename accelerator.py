@@ -41,24 +41,27 @@ class Accelerator:
         self.prog = cl.Program(self.ctx, prog_code).build(options)
     
     def get_max_work_group_size(self, kernel_name):
-        return self._get_kernel_work_group_info(\
+        return self._get_kernel_work_group_info(kernel_name, \
             cl.kernel_work_group_info.WORK_GROUP_SIZE)
     
     def get_preferred_local_work_group_size_multiple(self, kernel_name):
-        return self._get_kernel_work_group_info(\
+        return self._get_kernel_work_group_info(kernel_name, \
             cl.kernel_work_group_info.PREFERRED_WORK_GROUP_SIZE_MULTIPLE)
         
     def _get_kernel_work_group_info(self, kernel_name, param):
         kernel = getattr(self.prog, kernel_name)
         return kernel.get_work_group_info(param, self.device)
     
-    def call(self, kernel_name, ndrange_size, buffer_args, value_args=tuple([])):
+    def call(self, kernel_name, ndrange_size, buffer_args, \
+            value_args=tuple([]), work_group_size=None):
         
         t1 = time.time()
         kernel = getattr(self.prog, kernel_name)
         
         if isinstance(ndrange_size, int):
             ndrange_size = (ndrange_size,)
+        else:
+            assert(len(ndrange_size) == 2)
         
         arg = []
         for x in buffer_args:
@@ -66,7 +69,7 @@ class Accelerator:
                 x = x.data
             arg.append(x)
         arg = tuple(arg) + value_args
-        event = kernel(self.queue, ndrange_size, None, *arg)
+        event = kernel(self.queue, ndrange_size, work_group_size, *arg)
         event.wait()
         
         t = (event.profile.end - event.profile.start)
@@ -98,6 +101,9 @@ class Accelerator:
     def new_const_buffer( self, buf, dtype=np.float32 ):
         mf = cl.mem_flags
         return cl.Buffer(self.ctx, mf.READ_ONLY | mf.COPY_HOST_PTR, hostbuf=buf.astype(dtype))
+    
+    def new_local_buffer( self, size ):
+        return cl.LocalMemory(size * 4) # TODO: assuming 4-byte types
         
     def new_vec3_array( self, shape ):
         shape = shape + (4, )

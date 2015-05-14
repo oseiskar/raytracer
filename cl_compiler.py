@@ -4,6 +4,10 @@ import numpy as np
 import jinja2
 
 class Compiler:
+    """
+    The part of the Renderer that generates OpenCL code using Jinja2 templates.
+    Still quite badly separated.
+    """
     
     def __init__(self, renderer):
         self.scene = renderer.scene

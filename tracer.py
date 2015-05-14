@@ -3,10 +3,10 @@ import numpy
 class Tracer:
     """
     A Tracer instance represents the shape of a three-dimensional body.
-    It is responsible for generating the OpenCL code that can compute the
-    intersection of a ray and this object (given helpful extra information
-    that is accumulated during the tracing process) and an exterior normal
-    at that intersection.
+    
+    It is also associated with OpenCL code (templates) that can be used
+    to compute the intersection of a ray and this object and an exterior
+    normal at that intersection.
     """
 
     # setting this to, e.g., id(obj), causes a tracer function to be

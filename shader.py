@@ -2,6 +2,10 @@
 import numpy as np
 
 class Shader:
+    """
+    The differences between RGB and Spectrum shading in the Renderer are
+    abstracted behind this interface.
+    """
     
     def __init__(self, scene):
         self.scene = scene
@@ -41,6 +45,12 @@ class Shader:
         pass
 
 class RgbShader(Shader):
+    """
+    In RGB shading mode, all color properties of materials are represented
+    with RGB color values. This converges faster and the colors are easier
+    to represent than in Spectrum mode, but there is no support for dispersion
+    and the model is less physics-based.
+    """
     
     def __init__(self, scene):
         Shader.__init__(self, scene)
@@ -103,6 +113,11 @@ class RgbShader(Shader):
     
 
 class SpectrumShader(Shader):
+    """
+    In Spectrum shading mode, material colors are represented using spectra
+    (e.g., emission and absorption spectra), which enables accurate color
+    physics (e.g., black body radiation) and dispersion effects.
+    """
     
     def __init__(self, scene):
         Shader.__init__(self, scene)

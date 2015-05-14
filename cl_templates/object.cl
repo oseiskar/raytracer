@@ -80,54 +80,114 @@ __kernel void {{ obj.tracer_kernel_name }}(
     constant const float4 *param_float3_data,
     constant const int *param_int_data,
     constant const float *param_float_data,
-    int offset, int count)
+    int offset, int count,
+    __local float *float_scratch,
+    __local int *int_scratch)
 {
-    const int gid = get_global_id(0);
-    const float old_isec_dist = p_isec_dist[gid];
+    const int ray_idx = get_global_id(0);
+    if (ray_idx >= N_RAYS) return;
+    
+    const int object_index = get_global_id(1);
+    if (object_index >= count) return;
+    const int object_id = object_index + offset;
+    
+    const float old_isec_dist = p_isec_dist[ray_idx];
     float isec_dist = old_isec_dist;
-    const uint old_subobject =  p_last_which_subobject[gid];
+    const uint old_subobject =  p_last_which_subobject[ray_idx];
     uint subobject, whichobject;
     
-    for (uint i = offset; i < offset + count; i++)
-    {
-        const uint inside_current = p_inside[gid] == i,
-                   origin_self = p_last_whichobject[gid] == i;
-        
-        constant const int *data_offsets = param_int_data + DATA_N_TYPES*(i-1) + DATA_POINTER_BUFFER_OFFSET;
-        
-        // call tracer
-        
-        ### if obj.convex
-        if (!origin_self || inside_current) {
-        ### endif
+    const uint inside_current = p_inside[ray_idx] == object_id,
+               origin_self = p_last_whichobject[ray_idx] == object_id;
     
-            float new_isec_dist = 0;
-            uint cur_subobject = old_subobject;
-        
-            {{ obj.tracer_function_name }}(
-                p_pos[gid], p_ray[gid], isec_dist, &new_isec_dist, &cur_subobject,
-                inside_current, origin_self
-                {{ tracer_params(obj) }}
-            );
-                    
-            if (new_isec_dist > 0 && new_isec_dist < isec_dist)
-            {
-                isec_dist = new_isec_dist;
-                subobject = cur_subobject;
-                whichobject = i;
-            }
-        
-        ### if obj.convex
+    constant const int *data_offsets = param_int_data + DATA_N_TYPES*(object_id-1) + DATA_POINTER_BUFFER_OFFSET;
+    
+    // call tracer
+    
+    ### if obj.convex
+    if (!origin_self || inside_current) {
+    ### endif
+
+        float new_isec_dist = 0;
+        uint cur_subobject = old_subobject;
+    
+        {{ obj.tracer_function_name }}(
+            p_pos[ray_idx], p_ray[ray_idx], isec_dist, &new_isec_dist, &cur_subobject,
+            inside_current, origin_self
+            {{ tracer_params(obj) }}
+        );
+                
+        if (new_isec_dist > 0 && new_isec_dist < isec_dist)
+        {
+            isec_dist = new_isec_dist;
+            subobject = cur_subobject;
+            whichobject = object_id;
         }
-        ### endif
     
+    ### if obj.convex
+    }
+    ### endif
+    
+    // parallel reduction: TODO: it is not allowed to call
+    // return for any item before this
+    int best_self = 0;
+    
+    if (count > 1) {
+        
+        const int local_offset = get_local_id(0) * get_global_size(1);
+        
+        int_scratch += local_offset;
+        float_scratch += local_offset;
+        
+        int_scratch[object_index] = object_index;
+        float_scratch[object_index] = isec_dist;
+        
+        int sz = 1;
+        while (sz < count) sz *= 2;
+        
+        while (sz > 1) 
+        {
+            sz /= 2;
+            
+            float best_value;
+            int best_idx;
+            
+            barrier(CLK_LOCAL_MEM_FENCE);
+            if (object_index < sz) {
+            
+                const int other_idx = object_index + sz;
+                
+                best_value = float_scratch[object_index];
+                best_idx = object_index;
+                
+                if (other_idx < count) {
+                    const float other_value = float_scratch[other_idx];
+                    
+                    if (other_value < best_value) {
+                        best_value = other_value;
+                        best_idx = other_idx;
+                    }
+                }
+            }
+            barrier(CLK_LOCAL_MEM_FENCE);
+            
+            if (object_index < sz) {
+                int_scratch[object_index] = int_scratch[best_idx];
+                float_scratch[object_index] = best_value;
+            }
+        }
+        barrier(CLK_LOCAL_MEM_FENCE);
+        
+        best_self = int_scratch[0] == object_index;
+    }
+    else {
+        best_self = 1;
     }
     
-    if (isec_dist < old_isec_dist)
+    if (best_self && isec_dist < old_isec_dist)
     {
-        p_isec_dist[gid] = isec_dist;
-        p_whichobject[gid] = whichobject;
-        p_which_subobject[gid] = subobject;
+        p_isec_dist[ray_idx] = isec_dist;
+        p_whichobject[ray_idx] = whichobject;
+        p_which_subobject[ray_idx] = subobject;
     }
 }
 
@@ -149,33 +209,41 @@ __kernel void {{ obj.shadow_kernel_name }}(
     constant const int *param_int_data,
     constant const float *param_float_data,
     constant float4 *p_dest_point,
-    int object_id)
+    int light_id,
+    int offset, int count,
+    __local float *float_scratch,
+    __local int *int_scratch)
 {
-    const int gid = get_global_id(0);
-    if (p_shadow_mask[gid] == 0.0) return;
+    const int ray_idx = get_global_id(0);
+    if (ray_idx >= N_RAYS) return;
+    if (p_shadow_mask[ray_idx] == 0.0) return;
+    
+    const int object_index = get_global_id(1);
+    if (object_index >= count) return;
+    const int object_id = object_index + offset;
+    if (object_id == light_id) return;
     
     const float3 dest = p_dest_point[0].xyz;
-    const float3 pos = p_pos[gid];
+    const float3 pos = p_pos[ray_idx];
     float3 ray = dest - pos;
     
     // last normal check
-    if ( dot(p_normal[gid], ray) < 0.0 ) {
-        p_shadow_mask[gid] = 0.0;
+    if ( dot(p_normal[ray_idx], ray) < 0.0 ) {
+        p_shadow_mask[ray_idx] = 0.0;
         return;
     }
     
     const float isec_dist = length(ray);
     ray = ray / isec_dist;
     
-    uint subobject = p_which_subobject[gid];
+    uint subobject = p_which_subobject[ray_idx];
     
-    const uint i = object_id;
-    const uint inside_current = p_inside[gid] == i,
-               origin_self = p_whichobject[gid] == i;
+    const uint inside_current = p_inside[ray_idx] == object_id,
+               origin_self = p_whichobject[ray_idx] == object_id;
     
     float new_isec_dist = 0;
     
-    constant const int *data_offsets = param_int_data + DATA_N_TYPES*(i-1) + DATA_POINTER_BUFFER_OFFSET;
+    constant const int *data_offsets = param_int_data + DATA_N_TYPES*(object_id-1) + DATA_POINTER_BUFFER_OFFSET;
     
     // call tracer
     
@@ -190,7 +258,7 @@ __kernel void {{ obj.shadow_kernel_name }}(
     
     if (new_isec_dist > 0 && new_isec_dist < isec_dist)
     {
-        p_shadow_mask[gid] = 0.0;
+        p_shadow_mask[ray_idx] = 0.0;
     }
     
     ### if obj.convex
