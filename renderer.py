@@ -187,30 +187,39 @@ class Renderer:
                 self.object_data_pointer_buffer_offset = data_sizes[dtype]
                 values += object_data_pointer_buffer
             
-            if len(values) == 0: values = None
+            if len(values) == 0:
+                values = None
             else:
                 if dtype in ['vector', 'param_float3']:
                     values = np.vstack(values)
                 else:
                     values = np.concatenate(values)
-                
+                    
                 if dtype == 'vector':
                     values = self.acc.make_vec3_array(values)
-                    buffers = self.tracer_data_buffers
                 elif dtype == 'integer':
                     values = self.acc.to_device(values.astype(np.int32))
-                    buffers = self.tracer_data_buffers
                 elif dtype == 'param_float3':
                     values = self.acc.make_const_vec3_buffer(values)
-                    buffers = self.tracer_const_data_buffers
                 elif dtype == 'param_float':
                     values = self.acc.new_const_buffer(values)
-                    buffers = self.tracer_const_data_buffers
                 elif dtype == 'param_int':
                     values = self.acc.new_const_buffer(values, np.int32)
-                    buffers = self.tracer_const_data_buffers
                 else:
                     assert(False)
+                
+            if dtype == 'vector':
+                buffers = self.tracer_data_buffers
+            elif dtype == 'integer':
+                buffers = self.tracer_data_buffers
+            elif dtype == 'param_float3':
+                buffers = self.tracer_const_data_buffers
+            elif dtype == 'param_float':
+                buffers = self.tracer_const_data_buffers
+            elif dtype == 'param_int':
+                buffers = self.tracer_const_data_buffers
+            else:
+                assert(False)
             
             buffers.append(values)
 
