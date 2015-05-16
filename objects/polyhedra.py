@@ -21,7 +21,7 @@ class HyperplaneRepresentation(ConvexIntersection):
             components.append(halfspace)
         
         ConvexIntersection.__init__(self, origin, components)
-        self.unique_tracer_id = str(R).replace('.','_')
+        self.unique_tracer_id = ''
 
 class SymmetricDualPolyhedron(ConvexIntersection):
     
@@ -42,9 +42,7 @@ class SymmetricDualPolyhedron(ConvexIntersection):
             components.append(layer)
         
         ConvexIntersection.__init__(self, origin, components)
-        self.unique_tracer_id = str(R).replace('.','_')
-
-
+        self.unique_tracer_id = ''
 
 class Tetrahedron(HyperplaneRepresentation):
     def __init__(self, origin, R):

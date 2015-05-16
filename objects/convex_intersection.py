@@ -24,7 +24,8 @@ class ConvexIntersection(Tracer):
         self.origin = origin
         self.components = components
         
-        self.unique_tracer_id = str(id(self))
+        self.unique_tracer_id = '_' + '_'.join([c.__class__.__name__ \
+            for c in self.components])
     
     # "view helpers"
     

@@ -60,6 +60,14 @@ test_objects = [
     load_triangle_mesh,
     lambda p,R: load_triangle_mesh(p,R, auto_flip_normal=True),
     lambda p,R: load_triangle_mesh(p,R, shading='smooth', auto_smooth_normals=True),
+    # another Octahedron (should have same tracer but different size)
+    lambda p, R: Octahedron( p, R*0.5 ),
+    # another ConvexIntersection, should have different tracer
+    lambda p, R: ConvexIntersection( p, [ \
+        CylinderComponent( (1,1,0), R, ), \
+        SphereComponent( (0,0,0), R*1.2, ),
+        LayerComponent( (1,0,0), 0.4 ) ]),
+    # Octree
     load_triangle_mesh_in_octree
 ]
 
