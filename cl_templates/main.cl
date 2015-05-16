@@ -1,7 +1,7 @@
 
 {% include 'static.cl' %}
 
-{% include 'shade.cl' %}
+{% include 'shader.cl' %}
 
 // Declarations
 ### for k in functions.declarations

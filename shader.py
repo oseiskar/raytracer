@@ -55,7 +55,7 @@ class RgbShader(Shader):
     def __init__(self, scene):
         Shader.__init__(self, scene)
         
-        self.shader_name = 'rgb_shader'
+        self.rgb = True
         
         self.material_property_sets = [
             # RGB material properties
@@ -122,7 +122,7 @@ class SpectrumShader(Shader):
     def __init__(self, scene):
         Shader.__init__(self, scene)
         
-        self.shader_name = 'spectrum_shader'
+        self.rgb = False
         
         self.material_property_sets = [
             # (scalar) material properties

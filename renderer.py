@@ -393,7 +393,7 @@ class Renderer:
         if self.bidirectional:
             constant_params = [light_id1, light_area, min_light_sampling_distance] + constant_params
         
-        acc.call(self.shader.shader_name, self.n_pixels, \
+        acc.call('shader', self.n_pixels, \
             (self.img, ) + self.ray_state.shader_kernel_params(),
             value_args=tuple(constant_params))
         

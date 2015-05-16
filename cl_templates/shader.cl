@@ -1,8 +1,17 @@
 
-#define COLOR(prop, id) material_colors[prop + id].xyz
+### for item in shader.get_material_property_offsets()
+    #define MAT_{{item[0]}} {{item[1]}}
+### endfor
+
+### if shader.rgb
+    #define COLOR(prop, id) material_colors[prop + id].xyz
+### else
+    #define COLOR(prop, id) material_scalars[prop + id]
+### endif
+
 #define SCALAR(prop, id) material_scalars[prop + id]
 
-__kernel void rgb_shader(
+__kernel void shader(
         // output: colors are summed to this image when appropriate
         global float3 *img,
         // id of the object on whose surface the ray position (param
@@ -20,12 +29,16 @@ __kernel void rgb_shader(
         global float3 *ray,
         // current ray color: a filter that multiplies everything
         // added to the image
+### if shader.rgb
         global float3 *color,
+### else
+        global float *intensity,
+### endif
         // id of the object inside which the current ray position is,
         // 0 if in ambient space. (notice however, that the ambient
         // space also has fog and IoR material properties)
         global uint *inside,
-#ifdef BIDIRECTIONAL
+### if renderer.bidirectional
         // visibility mask for light point
         global float *shadow_mask,
         global int *suppress_emission,
@@ -33,9 +46,11 @@ __kernel void rgb_shader(
         int light_id,
         float light_area,
         float min_light_sampling_distance,
-#endif
+### endif
         // material properties of the current object
+### if shader.rgb
         constant float4 *material_colors,
+### endif
         constant float *material_scalars,
         // the random sample [0,1) that decides what to do
         float p,
@@ -54,16 +69,25 @@ __kernel void rgb_shader(
     float cur_mult = 1.0;
     float blur;
     
+### if shader.rgb
+    #define COLOR2PROB(color) dot(color,WHITE)/3.0
+        
     const float3 WHITE = (float3)(1.0,1.0,1.0);
-    float3 cur_col_mult = WHITE;
+    float3 cur_col_mult = WHITE, cur_col;
+### else
+    #define COLOR2PROB(color) color
+
+    float cur_col;
+    const float3 cmask = rvecs_cmask_and_light[2].xyz;
+### endif
     
     float last_dist = last_distance[gid];
     const float alpha = SCALAR(MAT_VOLUME_SCATTERING,inside[gid]);
     
-    #ifdef BIDIRECTIONAL
+    ### if renderer.bidirectional
         const uint suppressed_emission_id = suppress_emission[gid];
         suppress_emission[gid] = 0;
-    #endif
+    ### endif
     
     if (alpha > 0) cur_prob = 1.0-exp(-alpha*last_dist);
     
@@ -89,29 +113,36 @@ __kernel void rgb_shader(
         }
         else r = rvec;
         
-        #ifdef BIDIRECTIONAL
+        ### if renderer.bidirectional
             suppress_emission[gid] = -1;
-        #endif
+        ### endif
     }
     
-    #define COLOR2PROB(color) dot(color,WHITE)/3.0
-    
-    float3 cur_col = COLOR(MAT_VOLUME_ABSORPTION,inside[gid]);
-    cur_col_mult = (float3)(exp(-cur_col.x*last_dist),exp(-cur_col.y*last_dist),exp(-cur_col.z*last_dist));
-    cur_col = WHITE;
+    ### if shader.rgb
+        cur_col = COLOR(MAT_VOLUME_ABSORPTION,inside[gid]);
+        cur_col_mult = (float3)(exp(-cur_col.x*last_dist),exp(-cur_col.y*last_dist),exp(-cur_col.z*last_dist));
+        cur_col = WHITE;
+    ### else
+        cur_mult *= exp(-SCALAR(MAT_VOLUME_ABSORPTION,inside[gid])*last_dist);
+    ### endif
     
     if (p >= cur_prob)
     {
         p -= cur_prob;
         
-        #ifdef BIDIRECTIONAL
+        ### if renderer.bidirectional
             if (id != suppressed_emission_id)
             {
-        #endif
-                img[gid] += COLOR(MAT_EMISSION,id)*color[gid]*cur_col_mult;
-        #ifdef BIDIRECTIONAL
+        ### endif
+                img[gid] += COLOR(MAT_EMISSION,id)
+                    ### if shader.rgb
+                        * color[gid]*cur_col_mult;
+                    ### else
+                         * intensity[gid]*cmask*cur_mult;
+                    ### endif
+        ### if renderer.bidirectional
             }
-        #endif
+        ### endif
         
         cur_col = COLOR(MAT_REFLECTION,id);
         cur_prob = COLOR2PROB(cur_col);
@@ -138,7 +169,9 @@ __kernel void rgb_shader(
             
             if (p < cur_prob)
             {
-                cur_mult /= cur_prob;
+                ### if shader.rgb
+                    cur_mult /= cur_prob;
+                ### endif
                 
                 // --- Refraction / Transparency
                 
@@ -195,13 +228,19 @@ __kernel void rgb_shader(
             }
             else
             {
+                ### if shader.rgb
                 cur_col = COLOR(MAT_DIFFUSE,id);
                 
                 // diffusion / absorbtion
                 
                 if (COLOR2PROB(cur_col) > 0.0) {
+                ### else
+                cur_mult *= COLOR(MAT_DIFFUSE,id);
                 
-                    #ifdef BIDIRECTIONAL
+                if (cur_mult > 0.0) {
+                ### endif
+                
+                    ### if renderer.bidirectional
                         if (suppressed_emission_id == 0 && light_id > 0) {
                             const float3 light_center = rvecs_cmask_and_light[5].xyz;
                             
@@ -219,14 +258,18 @@ __kernel void rgb_shader(
                                     
                                     img[gid] += dot(n,shadow_ray) / M_PI
                                         * dot(-shadow_ray,light_normal) / (shadow_dist*shadow_dist)
+                                    ### if shader.rgb
                                         * color[gid]*cur_mult*cur_col*cur_col_mult
+                                    ### else
+                                        * intensity[gid]*cmask*cur_mult
+                                    ### endif
                                         * COLOR(MAT_EMISSION,light_id)
                                         * shadow_mask[gid]
                                         * light_area;
                                 }
                             }
                         }
-                    #endif
+                    ### endif
                 
                     // --- Diffuse
                     r = rvec;
@@ -242,5 +285,10 @@ __kernel void rgb_shader(
     }
     
     ray[gid] = r;
-    color[gid] *= cur_mult*cur_col*cur_col_mult;
+    
+    ### if shader.rgb
+        color[gid] *= cur_mult*cur_col*cur_col_mult;
+    ### else
+        intensity[gid] *= cur_mult;
+    ### endif
 }

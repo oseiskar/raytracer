@@ -19,9 +19,7 @@ class Compiler:
         
         template_env = jinja2.Environment(\
             loader=jinja2.PackageLoader('clray', 'cl_templates'),
-            line_statement_prefix='###',
-            trim_blocks=False,
-            lstrip_blocks=False)
+            line_statement_prefix='###')
     
         kernels, functions = collect_tracer_kernels(scene.objects, template_env)
         function_declarations = [body[:body.find('{')] + ';' for body in functions]
