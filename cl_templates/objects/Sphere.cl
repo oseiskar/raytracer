@@ -1,4 +1,4 @@
-### extends 'object.cl'
+### extends 'tracer.cl'
 
 ### macro tracer_function(obj)
     ### call tracer_function_base(obj)
