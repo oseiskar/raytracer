@@ -28,20 +28,39 @@ class ConvexIntersection(Tracer):
     
     # "view helpers"
     
-    def component_tracer_call_params(self, component):
-        return 'rel - (float3)%s, ray, &cur_ibegin, &cur_iend, &cur_subobj, inside' \
-            % (tuple(component.pos),)
+    def component_tracer_call_params(self, component_idx):
+        return ('rel - _pos_%i, ray, &cur_ibegin, &cur_iend, &cur_subobj, inside' \
+            % (component_idx,)) \
+            + self.component_parameter_string(component_idx)
     
-    def component_normal_call_params(self, component, subobject_offset):
-        return 'p - (float3)%s, subobject - %d, p_normal' \
-             % (tuple(component.pos), subobject_offset)
+    def component_normal_call_params(self, component_idx, subobject_offset):
+        component = self.components[component_idx]
+        return ('p - _pos_%i, subobject - %d, p_normal' \
+             % (component_idx, subobject_offset)) \
+             + self.component_parameter_string(component_idx)
+    
+    def component_parameter_string(self, component_idx):
+        params = []
+        for name in self.components[component_idx].parameter_names():
+            params.append('%s_%d' % (name, component_idx))
+        
+        return ', '.join([''] + params)
 
     @property
     def convex(self):
         return True
         
     def parameter_declarations(self):
-        return ['float3 base']
+        params = ['float3 base']
+        for i in range(len(self.components)):
+            c = self.components[i]
+            params.append('float3 _pos_%d' % i)
+            params += ['%s_%d' % (n,i) for n in c.parameter_declarations()]
+        return params
     
     def parameter_values(self):
-        return [self.origin]
+        params = [self.origin]
+        for c in self.components:
+            params.append(c.pos)
+            params += c.parameter_values()
+        return params

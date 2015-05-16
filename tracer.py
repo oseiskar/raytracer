@@ -93,21 +93,13 @@ class Tracer:
     def parameter_types(self):
         return [cl_type for cl_type, _ in self._typed_parameters()]
     
+    def parameter_names(self):
+        return [name for _, name in self._typed_parameters()]
+    
     def _typed_parameters(self):
         for p in self.parameter_declarations():
             cl_type, name = p.split()
             yield((cl_type,name))
-        
-    def parameter_value_string(self):
-        params = []
-        for p in self.parameter_values():
-            arr = tuple(numpy.ravel(p))
-            if len(arr) == 1:
-                v = str(arr[0])
-            else:
-                v = "(float%d)%s" % (len(arr),arr)
-            params.append(v)
-        return cl_parameter_string(params)
 
     def has_data(self):
         return hasattr(self, 'get_data')

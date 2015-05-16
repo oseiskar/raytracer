@@ -9,7 +9,9 @@
 		uint subobj, cur_subobj, last_subobject = *p_subobject;
 		
 		### set subobj_offset = 0
-        ### for c in obj.components
+        ### for i in range(obj.components|length)
+        
+            ### set component = obj.components[i]
             
 			cur_subobj = 0;
 			cur_ibegin = ibegin;
@@ -18,9 +20,8 @@
             if (origin_self && last_subobject > {{ subobj_offset }})
                 cur_subobj = last_subobject - {{ subobj_offset }};
             
-            {{ c.tracer_function_name }}(
-                {{ obj.component_tracer_call_params(c) }}
-                {{ c.parameter_value_string() }} // TODO
+            {{ component.tracer_function_name }}(
+                {{ obj.component_tracer_call_params(i) }}
             );
 			
 			if (cur_ibegin > ibegin) {
@@ -33,7 +34,7 @@
 			}
 			if (ibegin > iend || ibegin > old_isec_dist) return;
 			
-			### set subobj_offset = subobj_offset + c.n_subobjects
+			### set subobj_offset = subobj_offset + component.n_subobjects
 		
         ### endfor
         
@@ -51,16 +52,17 @@
 		const float3 p = pos - base;
 		
 		### set subobj_offset = 0
-        ### for c in obj.components
-        
-            {% if subobj_offset > 0 %}else {% endif %}if ({% if subobj_offset > 0 %}subobject >= {{ subobj_offset }} && {% endif %}subobject < {{ subobj_offset + c.n_subobjects }})
+        ### for i in range(obj.components|length)
             
-                {{ c.normal_function_name }}(
-                    {{ obj.component_normal_call_params(c, subobj_offset) }}
-                    {{ c.parameter_value_string() }} // TODO
+            ### set component = obj.components[i]
+        
+            {% if subobj_offset > 0 %}else {% endif %}if ({% if subobj_offset > 0 %}subobject >= {{ subobj_offset }} && {% endif %}subobject < {{ subobj_offset + component.n_subobjects }})
+            
+                {{ component.normal_function_name }}(
+                    {{ obj.component_normal_call_params(i, subobj_offset) }}
                 );
                 
-			### set subobj_offset = subobj_offset + c.n_subobjects
+			### set subobj_offset = subobj_offset + component.n_subobjects
         
         ### endfor
         
