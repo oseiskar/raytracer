@@ -210,16 +210,13 @@ __kernel void {{ obj.shadow_kernel_name }}(
     constant const float *param_float_data,
     constant float4 *p_dest_point,
     int light_id,
-    int offset, int count,
-    __local float *float_scratch,
-    __local int *int_scratch)
+    int offset, int count)
 {
     const int ray_idx = get_global_id(0);
-    if (ray_idx >= N_RAYS) return;
     if (p_shadow_mask[ray_idx] == 0.0) return;
     
     const int object_index = get_global_id(1);
-    if (object_index >= count) return;
+    //if (object_index >= count) return;
     const int object_id = object_index + offset;
     if (object_id == light_id) return;
     

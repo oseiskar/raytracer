@@ -366,7 +366,7 @@ class Renderer:
                 
                 
                 for tracer, count, offset in self.object_groups:
-                    self.call_grouped_kernel(tracer.shadow_kernel_name, count, \
+                    acc.call(tracer.shadow_kernel_name, (self.n_pixels, count),
                         self.ray_state.shadow_kernel_params() + \
                         tuple(self.tracer_data_buffers),
                         value_args=tuple(self.tracer_const_data_buffers) + \
