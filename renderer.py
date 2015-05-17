@@ -81,9 +81,6 @@ class Renderer:
         # Randomization init
         self.qdirs = utils.quasi_random_direction_sample(self.scene.samples_per_pixel)
         self.qdirs = np.random.permutation(self.qdirs)
-        
-        self.kernel_work_groups = {}
-        self.zero_scratch = self.acc.new_local_buffer(1)
     
     def _init_camera_and_image(self):
         scene = self.scene
@@ -329,14 +326,15 @@ class Renderer:
         self.ray_state.last_which_subobject = self.ray_state.which_subobject * 1
         
         for tracer, count, offset in self.object_groups:
-            self.call_grouped_kernel(tracer.tracer_kernel_name, count, \
-                self.ray_state.tracer_kernel_params() + \
-                tuple(self.tracer_data_buffers),
-                value_args=tuple(self.tracer_const_data_buffers) + \
-                    (np.int32(offset+1), np.int32(count)))
+            for object_index in range(offset, offset+count):
+                acc.call(tracer.tracer_kernel_name, self.n_pixels, \
+                    self.ray_state.tracer_kernel_params() + \
+                    tuple(self.tracer_data_buffers),
+                    value_args=tuple(self.tracer_const_data_buffers) + \
+                        (np.int32(object_index+1),))
         
         for tracer, count, offset in self.object_groups:
-            self.acc.call(tracer.normal_kernel_name, self.n_pixels, \
+            acc.call(tracer.normal_kernel_name, self.n_pixels, \
                     self.ray_state.normal_kernel_params() + \
                     tuple(self.tracer_data_buffers),
                     value_args=tuple(self.tracer_const_data_buffers) + \
@@ -397,14 +395,6 @@ class Renderer:
             (self.img, ) + self.ray_state.shader_kernel_params(),
             value_args=tuple(constant_params))
         
-    def call_grouped_kernel(self, kernel_name, group_size, buffer_args, value_args):
-        
-        global_size, local_size, scratch_buffers = \
-            self.get_work_group_sizes_and_scratch(kernel_name, group_size)
-        
-        self.acc.call(kernel_name, global_size, buffer_args,
-            value_args + scratch_buffers, work_group_size=local_size)
-    
     def get_image_order(self):
         order = []
         
@@ -427,42 +417,6 @@ class Renderer:
                     order.append([x,y])
             
         return np.array(order)
-        
-    def get_work_group_sizes_and_scratch(self, kernel_name, group_size):
-        
-        cache = self.kernel_work_groups
-        key = (kernel_name, group_size)
-        
-        if key in cache: return cache[key]
-        
-        if group_size == 1:
-            local_size = None
-            global_size = self.n_pixels
-            float_scratch = self.zero_scratch
-            int_scratch = self.zero_scratch
-        else:
-            #block_size = self.acc.get_preferred_local_work_group_size_multiple(kernel_name)
-            max_size = self.acc.get_max_work_group_size(kernel_name)
-            
-            whole_groups = max_size / group_size
-            assert(whole_groups > 0)
-            local_size = (whole_groups, group_size)
-            
-            if self.n_pixels % whole_groups != 0:
-                padding = whole_groups - (self.n_pixels % whole_groups)
-                global_size = (self.n_pixels+padding, group_size)
-            else:
-                global_size = (self.n_pixels, group_size)
-        
-            print "work_group sizes for", key, "=", global_size, local_size
-            
-            n_scratch = local_size[0]*local_size[1]
-            float_scratch = self.acc.new_local_buffer(n_scratch)
-            int_scratch = self.acc.new_local_buffer(n_scratch)
-        
-        cache[key] = (global_size, local_size, (float_scratch, int_scratch))
-        return cache[key]
-        
 
 class RayStateBuffers:
     def __init__(self, renderer):

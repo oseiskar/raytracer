@@ -80,16 +80,9 @@ __kernel void {{ obj.tracer_kernel_name }}(
     constant const float4 *param_float3_data,
     constant const int *param_int_data,
     constant const float *param_float_data,
-    int offset, int count,
-    __local float *float_scratch,
-    __local int *int_scratch)
+    int object_id)
 {
     const int ray_idx = get_global_id(0);
-    if (ray_idx >= N_RAYS) return;
-    
-    const int object_index = get_global_id(1);
-    if (object_index >= count) return;
-    const int object_id = object_index + offset;
     
     const float old_isec_dist = p_isec_dist[ray_idx];
     float isec_dist = old_isec_dist;
@@ -118,77 +111,14 @@ __kernel void {{ obj.tracer_kernel_name }}(
                 
         if (new_isec_dist > 0 && new_isec_dist < isec_dist)
         {
-            isec_dist = new_isec_dist;
-            subobject = cur_subobject;
-            whichobject = object_id;
+            p_isec_dist[ray_idx] = new_isec_dist;
+            p_which_subobject[ray_idx] = cur_subobject;
+            p_whichobject[ray_idx] = object_id;
         }
     
     ### if obj.convex
     }
     ### endif
-    
-    // parallel reduction: TODO: it is not allowed to call
-    // return for any item before this
-    int best_self = 0;
-    
-    if (count > 1) {
-        
-        const int local_offset = get_local_id(0) * get_global_size(1);
-        
-        int_scratch += local_offset;
-        float_scratch += local_offset;
-        
-        int_scratch[object_index] = object_index;
-        float_scratch[object_index] = isec_dist;
-        
-        int sz = 1;
-        while (sz < count) sz *= 2;
-        
-        while (sz > 1) 
-        {
-            sz /= 2;
-            
-            float best_value;
-            int best_idx;
-            
-            barrier(CLK_LOCAL_MEM_FENCE);
-            if (object_index < sz) {
-            
-                const int other_idx = object_index + sz;
-                
-                best_value = float_scratch[object_index];
-                best_idx = object_index;
-                
-                if (other_idx < count) {
-                    const float other_value = float_scratch[other_idx];
-                    
-                    if (other_value < best_value) {
-                        best_value = other_value;
-                        best_idx = other_idx;
-                    }
-                }
-            }
-            barrier(CLK_LOCAL_MEM_FENCE);
-            
-            if (object_index < sz) {
-                int_scratch[object_index] = int_scratch[best_idx];
-                float_scratch[object_index] = best_value;
-            }
-        }
-        barrier(CLK_LOCAL_MEM_FENCE);
-        
-        best_self = int_scratch[0] == object_index;
-    }
-    else {
-        best_self = 1;
-    }
-    
-    if (best_self && isec_dist < old_isec_dist)
-    {
-        p_isec_dist[ray_idx] = isec_dist;
-        p_whichobject[ray_idx] = whichobject;
-        p_which_subobject[ray_idx] = subobject;
-    }
 }
 
 
