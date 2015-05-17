@@ -78,54 +78,59 @@ __kernel void shader(
     const float3 cmask = rvecs_cmask_and_light[2].xyz;
 ### endif
     
-    float last_dist = last_distance[gid];
-    const float alpha = SCALAR(MAT_VOLUME_SCATTERING,inside[gid]);
-    
     ### if renderer.bidirectional
         const int suppressed_emission_id = suppress_emission[gid];
         suppress_emission[gid] = 0;
     ### endif
     
-    if (alpha > 0) cur_prob = 1.0-exp(-alpha*last_dist);
+    do { // shading / probabilistic ray selection "pipeline"
+        
+        // -------------------- volumetric effects
     
-    if (p < cur_prob)
-    {
-        // --- (sub-surface) scattering / fog
+        float last_dist = last_distance[gid];
+        const float alpha = SCALAR(MAT_VOLUME_SCATTERING,inside[gid]);
+        if (alpha > 0) cur_prob = 1.0-exp(-alpha*last_dist);
         
-        // "derivation":
-        //    p < 1.0-exp(-alpha*dist)
-        //   (1-p) > exp(-alpha*dist)
-        //   log(1-p) > -alpha*dist
-        //   -log(1-p) < alpha*dist
-        //   dist > -log(1-p)/alpha
-        float d = -log(1.0 - p) / alpha;
-      
-        pos[gid] -= (last_dist-d) * r;
-        last_dist = d;
-        surface_object_id[gid] = 0; // not on any surface
-        
-        blur = SCALAR(MAT_VOLUME_SCATTERING_BLUR,inside[gid]);
-        if (blur < 1.0) {
-            r = normalize(gauss_rvec + r * tan(M_PI*0.5*(1.0 - blur)));
+        if (p < cur_prob)
+        {
+            // (sub-surface) scattering / fog
+            
+            // "derivation":
+            //    p < 1.0-exp(-alpha*dist)
+            //   (1-p) > exp(-alpha*dist)
+            //   log(1-p) > -alpha*dist
+            //   -log(1-p) < alpha*dist
+            //   dist > -log(1-p)/alpha
+            float d = -log(1.0 - p) / alpha;
+          
+            pos[gid] -= (last_dist-d) * r;
+            last_dist = d;
+            surface_object_id[gid] = 0; // not on any surface
+            
+            blur = SCALAR(MAT_VOLUME_SCATTERING_BLUR,inside[gid]);
+            if (blur < 1.0) {
+                r = normalize(gauss_rvec + r * tan(M_PI*0.5*(1.0 - blur)));
+            }
+            else r = rvec;
+            
+            ### if renderer.bidirectional
+                suppress_emission[gid] = -1;
+            ### endif
         }
-        else r = rvec;
         
-        ### if renderer.bidirectional
-            suppress_emission[gid] = -1;
+        // volumetric absorption
+        ### if shader.rgb
+            cur_col = COLOR(MAT_VOLUME_ABSORPTION,inside[gid]);
+            cur_col_mult = (float3)(exp(-cur_col.x*last_dist),exp(-cur_col.y*last_dist),exp(-cur_col.z*last_dist));
+            cur_col = WHITE;
+        ### else
+            cur_mult *= exp(-SCALAR(MAT_VOLUME_ABSORPTION,inside[gid])*last_dist);
         ### endif
-    }
-    
-    ### if shader.rgb
-        cur_col = COLOR(MAT_VOLUME_ABSORPTION,inside[gid]);
-        cur_col_mult = (float3)(exp(-cur_col.x*last_dist),exp(-cur_col.y*last_dist),exp(-cur_col.z*last_dist));
-        cur_col = WHITE;
-    ### else
-        cur_mult *= exp(-SCALAR(MAT_VOLUME_ABSORPTION,inside[gid])*last_dist);
-    ### endif
-    
-    if (p >= cur_prob)
-    {
+        
+        if (p < cur_prob) break; // scattering
         p -= cur_prob;
+        
+        // -------------------- emission
         
         ### if renderer.bidirectional
             if (id != suppressed_emission_id)
@@ -141,6 +146,7 @@ __kernel void shader(
             }
         ### endif
         
+        // -------------------- specular reflection
         cur_col = COLOR(MAT_REFLECTION,id);
         cur_prob = COLOR2PROB(cur_col);
         
@@ -148,7 +154,6 @@ __kernel void shader(
         {
             cur_mult /= cur_prob;
             
-            // --- Reflection
             r -= 2*dot(r,n) * n;
             
             blur = SCALAR(MAT_REFLECTION_BLUR,id);
@@ -156,131 +161,128 @@ __kernel void shader(
                 if (dot(n,gauss_rvec) < 0) gauss_rvec = -gauss_rvec;
                 r = normalize(gauss_rvec * blur + r * (1.0-blur));
             }
+            
+            break;
         }
-        else
+        p -= cur_prob;
+        
+        // -------------------- refraction / transparency
+        cur_col = COLOR(MAT_TRANSPARENCY,id);
+        cur_prob = COLOR2PROB(cur_col);
+        
+        if (p < cur_prob)
         {
-            p -= cur_prob;
+            ### if shader.rgb
+                cur_mult /= cur_prob;
+            ### endif
             
-            cur_col = COLOR(MAT_TRANSPARENCY,id);
-            cur_prob = COLOR2PROB(cur_col);
-            
-            if (p < cur_prob)
-            {
-                ### if shader.rgb
-                    cur_mult /= cur_prob;
-                ### endif
-                
-                // --- Refraction / Transparency
-                
-                float dotp = dot(r,n);
-                if (dotp > 0) { n = -n; dotp = -dotp; }
-                        
-                float nfrac = 0;
-                
-                float ior1 = SCALAR(MAT_IOR,id);
-                float ior0 = SCALAR(MAT_IOR,0);
-                
-                if (inside[gid] == surface_object_id[gid]) // Leaving
-                {
-                    nfrac = ior1/ior0;
-                    inside[gid] = 0; // TODO: parent
-                }
-                else // going in
-                {
-                    nfrac = ior0/ior1;
-                    inside[gid] = surface_object_id[gid];
-                }
-                
-                if (nfrac != 1)
-                {
-                    float cos2t =1-nfrac*nfrac*(1-dotp*dotp);
+            float dotp = dot(r,n);
+            if (dotp > 0) { n = -n; dotp = -dotp; }
                     
-                    if (cos2t < 0)
-                    {
-                        // Total reflection
-                        
-                        r -= 2*dotp * n;
-                        
-                        if (inside[gid] == surface_object_id[gid]) inside[gid] = 0;
-                        else inside[gid] = surface_object_id[gid];
-                    }
-                    else
-                    {
-                        // Refraction
-                        r = normalize(r*nfrac + n*(-dotp*nfrac-sqrt(cos2t)));
-                    }
-                }
-                
-                // else: no refraction, leave r intact
-                
-                if (dot(n,r) < 0) n = -n;
-                normal[gid] = n;
-                
-                blur = SCALAR(MAT_TRANSPARENCY_BLUR,id);
-                if (blur > 0) {
-                    if (dot(n,gauss_rvec) < 0) gauss_rvec = -gauss_rvec;
-                    r = normalize(gauss_rvec * blur + r * (1.0-blur));
-                }
-
+            float nfrac = 0;
+            
+            float ior1 = SCALAR(MAT_IOR,id);
+            float ior0 = SCALAR(MAT_IOR,0);
+            
+            if (inside[gid] == surface_object_id[gid]) // Leaving
+            {
+                nfrac = ior1/ior0;
+                inside[gid] = 0; // TODO: parent
             }
-            else
+            else // going in
             {
-                ### if shader.rgb
-                cur_col = COLOR(MAT_DIFFUSE,id);
+                nfrac = ior0/ior1;
+                inside[gid] = surface_object_id[gid];
+            }
+            
+            if (nfrac != 1)
+            {
+                float cos2t =1-nfrac*nfrac*(1-dotp*dotp);
                 
-                // diffusion / absorbtion
-                
-                if (COLOR2PROB(cur_col) > 0.0) {
-                ### else
-                cur_mult *= COLOR(MAT_DIFFUSE,id);
-                
-                if (cur_mult > 0.0) {
-                ### endif
-                
-                    ### if renderer.bidirectional
-                        if (suppressed_emission_id == 0 && light_id > 0) {
-                            const float3 light_center = rvecs_cmask_and_light[5].xyz;
-                            
-                            if (length(pos[gid]-light_center) > min_light_sampling_distance) {
-                            
-                                const float3 light_point = rvecs_cmask_and_light[3].xyz;
-                                float3 shadow_ray = light_point - pos[gid];
-                                const float3 light_normal = rvecs_cmask_and_light[4].xyz;
-                            
-                                suppress_emission[gid] = light_id;
-                                
-                                if (dot(shadow_ray, n) > 0 && dot(shadow_ray,light_normal) < 0) {
-                                    const float shadow_dist = length(shadow_ray);
-                                    shadow_ray = fast_normalize(shadow_ray);
-                                    
-                                    img[image_pixel] += dot(n,shadow_ray) / M_PI
-                                        * dot(-shadow_ray,light_normal) / (shadow_dist*shadow_dist)
-                                        * color[gid] * cur_mult
-                                    ### if shader.rgb
-                                        * cur_col*cur_col_mult
-                                    ### else
-                                        * cmask
-                                    ### endif
-                                        * COLOR(MAT_EMISSION,light_id)
-                                        * shadow_mask[gid]
-                                        * light_area;
-                                }
-                            }
-                        }
-                    ### endif
-                
-                    // --- Diffuse
-                    r = rvec;
-                        
-                    // Reflect (negation) to outside
-                    if (dot(n,r) < 0) r = -r;
+                if (cos2t < 0)
+                {
+                    // Total reflection
                     
-                    // Lambert's law
-                    cur_mult *= 2.0 * dot(n,r);
+                    r -= 2*dotp * n;
+                    
+                    if (inside[gid] == surface_object_id[gid]) inside[gid] = 0;
+                    else inside[gid] = surface_object_id[gid];
+                }
+                else
+                {
+                    // Refraction
+                    r = normalize(r*nfrac + n*(-dotp*nfrac-sqrt(cos2t)));
                 }
             }
+            
+            // else: no refraction, leave r intact
+            
+            if (dot(n,r) < 0) n = -n;
+            normal[gid] = n;
+            
+            blur = SCALAR(MAT_TRANSPARENCY_BLUR,id);
+            if (blur > 0) {
+                if (dot(n,gauss_rvec) < 0) gauss_rvec = -gauss_rvec;
+                r = normalize(gauss_rvec * blur + r * (1.0-blur));
+            }
+            
+            break;
         }
-    }
+        
+        // -------------------- diffusion / absorbtion
+        ### if shader.rgb
+        cur_col = COLOR(MAT_DIFFUSE,id);
+        
+        if (COLOR2PROB(cur_col) > 0.0) {
+        ### else
+        cur_mult *= COLOR(MAT_DIFFUSE,id);
+        
+        if (cur_mult > 0.0) {
+        ### endif
+        
+            ### if renderer.bidirectional
+                if (suppressed_emission_id == 0 && light_id > 0) {
+                    const float3 light_center = rvecs_cmask_and_light[5].xyz;
+                    
+                    if (length(pos[gid]-light_center) > min_light_sampling_distance) {
+                    
+                        const float3 light_point = rvecs_cmask_and_light[3].xyz;
+                        float3 shadow_ray = light_point - pos[gid];
+                        const float3 light_normal = rvecs_cmask_and_light[4].xyz;
+                    
+                        suppress_emission[gid] = light_id;
+                        
+                        if (dot(shadow_ray, n) > 0 && dot(shadow_ray,light_normal) < 0) {
+                            const float shadow_dist = length(shadow_ray);
+                            shadow_ray = fast_normalize(shadow_ray);
+                            
+                            img[image_pixel] += dot(n,shadow_ray) / M_PI
+                                * dot(-shadow_ray,light_normal) / (shadow_dist*shadow_dist)
+                                * color[gid] * cur_mult
+                            ### if shader.rgb
+                                * cur_col*cur_col_mult
+                            ### else
+                                * cmask
+                            ### endif
+                                * COLOR(MAT_EMISSION,light_id)
+                                * shadow_mask[gid]
+                                * light_area;
+                        }
+                    }
+                }
+            ### endif
+        
+            // diffuse reflection
+            r = rvec;
+                
+            // Reflect (negation) to outside
+            if (dot(n,r) < 0) r = -r;
+            
+            // Lambert's law
+            cur_mult *= 2.0 * dot(n,r);
+        }
+    
+    } while(0); // end of ray selection pipeline
     
     ray[gid] = r;
     
