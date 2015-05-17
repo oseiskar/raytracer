@@ -361,6 +361,7 @@ class Renderer:
             
         rand_vec = np.array(rand_vec).astype(np.float32) 
         rand_01 = np.float32(np.random.rand())
+        self.ray_state.prob.fill(rand_01)
         
         self.vec_param_buf[0, :3] = rand_vec
         self.vec_param_buf[1, :3] = np.random.normal(0, 1,( 3, ))
@@ -371,14 +372,15 @@ class Renderer:
             self.vec_param_buf[5, :3] = light_center
         acc.enqueue_copy(self.vec_broadcast, self.vec_param_buf)
         
-        constant_params = self.shader.material_buffers + \
-            [rand_01, self.vec_broadcast]
+        constant_params = self.shader.material_buffers + [self.vec_broadcast]
         if self.bidirectional:
             constant_params = [light_id1, light_area, min_light_sampling_distance] + constant_params
         
-        acc.call('shader', self.cur_n_pixels, \
-            (self.img, ) + self.ray_state.shader_kernel_params(),
-            value_args=tuple(constant_params))
+        for shader_component in ['volumetric', 'emission', 'reflection', 'refraction', 'diffuse']:
+        
+            acc.call('shader_'+shader_component, self.cur_n_pixels, \
+                (self.img, ) + self.ray_state.shader_kernel_params(),
+                value_args=tuple(constant_params))
         
         return True
         
@@ -419,9 +421,11 @@ class RayStateBuffers:
         self.ray = acc.zeros_like(self.pos)
         self.inside = acc.zeros_like(self.whichobject)
         self.normal = acc.zeros_like(self.pos)
-        self.isec_dist = acc.zeros_like(self.pos)
+        self.isec_dist = acc.new_array((n_pixels, ), np.float32, True)
         
+        self.prob = acc.zeros_like(self.isec_dist)
         self.raycolor = renderer.shader.new_ray_color_buffer(acc, (n_pixels, ))
+        self.shader_color = renderer.shader.new_ray_color_buffer(acc, (n_pixels, ))
         
         if self.bidirectional:
             self.shadow_mask = acc.zeros_like(self.isec_dist)
@@ -444,7 +448,7 @@ class RayStateBuffers:
                 self.which_subobject, self.inside)
     
     def shader_kernel_params(self):
-        buffer_params = [self.whichobject, 
+        buffer_params = [self.prob, self.shader_color, self.whichobject, 
             self.normal, self.isec_dist, self.pos, self.ray,
             self.raycolor, self.inside]
         
