@@ -29,11 +29,7 @@ __kernel void shader(
         global float3 *ray,
         // current ray color: a filter that multiplies everything
         // added to the image
-### if shader.rgb
-        global float3 *color,
-### else
-        global float *intensity,
-### endif
+        global {{ shader.color_cl_type }} *color,
         // id of the object inside which the current ray position is,
         // 0 if in ambient space. (notice however, that the ambient
         // space also has fog and IoR material properties)
@@ -58,6 +54,7 @@ __kernel void shader(
         constant float4 *rvecs_cmask_and_light)
 {
     const int gid = get_global_id(0);
+    const int image_pixel = gid;
     uint id = surface_object_id[gid];
     
     float3 r = ray[gid];
@@ -85,7 +82,7 @@ __kernel void shader(
     const float alpha = SCALAR(MAT_VOLUME_SCATTERING,inside[gid]);
     
     ### if renderer.bidirectional
-        const uint suppressed_emission_id = suppress_emission[gid];
+        const int suppressed_emission_id = suppress_emission[gid];
         suppress_emission[gid] = 0;
     ### endif
     
@@ -134,11 +131,11 @@ __kernel void shader(
             if (id != suppressed_emission_id)
             {
         ### endif
-                img[gid] += COLOR(MAT_EMISSION,id)
+                img[image_pixel] += COLOR(MAT_EMISSION,id)
                     ### if shader.rgb
                         * color[gid]*cur_col_mult;
                     ### else
-                         * intensity[gid]*cmask*cur_mult;
+                         * color[gid]*cmask*cur_mult;
                     ### endif
         ### if renderer.bidirectional
             }
@@ -256,12 +253,13 @@ __kernel void shader(
                                     const float shadow_dist = length(shadow_ray);
                                     shadow_ray = fast_normalize(shadow_ray);
                                     
-                                    img[gid] += dot(n,shadow_ray) / M_PI
+                                    img[image_pixel] += dot(n,shadow_ray) / M_PI
                                         * dot(-shadow_ray,light_normal) / (shadow_dist*shadow_dist)
+                                        * color[gid] * cur_mult
                                     ### if shader.rgb
-                                        * color[gid]*cur_mult*cur_col*cur_col_mult
+                                        * cur_col*cur_col_mult
                                     ### else
-                                        * intensity[gid]*cmask*cur_mult
+                                        * cmask
                                     ### endif
                                         * COLOR(MAT_EMISSION,light_id)
                                         * shadow_mask[gid]
@@ -286,9 +284,9 @@ __kernel void shader(
     
     ray[gid] = r;
     
-    ### if shader.rgb
-        color[gid] *= cur_mult*cur_col*cur_col_mult;
-    ### else
-        intensity[gid] *= cur_mult;
-    ### endif
+    color[gid] *= cur_mult
+        ### if shader.rgb
+            * cur_col*cur_col_mult
+        ### endif
+            ;
 }

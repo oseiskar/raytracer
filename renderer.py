@@ -279,7 +279,7 @@ class Renderer:
         
         acc.enqueue_copy(self.vec_broadcast,  mat4.astype(np.float32))
         acc.call('subsample_transform_camera', self.n_pixels, \
-            (self.cam, self.ray_state.ray,), \
+            (self.cam, self.ray_state.ray), \
             value_args=(self.vec_broadcast,))
         
         self._fill_vec(self.ray_state.pos, cam_origin)
@@ -290,28 +290,13 @@ class Renderer:
         self.ray_state.inside.fill(self.root_object_id)
         
         path_index = 0
-        r_prob = 1
         
         self.shader.init_sample(self)
+        self.cur_n_pixels = self.n_pixels
         
-        while True:
-            
-            self.ray_state.raycolor *= r_prob
-            
-            r_prob = 1
-            break_next = False
-            if path_index >= scene.min_bounces:
-                rand_01 = np.random.rand()
-                if rand_01 < scene.russian_roulette_prob and path_index < scene.max_bounces:
-                    r_prob = 1.0/(1-scene.russian_roulette_prob)
-                else: break_next = True
-            
-            self.compute_next_path_segment(sample_index, path_index, break_next)
-            
-            if break_next:
+        for path_index in range(scene.max_bounces):
+            if not self.compute_next_path_segment(sample_index, path_index, path_index == scene.max_bounces-1):
                 break
-            
-            path_index += 1
     
         acc.finish()
         
@@ -327,14 +312,14 @@ class Renderer:
         
         for tracer, count, offset in self.object_groups:
             for object_index in range(offset, offset+count):
-                acc.call(tracer.tracer_kernel_name, self.n_pixels, \
+                acc.call(tracer.tracer_kernel_name, self.cur_n_pixels, \
                     self.ray_state.tracer_kernel_params() + \
                     tuple(self.tracer_data_buffers),
                     value_args=tuple(self.tracer_const_data_buffers) + \
                         (np.int32(object_index+1),))
         
         for tracer, count, offset in self.object_groups:
-            acc.call(tracer.normal_kernel_name, self.n_pixels, \
+            acc.call(tracer.normal_kernel_name, self.cur_n_pixels, \
                     self.ray_state.normal_kernel_params() + \
                     tuple(self.tracer_data_buffers),
                     value_args=tuple(self.tracer_const_data_buffers) + \
@@ -362,9 +347,8 @@ class Renderer:
                 acc.enqueue_copy(self.vec_broadcast, self.vec_param_buf)
                 self.ray_state.shadow_mask.fill(1.0)
                 
-                
                 for tracer, count, offset in self.object_groups:
-                    acc.call(tracer.shadow_kernel_name, (self.n_pixels, count),
+                    acc.call(tracer.shadow_kernel_name, (self.cur_n_pixels, count),
                         self.ray_state.shadow_kernel_params() + \
                         tuple(self.tracer_data_buffers),
                         value_args=tuple(self.tracer_const_data_buffers) + \
@@ -387,13 +371,16 @@ class Renderer:
             self.vec_param_buf[5, :3] = light_center
         acc.enqueue_copy(self.vec_broadcast, self.vec_param_buf)
         
-        constant_params = self.shader.material_buffers + [rand_01, self.vec_broadcast]
+        constant_params = self.shader.material_buffers + \
+            [rand_01, self.vec_broadcast]
         if self.bidirectional:
             constant_params = [light_id1, light_area, min_light_sampling_distance] + constant_params
         
-        acc.call('shader', self.n_pixels, \
+        acc.call('shader', self.cur_n_pixels, \
             (self.img, ) + self.ray_state.shader_kernel_params(),
             value_args=tuple(constant_params))
+        
+        return True
         
     def get_image_order(self):
         order = []
@@ -465,4 +452,3 @@ class RayStateBuffers:
             buffer_params += [self.shadow_mask, self.suppress_emission]
         
         return tuple(buffer_params)
-        
