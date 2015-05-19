@@ -84,9 +84,8 @@ class DefaultBoxScene(Scene):
         self.tent_filter = True
         self.quasirandom = False
         self.samples_per_pixel = 10000
-        self.min_bounces = 3
-        self.russian_roulette_prob = .3
-        self.max_bounces = 3
+        self.min_bounces = 2
+        self.max_bounces = 4
         
         self.initialize_materials()
         

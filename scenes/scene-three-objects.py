@@ -21,7 +21,7 @@ scene.materials['wax']['reflection'] = (0.01,0.04,0.02)
 
 scene.get_object('floor').material = 'floor'
 scene.get_object('ceiling').material = 'white'
-#scene.get_object('light').bidirectional_light = True
+scene.get_object('light').bidirectional_light = True
 
 for obj in scene.get_objects('wall'): obj.material = 'white'
 
@@ -55,7 +55,7 @@ scene.image_size = (1024,768)
 scene.samples_per_pixel = 10000
 scene.quasirandom = False
 scene.gamma = 1.6
-#scene.max_bounces = 5
+scene.max_bounces = 5
 scene.camera_fov = 60
 
 scene.camera_position = (-2,-3,1.5)

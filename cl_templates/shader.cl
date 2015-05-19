@@ -18,6 +18,8 @@ __kernel void shader_{{name}}(
         global float3 *img,
         // probability sample for the current pixel
         global float *p_p,
+        // number of diffusive bounces left for this ray
+        global int *diffusions_left,
         // local color multiplier, everything added to the image
         // is multiplied by this and the ray color. Applied to ray_color
         // at the end of the pipeline
@@ -131,7 +133,7 @@ __kernel void shader_{{name}}(
         else r = rvec;
         
         ### if renderer.bidirectional
-            suppress_emission[gid] = -1;
+            suppress_emission[gid] = 0;
         ### endif
         
         p = -1.0;
@@ -153,7 +155,9 @@ __kernel void shader_{{name}}(
     // -------------------- emission
     
     ### if renderer.bidirectional
-        if (id != suppress_emission[gid])
+        const int suppressed = suppress_emission[gid];
+        
+        if ((suppressed >= 0 && id != suppressed) || id == -suppressed)
         {
     ### endif
             img[image_pixel] += COLOR(MAT_EMISSION,id)
@@ -268,7 +272,6 @@ __kernel void shader_{{name}}(
 ### call shader_kernel('diffuse')
 
     ### if renderer.bidirectional
-        const int suppressed_emission_id = suppress_emission[gid];
         suppress_emission[gid] = 0;
     ### endif
     
@@ -276,12 +279,14 @@ __kernel void shader_{{name}}(
     cur_col = COLOR(MAT_DIFFUSE,id);
     cur_prob = COLOR2PROB(cur_col);
     
-    if (cur_prob > 0.0) {
+    if (cur_prob > 0.0 && diffusions_left[gid] > 0) {
         
         pipeline_color[gid] *= cur_col;
+        
+        diffusions_left[gid] -= 1;
     
         ### if renderer.bidirectional
-            if (suppressed_emission_id == 0 && light_id > 0) {
+            if (light_id > 0) {
                 const float3 light_center = rvecs_cmask_and_light[5].xyz;
                 
                 if (length(pos[gid]-light_center) > min_light_sampling_distance) {
@@ -302,6 +307,12 @@ __kernel void shader_{{name}}(
                             * COLOR(MAT_EMISSION,light_id)
                             * shadow_mask[gid]
                             * light_area;
+                    }
+                }
+                else {
+                    if (diffusions_left[gid] == 0) {
+                        diffusions_left[gid] = 1;
+                        suppress_emission[gid] = -light_id;
                     }
                 }
             }

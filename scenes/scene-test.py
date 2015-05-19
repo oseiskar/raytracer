@@ -94,6 +94,6 @@ for i in range(len(test_objects)):
     scene.objects.append( Object( test_objects[i](numpy.array((x,y,z)),scale*obj_scale), material ) )
 
 scene.max_bounces = 4
-scene.min_bounces = 4
+scene.min_bounces = 2
 
 scene.direct_camera_towards((0,0,0.0))

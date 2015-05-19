@@ -286,6 +286,7 @@ class Renderer:
         self.ray_state.whichobject.fill(0)
         self.ray_state.normal.fill(0)
         self.ray_state.raycolor.fill(1)
+        self.ray_state.diffusions_left.fill(scene.min_bounces)
         
         self.ray_state.inside.fill(self.root_object_id)
         
@@ -376,7 +377,10 @@ class Renderer:
         if self.bidirectional:
             constant_params = [light_id1, light_area, min_light_sampling_distance] + constant_params
         
-        for shader_component in ['volumetric', 'emission', 'reflection', 'refraction', 'diffuse']:
+        pipeline = ['volumetric', 'emission']
+        if not is_last: pipeline += ['reflection', 'refraction', 'diffuse']
+        
+        for shader_component in pipeline:
         
             acc.call('shader_'+shader_component, self.cur_n_pixels, \
                 (self.img, ) + self.ray_state.shader_kernel_params(),
@@ -422,10 +426,11 @@ class RayStateBuffers:
         self.inside = acc.zeros_like(self.whichobject)
         self.normal = acc.zeros_like(self.pos)
         self.isec_dist = acc.new_array((n_pixels, ), np.float32, True)
+        self.diffusions_left = acc.zeros_like(self.whichobject)
         
         self.prob = acc.zeros_like(self.isec_dist)
         self.raycolor = renderer.shader.new_ray_color_buffer(acc, (n_pixels, ))
-        self.shader_color = renderer.shader.new_ray_color_buffer(acc, (n_pixels, ))
+        self.pipeline_color = renderer.shader.new_ray_color_buffer(acc, (n_pixels, ))
         
         if self.bidirectional:
             self.shadow_mask = acc.zeros_like(self.isec_dist)
@@ -448,7 +453,8 @@ class RayStateBuffers:
                 self.which_subobject, self.inside)
     
     def shader_kernel_params(self):
-        buffer_params = [self.prob, self.shader_color, self.whichobject, 
+        buffer_params = [self.prob, self.diffusions_left,
+            self.pipeline_color, self.whichobject, 
             self.normal, self.isec_dist, self.pos, self.ray,
             self.raycolor, self.inside]
         
