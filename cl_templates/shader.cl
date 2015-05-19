@@ -18,8 +18,10 @@ __kernel void shader_{{name}}(
         global float3 *img,
         // probability sample for the current pixel
         global float *p_p,
-        // local color multiplier
-        global {{ shader.color_cl_type }} *p_current_color,
+        // local color multiplier, everything added to the image
+        // is multiplied by this and the ray color. Applied to ray_color
+        // at the end of the pipeline
+        global {{ shader.color_cl_type }} *pipeline_color,
         // id of the object on whose surface the ray position (param
         // pos below) is currently on. If 0, the ray position is not
         // on any surface (happens with fog/scattering and rays
@@ -35,7 +37,7 @@ __kernel void shader_{{name}}(
         global float3 *ray,
         // current ray color: a filter that multiplies everything
         // added to the image
-        global {{ shader.color_cl_type }} *color,
+        global {{ shader.color_cl_type }} *ray_color,
         // id of the object inside which the current ray position is,
         // 0 if in ambient space. (notice however, that the ambient
         // space also has fog and IoR material properties)
@@ -70,17 +72,15 @@ __kernel void shader_{{name}}(
     const float3 rvec = rvecs_cmask_and_light[0].xyz;
     float3 gauss_rvec = rvecs_cmask_and_light[1].xyz;
     
-    float cur_prob = 0;
-    {{ shader.color_cl_type }} current_color = p_current_color[gid];
+    float cur_prob;
+    {{ shader.color_cl_type }} cur_col;
     
 ### if shader.rgb
     const float3 WHITE = (float3)(1.0,1.0,1.0);
     const float cmask = 1.0;
-    float3 cur_col;
 ### else
     const float3 cmask = rvecs_cmask_and_light[2].xyz;
     const float WHITE = 1.0;
-    float cur_col;
 ### endif
     
     {{ caller() }}
@@ -88,10 +88,7 @@ __kernel void shader_{{name}}(
     if (p < 0.0)
     {
         ray[gid] = r;
-        color[gid] *= current_color;
-    }
-    else {
-        p_current_color[gid] = current_color;
+        ray_color[gid] *= pipeline_color[gid];
     }
     p_p[gid] = p;
 }
@@ -99,10 +96,8 @@ __kernel void shader_{{name}}(
 
 ### if shader.rgb
     #define COLOR2PROB(color) dot(color,WHITE)/3.0
-    #define UPDATE_CURRENT_COLOR current_color *= cur_col / cur_prob
 ### else
     #define COLOR2PROB(color) color
-    #define UPDATE_CURRENT_COLOR (void)0
 ### endif
 
 ### call shader_kernel('volumetric')
@@ -146,9 +141,9 @@ __kernel void shader_{{name}}(
     // volumetric absorption
     ### if shader.rgb
         cur_col = COLOR(MAT_VOLUME_ABSORPTION,inside[gid]);
-        current_color = (float3)(exp(-cur_col.x*last_dist),exp(-cur_col.y*last_dist),exp(-cur_col.z*last_dist));
+        pipeline_color[gid] = (float3)(exp(-cur_col.x*last_dist),exp(-cur_col.y*last_dist),exp(-cur_col.z*last_dist));
     ### else
-        current_color = exp(-SCALAR(MAT_VOLUME_ABSORPTION,inside[gid])*last_dist);
+        pipeline_color[gid] = exp(-SCALAR(MAT_VOLUME_ABSORPTION,inside[gid])*last_dist);
     ### endif
 
 ### endcall
@@ -162,7 +157,7 @@ __kernel void shader_{{name}}(
         {
     ### endif
             img[image_pixel] += COLOR(MAT_EMISSION,id)
-                * color[gid] * current_color * cmask;
+                * ray_color[gid] * pipeline_color[gid] * cmask;
     ### if renderer.bidirectional
         }
     ### endif
@@ -177,7 +172,9 @@ __kernel void shader_{{name}}(
     
     if (p < cur_prob)
     {
-        UPDATE_CURRENT_COLOR;
+        ### if shader.rgb
+            pipeline_color[gid] *= cur_col / cur_prob; // 1 in spectrum shader
+        ### endif
         
         r -= 2*dot(r,n) * n;
         
@@ -204,7 +201,9 @@ __kernel void shader_{{name}}(
     
     if (p < cur_prob)
     {
-        UPDATE_CURRENT_COLOR;
+        ### if shader.rgb
+            pipeline_color[gid] *= cur_col / cur_prob; // 1 in spectrum shader
+        ### endif
         
         float dotp = dot(r,n);
         if (dotp > 0) { n = -n; dotp = -dotp; }
@@ -279,7 +278,7 @@ __kernel void shader_{{name}}(
     
     if (cur_prob > 0.0) {
         
-        current_color *= cur_col;
+        pipeline_color[gid] *= cur_col;
     
         ### if renderer.bidirectional
             if (suppressed_emission_id == 0 && light_id > 0) {
@@ -299,7 +298,7 @@ __kernel void shader_{{name}}(
                         
                         img[image_pixel] += dot(n,shadow_ray) / M_PI
                             * dot(-shadow_ray,light_normal) / (shadow_dist*shadow_dist)
-                            * color[gid] * current_color * cmask
+                            * ray_color[gid] * pipeline_color[gid] * cmask
                             * COLOR(MAT_EMISSION,light_id)
                             * shadow_mask[gid]
                             * light_area;
@@ -315,9 +314,9 @@ __kernel void shader_{{name}}(
         if (dot(n,r) < 0) r = -r;
         
         // Lambert's law
-        current_color *= 2.0 * dot(n,r);
+        pipeline_color[gid] *= 2.0 * dot(n,r);
     }
-    else current_color *= 0.0;
+    else pipeline_color[gid] *= 0.0;
     
     p = -1.0;
 
