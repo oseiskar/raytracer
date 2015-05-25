@@ -308,8 +308,11 @@ class Renderer:
         acc = self.acc
         
         self.ray_state.isec_dist.fill(self.scene.max_ray_length)
-        self.ray_state.last_whichobject = self.ray_state.whichobject * 1
-        self.ray_state.last_which_subobject = self.ray_state.which_subobject * 1
+        
+        acc.device_memcpy(self.ray_state.last_whichobject,  \
+            self.ray_state.whichobject, self.cur_n_pixels)
+        acc.device_memcpy(self.ray_state.last_which_subobject,  \
+            self.ray_state.which_subobject, self.cur_n_pixels)
         
         for tracer, count, offset in self.object_groups:
             for object_index in range(offset, offset+count):
@@ -419,7 +422,7 @@ class RayStateBuffers:
         
         self.whichobject = acc.new_array((n_pixels, ), np.uint32, True)
         self.which_subobject = acc.zeros_like(self.whichobject)
-        self.last_which_object = acc.zeros_like(self.whichobject)
+        self.last_whichobject = acc.zeros_like(self.whichobject)
         self.last_which_subobject = acc.zeros_like(self.whichobject)
         self.pos = acc.new_vec3_array((n_pixels, ))
         self.ray = acc.zeros_like(self.pos)

@@ -156,3 +156,10 @@ class Accelerator:
             total += t
             tatotal += ta
         print '----', total, 'or', tatotal, 'seconds total'
+        
+    def device_memcpy(self, dest, src, n=None):
+        kwargs = {}
+        if n is not None:
+            kwargs['byte_count'] = n * 4 # assuming 32-bit values
+        ev = cl.enqueue_copy(self.queue, dest.data, src.data, **kwargs)
+        ev.wait()
