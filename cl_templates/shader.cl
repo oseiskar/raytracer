@@ -65,24 +65,36 @@ __kernel void shader_{{name}}(
         // a random unit vector and a random gaussian vector
         constant float4 *rvecs_cmask_and_light)
 {
-    const int gid0 = get_global_id(0);
-    pixel += gid0;
+    const int thread_idx = get_global_id(0);
+    pixel += thread_idx;
     
-    const int gid = *pixel;
-    if (gid < 0) return;
+    const int ray_idx = *pixel;
+    if (ray_idx < 0) return;
     
-    p_p += gid0;
-    pipeline_color += gid0;
+    p_p += thread_idx;
+    pipeline_color += thread_idx;
     
     // the random sample [0,1) that decides what to do
     float p = *p_p;
     if (p < 0.0) return;
         
-    const int image_pixel = gid;
-    uint id = surface_object_id[gid];
+    ray += ray_idx;
+    normal += thread_idx;
+    last_distance += thread_idx;
     
-    float3 r = ray[gid];
-    float3 n = normal[gid0];
+    img += ray_idx;
+    surface_object_id += ray_idx;
+    pos += ray_idx;
+    ray_color += ray_idx;
+    inside += ray_idx;
+    diffusions_left += ray_idx;
+### if renderer.bidirectional
+    suppress_emission += ray_idx;
+    shadow_mask += thread_idx;
+### endif
+    
+    float3 r = *ray;
+    float3 n = *normal;
     const float3 rvec = rvecs_cmask_and_light[0].xyz;
     float3 gauss_rvec = rvecs_cmask_and_light[1].xyz;
     
@@ -101,9 +113,9 @@ __kernel void shader_{{name}}(
     
     if (p < 0.0)
     {
-        ray[gid] = r;
-        ray_color[gid] *= *pipeline_color;
-        if (COLOR2PROB(ray_color[gid]) == 0.0) *pixel = -1;
+        *ray = r;
+        *ray_color *= *pipeline_color;
+        if (COLOR2PROB(*ray_color) == 0.0) *pixel = -1;
     }
     *p_p = p;
 }
@@ -113,8 +125,8 @@ __kernel void shader_{{name}}(
 
     // -------------------- volumetric effects
 
-    float last_dist = last_distance[gid0];
-    const float alpha = SCALAR(MAT_VOLUME_SCATTERING,inside[gid]);
+    float last_dist = *last_distance;
+    const float alpha = SCALAR(MAT_VOLUME_SCATTERING,*inside);
     if (alpha > 0) cur_prob = 1.0-exp(-alpha*last_dist);
     
     if (p < cur_prob)
@@ -129,18 +141,18 @@ __kernel void shader_{{name}}(
         //   dist > -log(1-p)/alpha
         float d = -log(1.0 - p) / alpha;
       
-        pos[gid] -= (last_dist-d) * r;
+        *pos -= (last_dist-d) * r;
         last_dist = d;
-        surface_object_id[gid] = 0; // not on any surface
+        *surface_object_id = 0; // not on any surface
         
-        const float blur = SCALAR(MAT_VOLUME_SCATTERING_BLUR,inside[gid]);
+        const float blur = SCALAR(MAT_VOLUME_SCATTERING_BLUR,*inside);
         if (blur < 1.0) {
             r = normalize(gauss_rvec + r * tan(M_PI*0.5*(1.0 - blur)));
         }
         else r = rvec;
         
         ### if renderer.bidirectional
-            suppress_emission[gid] = 0;
+            *suppress_emission = 0;
         ### endif
         
         p = -1.0;
@@ -149,10 +161,10 @@ __kernel void shader_{{name}}(
     
     // volumetric absorption
     ### if shader.rgb
-        cur_col = COLOR(MAT_VOLUME_ABSORPTION,inside[gid]);
+        cur_col = COLOR(MAT_VOLUME_ABSORPTION,*inside);
         *pipeline_color = (float3)(exp(-cur_col.x*last_dist),exp(-cur_col.y*last_dist),exp(-cur_col.z*last_dist));
     ### else
-        *pipeline_color = exp(-SCALAR(MAT_VOLUME_ABSORPTION,inside[gid])*last_dist);
+        *pipeline_color = exp(-SCALAR(MAT_VOLUME_ABSORPTION,*inside)*last_dist);
     ### endif
 
 ### endcall
@@ -162,13 +174,13 @@ __kernel void shader_{{name}}(
     // -------------------- emission
     
     ### if renderer.bidirectional
-        const int suppressed = suppress_emission[gid];
+        const int suppressed = *suppress_emission;
         
-        if ((suppressed >= 0 && id != suppressed) || id == -suppressed)
+        if ((suppressed >= 0 && *surface_object_id != suppressed) || *surface_object_id == -suppressed)
         {
     ### endif
-            img[image_pixel] += COLOR(MAT_EMISSION,id)
-                * ray_color[gid] * (*pipeline_color) * cmask;
+            *img += COLOR(MAT_EMISSION, *surface_object_id)
+                * (*ray_color) * (*pipeline_color) * cmask;
     ### if renderer.bidirectional
         }
     ### endif
@@ -178,7 +190,7 @@ __kernel void shader_{{name}}(
 ### call shader_kernel('reflection')
 
     // -------------------- specular reflection
-    cur_col = COLOR(MAT_REFLECTION,id);
+    cur_col = COLOR(MAT_REFLECTION, *surface_object_id);
     cur_prob = COLOR2PROB(cur_col);
     
     if (p < cur_prob)
@@ -189,14 +201,14 @@ __kernel void shader_{{name}}(
         
         r -= 2*dot(r,n) * n;
         
-        const float blur = SCALAR(MAT_REFLECTION_BLUR,id);
+        const float blur = SCALAR(MAT_REFLECTION_BLUR, *surface_object_id);
         if (blur > 0) {
             if (dot(n,gauss_rvec) < 0) gauss_rvec = -gauss_rvec;
             r = normalize(gauss_rvec * blur + r * (1.0-blur));
         }
         
         ### if renderer.bidirectional
-            suppress_emission[gid] = 0;
+            *suppress_emission = 0;
         ### endif
         p = -1.0;
     }
@@ -207,7 +219,7 @@ __kernel void shader_{{name}}(
 ### call shader_kernel('refraction')
 
     // -------------------- refraction / transparency
-    cur_col = COLOR(MAT_TRANSPARENCY,id);
+    cur_col = COLOR(MAT_TRANSPARENCY, *surface_object_id);
     cur_prob = COLOR2PROB(cur_col);
     
     if (p < cur_prob)
@@ -221,18 +233,18 @@ __kernel void shader_{{name}}(
                 
         float nfrac = 0;
         
-        float ior1 = SCALAR(MAT_IOR,id);
+        float ior1 = SCALAR(MAT_IOR, *surface_object_id);
         float ior0 = SCALAR(MAT_IOR,0);
         
-        if (inside[gid] == surface_object_id[gid]) // Leaving
+        if (*inside == *surface_object_id) // Leaving
         {
             nfrac = ior1/ior0;
-            inside[gid] = 0; // TODO: parent
+            *inside = 0; // TODO: parent
         }
         else // going in
         {
             nfrac = ior0/ior1;
-            inside[gid] = surface_object_id[gid];
+            *inside = *surface_object_id;
         }
         
         if (nfrac != 1)
@@ -245,8 +257,8 @@ __kernel void shader_{{name}}(
                 
                 r -= 2*dotp * n;
                 
-                if (inside[gid] == surface_object_id[gid]) inside[gid] = 0;
-                else inside[gid] = surface_object_id[gid];
+                if (*inside == *surface_object_id) *inside = 0;
+                else *inside = *surface_object_id;
             }
             else
             {
@@ -258,16 +270,16 @@ __kernel void shader_{{name}}(
         // else: no refraction, leave r intact
         
         if (dot(n,r) < 0) n = -n;
-        normal[gid0] = n;
+        *normal = n;
         
-        const float blur = SCALAR(MAT_TRANSPARENCY_BLUR,id);
+        const float blur = SCALAR(MAT_TRANSPARENCY_BLUR, *surface_object_id);
         if (blur > 0) {
             if (dot(n,gauss_rvec) < 0) gauss_rvec = -gauss_rvec;
             r = normalize(gauss_rvec * blur + r * (1.0-blur));
         }
         
         ### if renderer.bidirectional
-            suppress_emission[gid] = 0;
+            *suppress_emission = 0;
         ### endif
         p = -1.0;
     }
@@ -279,47 +291,47 @@ __kernel void shader_{{name}}(
 ### call shader_kernel('diffuse')
 
     ### if renderer.bidirectional
-        suppress_emission[gid] = 0;
+        *suppress_emission = 0;
     ### endif
     
     // -------------------- diffusion / absorbtion
-    cur_col = COLOR(MAT_DIFFUSE,id);
+    cur_col = COLOR(MAT_DIFFUSE, *surface_object_id);
     cur_prob = COLOR2PROB(cur_col);
     
-    if (cur_prob > 0.0 && diffusions_left[gid] > 0) {
+    if (cur_prob > 0.0 && (*diffusions_left) > 0) {
         
         *pipeline_color *= cur_col;
         
-        diffusions_left[gid] -= 1;
+        *diffusions_left -= 1;
     
         ### if renderer.bidirectional
             if (light_id > 0) {
                 const float3 light_center = rvecs_cmask_and_light[5].xyz;
                 
-                if (length(pos[gid]-light_center) > min_light_sampling_distance) {
+                if (length(*pos-light_center) > min_light_sampling_distance) {
                 
                     const float3 light_point = rvecs_cmask_and_light[3].xyz;
-                    float3 shadow_ray = light_point - pos[gid];
+                    float3 shadow_ray = light_point - *pos;
                     const float3 light_normal = rvecs_cmask_and_light[4].xyz;
                 
-                    suppress_emission[gid] = light_id;
+                    *suppress_emission = light_id;
                     
                     if (dot(shadow_ray, n) > 0 && dot(shadow_ray,light_normal) < 0) {
                         const float shadow_dist = length(shadow_ray);
                         shadow_ray = fast_normalize(shadow_ray);
                         
-                        img[image_pixel] += dot(n,shadow_ray) / M_PI
+                        *img += dot(n,shadow_ray) / M_PI
                             * dot(-shadow_ray,light_normal) / (shadow_dist*shadow_dist)
-                            * ray_color[gid] * (*pipeline_color) * cmask
+                            * (*ray_color) * (*pipeline_color) * cmask
                             * COLOR(MAT_EMISSION,light_id)
-                            * shadow_mask[gid0]
+                            * (*shadow_mask)
                             * light_area;
                     }
                 }
                 else {
-                    if (diffusions_left[gid] == 0) {
-                        diffusions_left[gid] = 1;
-                        suppress_emission[gid] = -light_id;
+                    if (*diffusions_left == 0) {
+                        *diffusions_left = 1;
+                        *suppress_emission = -light_id;
                     }
                 }
             }

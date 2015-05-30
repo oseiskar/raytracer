@@ -83,10 +83,10 @@ __kernel void {{ obj.tracer_kernel_name }}(
     constant const float *param_float_data,
     int object_id)
 {
-    const int gid0 = get_global_id(0);
-    const int ray_idx = pixel[gid0];
+    const int thread_idx = get_global_id(0);
+    const int ray_idx = pixel[thread_idx];
     
-    const float old_isec_dist = p_isec_dist[gid0];
+    const float old_isec_dist = p_isec_dist[thread_idx];
     float isec_dist = old_isec_dist;
     const uint old_subobject =  p_last_which_subobject[ray_idx];
     uint subobject, whichobject;
@@ -113,7 +113,7 @@ __kernel void {{ obj.tracer_kernel_name }}(
                 
         if (new_isec_dist > 0 && new_isec_dist < isec_dist)
         {
-            p_isec_dist[gid0] = new_isec_dist;
+            p_isec_dist[thread_idx] = new_isec_dist;
             p_which_subobject[ray_idx] = cur_subobject;
             p_whichobject[ray_idx] = object_id;
         }
@@ -145,10 +145,10 @@ __kernel void {{ obj.shadow_kernel_name }}(
     int light_id,
     int offset, int count)
 {
-    const int gid0 = get_global_id(0);
-    const int ray_idx = pixel[gid0];
+    const int thread_idx = get_global_id(0);
+    const int ray_idx = pixel[thread_idx];
     
-    if (p_shadow_mask[gid0] == 0.0) return;
+    if (p_shadow_mask[thread_idx] == 0.0) return;
     
     const int object_index = get_global_id(1);
     //if (object_index >= count) return;
@@ -160,8 +160,8 @@ __kernel void {{ obj.shadow_kernel_name }}(
     float3 ray = dest - pos;
     
     // last normal check
-    if ( dot(p_normal[gid0], ray) < 0.0 ) {
-        p_shadow_mask[gid0] = 0.0;
+    if ( dot(p_normal[thread_idx], ray) < 0.0 ) {
+        p_shadow_mask[thread_idx] = 0.0;
         return;
     }
     
@@ -190,7 +190,7 @@ __kernel void {{ obj.shadow_kernel_name }}(
     
     if (new_isec_dist > 0 && new_isec_dist < isec_dist)
     {
-        p_shadow_mask[gid0] = 0.0;
+        p_shadow_mask[thread_idx] = 0.0;
     }
     
     ### if obj.convex
@@ -218,21 +218,21 @@ __kernel void {{ obj.normal_kernel_name }}(
     constant float *param_float_data,
     int offset, int count)
 {
-    const int gid0 = get_global_id(0);
-    const int gid = pixel[gid0];
+    const int thread_idx = get_global_id(0);
+    const int ray_idx = pixel[thread_idx];
     
-    p_whichobject += gid;
+    p_whichobject += ray_idx;
     const uint whichobject = *p_whichobject;
     
     if (whichobject >= offset && whichobject < offset+count) {
     
-        p_which_subobject += gid;
-        p_normal += gid0;
-        p_pos += gid;
-        p_isec_dist += gid0;
+        p_which_subobject += ray_idx;
+        p_normal += thread_idx;
+        p_pos += ray_idx;
+        p_isec_dist += thread_idx;
         
-        const float3 ray = p_ray[gid];
-        const uint inside = p_inside[gid];
+        const float3 ray = p_ray[ray_idx];
+        const uint inside = p_inside[ray_idx];
         float3 pos = *p_pos;
         
         // advance pos along ray by isec_dist
