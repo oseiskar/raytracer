@@ -309,10 +309,13 @@ class Renderer:
         
         self.ray_state.isec_dist[:self.cur_n_pixels].fill(self.scene.max_ray_length)
         
-        acc.device_memcpy(self.ray_state.last_whichobject,  \
-            self.ray_state.whichobject, self.n_pixels)
-        acc.device_memcpy(self.ray_state.last_which_subobject,  \
-            self.ray_state.which_subobject, self.n_pixels)
+        tmp = self.ray_state.whichobject
+        self.ray_state.whichobject = self.ray_state.last_whichobject
+        self.ray_state.last_whichobject = tmp
+        
+        tmp = self.ray_state.which_subobject
+        self.ray_state.which_subobject = self.ray_state.last_which_subobject
+        self.ray_state.last_which_subobject = tmp
         
         for tracer, count, offset in self.object_groups:
             for object_index in range(offset, offset+count):
