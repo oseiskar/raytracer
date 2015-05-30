@@ -279,12 +279,12 @@ class Renderer:
         
         acc.enqueue_copy(self.vec_broadcast,  mat4.astype(np.float32))
         acc.call('subsample_transform_camera', self.n_pixels, \
-            (self.cam, self.ray_state.ray), \
+            (self.cam, self.ray_state.ray, self.ray_state.pixel), \
             value_args=(self.vec_broadcast,))
         
         self._fill_vec(self.ray_state.pos, cam_origin)
         self.ray_state.whichobject.fill(0)
-        self.ray_state.normal.fill(0)
+        #self.ray_state.normal.fill(0)
         self.ray_state.raycolor.fill(1)
         self.ray_state.diffusions_left.fill(scene.min_bounces)
         
@@ -307,7 +307,7 @@ class Renderer:
         
         acc = self.acc
         
-        self.ray_state.isec_dist.fill(self.scene.max_ray_length)
+        self.ray_state.isec_dist[:self.cur_n_pixels].fill(self.scene.max_ray_length)
         
         acc.device_memcpy(self.ray_state.last_whichobject,  \
             self.ray_state.whichobject, self.cur_n_pixels)
@@ -349,7 +349,7 @@ class Renderer:
                 self.vec_param_buf[0, :3] = light_point
 
                 acc.enqueue_copy(self.vec_broadcast, self.vec_param_buf)
-                self.ray_state.shadow_mask.fill(1.0)
+                self.ray_state.shadow_mask[:self.cur_n_pixels].fill(1.0)
                 
                 for tracer, count, offset in self.object_groups:
                     acc.call(tracer.shadow_kernel_name, (self.cur_n_pixels, count),
@@ -365,7 +365,7 @@ class Renderer:
             
         rand_vec = np.array(rand_vec).astype(np.float32) 
         rand_01 = np.float32(np.random.rand())
-        self.ray_state.prob.fill(rand_01)
+        self.ray_state.prob[:self.cur_n_pixels].fill(rand_01)
         
         self.vec_param_buf[0, :3] = rand_vec
         self.vec_param_buf[1, :3] = np.random.normal(0, 1,( 3, ))
@@ -388,6 +388,17 @@ class Renderer:
             acc.call('shader_'+shader_component, self.cur_n_pixels, \
                 (self.img, ) + self.ray_state.shader_kernel_params(),
                 value_args=tuple(constant_params))
+        
+        if not is_last:
+            self.cur_n_pixels = acc.find_non_negative(self.ray_state.pixel, \
+                self.ray_state.new_pixel, self.cur_n_pixels)
+            
+            tmp = self.ray_state.pixel
+            self.ray_state.pixel = self.ray_state.new_pixel
+            self.ray_state.new_pixel = tmp
+            
+            if self.cur_n_pixels == 0: return False
+            print self.cur_n_pixels, 'rays left'
         
         return True
         
@@ -430,6 +441,8 @@ class RayStateBuffers:
         self.normal = acc.zeros_like(self.pos)
         self.isec_dist = acc.new_array((n_pixels, ), np.float32, True)
         self.diffusions_left = acc.zeros_like(self.whichobject)
+        self.pixel = acc.zeros_like(self.whichobject)
+        self.new_pixel = acc.zeros_like(self.whichobject)
         
         self.prob = acc.zeros_like(self.isec_dist)
         self.raycolor = renderer.shader.new_ray_color_buffer(acc, (n_pixels, ))
@@ -440,23 +453,23 @@ class RayStateBuffers:
             self.suppress_emission = acc.new_array((n_pixels, ), np.int32, True)
     
     def tracer_kernel_params(self):
-        return (self.pos, self.ray, \
+        return (self.pixel, self.pos, self.ray, \
                 self.isec_dist, self.whichobject, self.which_subobject, \
                 self.last_whichobject, self.last_which_subobject,
                 self.inside)
             
     def shadow_kernel_params(self):
-        return (self.pos, self.normal, self.whichobject, \
+        return (self.pixel, self.pos, self.normal, self.whichobject, \
                 self.which_subobject, self.inside, \
                 self.shadow_mask)
 
     def normal_kernel_params(self):
-        return (self.pos, self.ray, \
+        return (self.pixel, self.pos, self.ray, \
                 self.normal, self.isec_dist, self.whichobject, \
                 self.which_subobject, self.inside)
     
     def shader_kernel_params(self):
-        buffer_params = [self.prob, self.diffusions_left,
+        buffer_params = [self.prob, self.diffusions_left, self.pixel,
             self.pipeline_color, self.whichobject, 
             self.normal, self.isec_dist, self.pos, self.ray,
             self.raycolor, self.inside]
@@ -465,3 +478,5 @@ class RayStateBuffers:
             buffer_params += [self.shadow_mask, self.suppress_emission]
         
         return tuple(buffer_params)
+
+

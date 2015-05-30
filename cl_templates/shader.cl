@@ -5,8 +5,10 @@
 
 ### if shader.rgb
     #define COLOR(prop, id) material_colors[prop + id].xyz
+    #define COLOR2PROB(color) dot(color,WHITE)/3.0
 ### else
     #define COLOR(prop, id) material_scalars[prop + id]
+    #define COLOR2PROB(color) color
 ### endif
 
 #define SCALAR(prop, id) material_scalars[prop + id]
@@ -20,6 +22,8 @@ __kernel void shader_{{name}}(
         global float *p_p,
         // number of diffusive bounces left for this ray
         global int *diffusions_left,
+        // which image pixel this ray affects
+        global int *pixel,
         // local color multiplier, everything added to the image
         // is multiplied by this and the ray color. Applied to ray_color
         // at the end of the pipeline
@@ -61,16 +65,24 @@ __kernel void shader_{{name}}(
         // a random unit vector and a random gaussian vector
         constant float4 *rvecs_cmask_and_light)
 {
-    const int gid = get_global_id(0);
+    const int gid0 = get_global_id(0);
+    pixel += gid0;
+    
+    const int gid = *pixel;
+    if (gid < 0) return;
+    
+    p_p += gid0;
+    pipeline_color += gid0;
+    
     // the random sample [0,1) that decides what to do
-    float p = p_p[gid];
+    float p = *p_p;
     if (p < 0.0) return;
         
     const int image_pixel = gid;
     uint id = surface_object_id[gid];
     
     float3 r = ray[gid];
-    float3 n = normal[gid];
+    float3 n = normal[gid0];
     const float3 rvec = rvecs_cmask_and_light[0].xyz;
     float3 gauss_rvec = rvecs_cmask_and_light[1].xyz;
     
@@ -90,23 +102,18 @@ __kernel void shader_{{name}}(
     if (p < 0.0)
     {
         ray[gid] = r;
-        ray_color[gid] *= pipeline_color[gid];
+        ray_color[gid] *= *pipeline_color;
+        if (COLOR2PROB(ray_color[gid]) == 0.0) *pixel = -1;
     }
-    p_p[gid] = p;
+    *p_p = p;
 }
 ### endmacro
-
-### if shader.rgb
-    #define COLOR2PROB(color) dot(color,WHITE)/3.0
-### else
-    #define COLOR2PROB(color) color
-### endif
 
 ### call shader_kernel('volumetric')
 
     // -------------------- volumetric effects
 
-    float last_dist = last_distance[gid];
+    float last_dist = last_distance[gid0];
     const float alpha = SCALAR(MAT_VOLUME_SCATTERING,inside[gid]);
     if (alpha > 0) cur_prob = 1.0-exp(-alpha*last_dist);
     
@@ -143,9 +150,9 @@ __kernel void shader_{{name}}(
     // volumetric absorption
     ### if shader.rgb
         cur_col = COLOR(MAT_VOLUME_ABSORPTION,inside[gid]);
-        pipeline_color[gid] = (float3)(exp(-cur_col.x*last_dist),exp(-cur_col.y*last_dist),exp(-cur_col.z*last_dist));
+        *pipeline_color = (float3)(exp(-cur_col.x*last_dist),exp(-cur_col.y*last_dist),exp(-cur_col.z*last_dist));
     ### else
-        pipeline_color[gid] = exp(-SCALAR(MAT_VOLUME_ABSORPTION,inside[gid])*last_dist);
+        *pipeline_color = exp(-SCALAR(MAT_VOLUME_ABSORPTION,inside[gid])*last_dist);
     ### endif
 
 ### endcall
@@ -161,7 +168,7 @@ __kernel void shader_{{name}}(
         {
     ### endif
             img[image_pixel] += COLOR(MAT_EMISSION,id)
-                * ray_color[gid] * pipeline_color[gid] * cmask;
+                * ray_color[gid] * (*pipeline_color) * cmask;
     ### if renderer.bidirectional
         }
     ### endif
@@ -177,7 +184,7 @@ __kernel void shader_{{name}}(
     if (p < cur_prob)
     {
         ### if shader.rgb
-            pipeline_color[gid] *= cur_col / cur_prob; // 1 in spectrum shader
+            *pipeline_color *= cur_col / cur_prob; // 1 in spectrum shader
         ### endif
         
         r -= 2*dot(r,n) * n;
@@ -206,7 +213,7 @@ __kernel void shader_{{name}}(
     if (p < cur_prob)
     {
         ### if shader.rgb
-            pipeline_color[gid] *= cur_col / cur_prob; // 1 in spectrum shader
+            *pipeline_color *= cur_col / cur_prob; // 1 in spectrum shader
         ### endif
         
         float dotp = dot(r,n);
@@ -251,7 +258,7 @@ __kernel void shader_{{name}}(
         // else: no refraction, leave r intact
         
         if (dot(n,r) < 0) n = -n;
-        normal[gid] = n;
+        normal[gid0] = n;
         
         const float blur = SCALAR(MAT_TRANSPARENCY_BLUR,id);
         if (blur > 0) {
@@ -281,7 +288,7 @@ __kernel void shader_{{name}}(
     
     if (cur_prob > 0.0 && diffusions_left[gid] > 0) {
         
-        pipeline_color[gid] *= cur_col;
+        *pipeline_color *= cur_col;
         
         diffusions_left[gid] -= 1;
     
@@ -303,9 +310,9 @@ __kernel void shader_{{name}}(
                         
                         img[image_pixel] += dot(n,shadow_ray) / M_PI
                             * dot(-shadow_ray,light_normal) / (shadow_dist*shadow_dist)
-                            * ray_color[gid] * pipeline_color[gid] * cmask
+                            * ray_color[gid] * (*pipeline_color) * cmask
                             * COLOR(MAT_EMISSION,light_id)
-                            * shadow_mask[gid]
+                            * shadow_mask[gid0]
                             * light_area;
                     }
                 }
@@ -325,9 +332,9 @@ __kernel void shader_{{name}}(
         if (dot(n,r) < 0) r = -r;
         
         // Lambert's law
-        pipeline_color[gid] *= 2.0 * dot(n,r);
+        *pipeline_color *= 2.0 * dot(n,r);
     }
-    else pipeline_color[gid] *= 0.0;
+    else *pipeline_color *= 0.0;
     
     p = -1.0;
 

@@ -91,6 +91,7 @@ __kernel void fill_vec_broadcast(global float3 *a, constant float3 *v)
 __kernel void subsample_transform_camera(
 		global const float3 *original_rays,
 		global float3 *new_rays,
+		global int *pixel,
 		constant float4 *rotmat_rows_and_dof_pos)
 {
 	const int gid = get_global_id(0);
@@ -98,6 +99,8 @@ __kernel void subsample_transform_camera(
 	const float3 campos = rotmat_rows_and_dof_pos[3].xyz;
 	const float3 ray = original_rays[gid];
 	
+	pixel[gid] = gid;
+    
 	const float3 rot_ray = (float3)(
 	    dot(rotmat_rows_and_dof_pos[0].xyz,ray),
 	    dot(rotmat_rows_and_dof_pos[1].xyz,ray),

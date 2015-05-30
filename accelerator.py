@@ -18,6 +18,7 @@ class Accelerator:
         prop = cl.command_queue_properties.PROFILING_ENABLE
         self.queue = cl.CommandQueue(self.ctx, properties=prop)
         self._cl_arrays = []
+        self._scan_kernel = None
         
         devices = self.ctx.get_info(cl.context_info.DEVICES)
         assert(len(devices) == 1)
@@ -156,7 +157,29 @@ class Accelerator:
             total += t
             tatotal += ta
         print '----', total, 'or', tatotal, 'seconds total'
+
+    def find_non_negative(self, in_array, out_array, n):
         
+        from pyopencl.scan import GenericScanKernel
+        
+        if self._scan_kernel is None:
+            # like pyopencl's copy_if kernel
+            self._scan_kernel = GenericScanKernel(
+                self.ctx, np.int32,
+                arguments="__global int *ary, __global int *out, __global int *count",
+                input_expr="ary[i] < 0 ? 0 : 1",
+                scan_expr="a+b", neutral="0",
+                output_statement="""
+                    if (prev_item != item) out[item-1] = ary[i];
+                    if (i+1 == N) *count = item;
+                    """)
+            
+            self._out_int = self.new_array( (1,), np.int32 )
+        
+        ev = self._scan_kernel(in_array, out_array, self._out_int, size=n, queue=self.queue)
+        ev.wait()
+        return int(self._out_int.get()[0])
+    
     def device_memcpy(self, dest, src, n=None):
         kwargs = {}
         if n is not None:
