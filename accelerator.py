@@ -2,6 +2,7 @@
 import numpy as np
 import pyopencl as cl
 import pyopencl.array as cl_array
+import pyopencl.tools
 import time
 
 # Enables a work-around for the PyOpenCL issue #56 in versions 2013 and 2014
@@ -157,6 +158,34 @@ class Accelerator:
             total += t
             tatotal += ta
         print '----', total, 'or', tatotal, 'seconds total'
+    
+    class MemPool:
+        
+        def __init__(self, cl_context):
+            self.ctx = cl_context
+            self.buffers = []
+            self.buffer_idx = 0
+        
+        def __call__(self, n):
+            #print "called buffer", n
+            
+            if len(self.buffers) <= self.buffer_idx:
+                self.buffers.append( cl.Buffer(self.ctx, \
+                    cl.mem_flags.READ_WRITE, n ) )
+            
+            buf = self.buffers[self.buffer_idx]
+            size = buf.get_info(cl.mem_info.SIZE)
+            
+            if size < n:
+                raise RuntimeError('size mismatch')
+                
+            #print 'returning buf', self.buffer_idx, 'of size', size
+                
+            self.buffer_idx += 1
+            return buf
+        
+        def free(self):
+            self.buffer_idx = 0
 
     def find_non_negative(self, in_array, out_array, n):
         
@@ -174,10 +203,16 @@ class Accelerator:
                     if (i+1 == N) *count = item;
                     """)
             
+            self._mem_pool = Accelerator.MemPool(self.ctx)
+            
             self._out_int = self.new_array( (1,), np.int32 )
         
-        ev = self._scan_kernel(in_array, out_array, self._out_int, size=n, queue=self.queue)
+        ev = self._scan_kernel(in_array, out_array, self._out_int, \
+            size=n, queue=self.queue, allocator=self._mem_pool)
         ev.wait()
+        
+        self._mem_pool.free()
+        
         return int(self._out_int.get()[0])
     
     def device_memcpy(self, dest, src, n=None):
