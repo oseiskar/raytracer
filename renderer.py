@@ -351,7 +351,9 @@ class Renderer:
                 self.vec_param_buf[0, :3] = light_point
 
                 acc.enqueue_copy(self.vec_broadcast, self.vec_param_buf)
-                self.ray_state.shadow_mask[:self.cur_n_pixels].fill(1.0)
+                acc.call('init_shadow_mask', self.cur_n_pixels, (\
+                    self.ray_state.pixel, self.ray_state.shadow_mask,
+                    self.ray_state.diffusions_left))
                 
                 for tracer, count, offset in self.object_groups:
                     acc.call(tracer.shadow_kernel_name, (self.cur_n_pixels, count),

@@ -352,6 +352,22 @@ __kernel void shader_{{name}}(
 
 ### endcall
 
+__kernel void init_shadow_mask(
+    global const int *pixel,
+    global float *shadow_mask,
+    global const int *diffusions_left)
+{
+    const int thread_idx = get_global_id(0);
+    const int ray_idx = pixel[thread_idx];
+    
+    if (diffusions_left[ray_idx] < 1) {
+        shadow_mask[thread_idx] = 0.0;
+    }
+    else {
+        shadow_mask[thread_idx] = 1.0;
+    }
+}
+
 __kernel void culler(
         // which image pixel this ray affects
         global int *pixel,
