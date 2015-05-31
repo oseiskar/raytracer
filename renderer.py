@@ -395,16 +395,18 @@ class Renderer:
         
         if not is_last:
             
+            russian_roulette_prob = np.float32(np.random.rand())
+            
             acc.call('culler', self.cur_n_pixels, \
                 (self.ray_state.pixel, self.ray_state.raycolor),
+                value_args=(russian_roulette_prob,),
                 work_group_size=(self.warp_size,))
             
             self.cur_n_pixels = acc.find_non_negative(self.ray_state.pixel, \
                 self.ray_state.new_pixel, self.cur_n_pixels)
             
-            tmp = self.ray_state.pixel
-            self.ray_state.pixel = self.ray_state.new_pixel
-            self.ray_state.new_pixel = tmp
+            self.ray_state.pixel, self.ray_state.new_pixel = \
+                [self.ray_state.new_pixel, self.ray_state.pixel]
             
             if self.cur_n_pixels == 0: return False
             print '[', self.cur_n_pixels, ']',

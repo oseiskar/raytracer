@@ -373,7 +373,9 @@ __kernel void culler(
         global int *pixel,
         // current ray color: a filter that multiplies everything
         // added to the image
-        global {{ shader.color_cl_type }} *ray_color)
+        global {{ shader.color_cl_type }} *ray_color,
+        // probability sample for Russian roulette
+        float russian_roulette_sample)
 {
     const int thread_idx = get_global_id(0);
     pixel += thread_idx;
@@ -386,6 +388,7 @@ __kernel void culler(
     const float cur_intensity = COLOR2PROB(*ray_color);
     
     local float scratch[{{renderer.warp_size}}];
+    local float russian_prob;
     
     float max_value;
     scratch[local_idx] = cur_intensity;
@@ -405,10 +408,22 @@ __kernel void culler(
     
     ### endfor
     
+    if (local_idx == 0) {
+        if (max_value > 0.0) {
+            russian_prob = clamp(max_value, 0.05, 0.9);
+            if (russian_roulette_sample > russian_prob)
+                scratch[0] = 0.0;
+        }
+        else russian_prob = 1.0;
+    }
+    
     barrier(CLK_LOCAL_MEM_FENCE);
     max_value = scratch[0];
     
     if (max_value == 0.0) {
         *pixel = -1;
+    }
+    else if (russian_prob < 1.0) {
+        *ray_color /= russian_prob;
     }
 }
