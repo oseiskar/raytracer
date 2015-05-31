@@ -5,9 +5,11 @@
 
 ### if shader.rgb
     #define COLOR(prop, id) material_colors[prop + id].xyz
+    #define WHITE (float3)(1.0,1.0,1.0)
     #define COLOR2PROB(color) dot(color,WHITE)/3.0
 ### else
     #define COLOR(prop, id) material_scalars[prop + id]
+    #define WHITE 1.0
     #define COLOR2PROB(color) color
 ### endif
 
@@ -69,7 +71,7 @@ __kernel void shader_{{name}}(
     pixel += thread_idx;
     
     const int ray_idx = *pixel;
-    if (ray_idx < 0) return;
+    //if (ray_idx < 0) return;
     
     p_p += thread_idx;
     pipeline_color += thread_idx;
@@ -102,11 +104,9 @@ __kernel void shader_{{name}}(
     {{ shader.color_cl_type }} cur_col;
     
 ### if shader.rgb
-    const float3 WHITE = (float3)(1.0,1.0,1.0);
     const float cmask = 1.0;
 ### else
     const float3 cmask = rvecs_cmask_and_light[2].xyz;
-    const float WHITE = 1.0;
 ### endif
     
     {{ caller() }}
@@ -115,7 +115,7 @@ __kernel void shader_{{name}}(
     {
         *ray = r;
         *ray_color *= *pipeline_color;
-        if (COLOR2PROB(*ray_color) == 0.0) *pixel = -1;
+        // if (COLOR2PROB(*ray_color) == 0.0) *pixel = -1;
     }
     *p_p = p;
 }
@@ -351,3 +351,48 @@ __kernel void shader_{{name}}(
     p = -1.0;
 
 ### endcall
+
+__kernel void culler(
+        // which image pixel this ray affects
+        global int *pixel,
+        // current ray color: a filter that multiplies everything
+        // added to the image
+        global {{ shader.color_cl_type }} *ray_color)
+{
+    const int thread_idx = get_global_id(0);
+    pixel += thread_idx;
+    
+    const int ray_idx = *pixel;
+    ray_color += ray_idx;
+    
+    const int local_idx = get_local_id(0);
+    
+    const float cur_intensity = COLOR2PROB(*ray_color);
+    
+    local float scratch[{{renderer.warp_size}}];
+    
+    float max_value;
+    scratch[local_idx] = cur_intensity;
+    
+    ### for itr in range(renderer.log_warp_size)
+    
+        ### set sz = renderer.warp_size // (2**(itr+1))
+    
+        barrier(CLK_LOCAL_MEM_FENCE);
+        if (local_idx < {{sz}})
+            max_value = max(scratch[local_idx], scratch[local_idx + {{sz}}]);
+        
+        barrier(CLK_LOCAL_MEM_FENCE);
+        
+        if (local_idx < {{sz}})
+            scratch[local_idx] = max_value;
+    
+    ### endfor
+    
+    barrier(CLK_LOCAL_MEM_FENCE);
+    max_value = scratch[0];
+    
+    if (max_value == 0.0) {
+        *pixel = -1;
+    }
+}

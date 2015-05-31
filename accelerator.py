@@ -26,6 +26,12 @@ class Accelerator:
         self.device = devices[0]
         
         self.profiling_info = {}
+        
+        try:
+            self.warp_size = self.device.get_info(cl.device_info.WARP_SIZE_NV)
+            print 'device NV warp size', self.warp_size
+        except:
+            self.warp_size = 1
     
     def finish(self):
         """Call finish on relevant CL queues and arrays"""

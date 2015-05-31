@@ -3,6 +3,7 @@ from accelerator import Accelerator
 import numpy as np
 import utils
 import itertools
+import math
 from cl_compiler import Compiler
 
 # pylint: disable-msg=W0201
@@ -391,6 +392,11 @@ class Renderer:
                 value_args=tuple(constant_params))
         
         if not is_last:
+            
+            acc.call('culler', self.cur_n_pixels, \
+                (self.ray_state.pixel, self.ray_state.raycolor),
+                work_group_size=(self.warp_size,))
+            
             self.cur_n_pixels = acc.find_non_negative(self.ray_state.pixel, \
                 self.ray_state.new_pixel, self.cur_n_pixels)
             
@@ -399,7 +405,7 @@ class Renderer:
             self.ray_state.new_pixel = tmp
             
             if self.cur_n_pixels == 0: return False
-            print self.cur_n_pixels, 'rays left'
+            print '[', self.cur_n_pixels, ']',
         
         return True
         
@@ -425,6 +431,14 @@ class Renderer:
                     order.append([x,y])
             
         return np.array(order)
+    
+    @property
+    def warp_size(self):
+        return self.acc.warp_size
+    
+    @property
+    def log_warp_size(self):
+        return int(round(math.log(self.warp_size,2)))
 
 class RayStateBuffers:
     def __init__(self, renderer):
