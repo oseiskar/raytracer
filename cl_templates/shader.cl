@@ -388,7 +388,6 @@ __kernel void culler(
     const float cur_intensity = COLOR2PROB(*ray_color);
     
     local float scratch[{{renderer.warp_size}}];
-    local float russian_prob;
     
     float max_value;
     scratch[local_idx] = cur_intensity;
@@ -408,14 +407,18 @@ __kernel void culler(
     
     ### endfor
     
-    if (local_idx == 0) {
-        if (max_value > 0.0) {
-            russian_prob = clamp(max_value, 0.05, 0.9);
-            if (russian_roulette_sample > russian_prob)
-                scratch[0] = 0.0;
+    ### if renderer.scene.min_russian_prob
+        local float russian_prob;
+        
+        if (local_idx == 0) {
+            if (max_value > 0.0) {
+                russian_prob = clamp(max_value, {{renderer.scene.min_russian_prob}}, 1.0);
+                if (russian_roulette_sample > russian_prob)
+                    scratch[0] = 0.0;
+            }
+            else russian_prob = 1.0;
         }
-        else russian_prob = 1.0;
-    }
+    ### endif
     
     barrier(CLK_LOCAL_MEM_FENCE);
     max_value = scratch[0];
@@ -423,7 +426,9 @@ __kernel void culler(
     if (max_value == 0.0) {
         *pixel = -1;
     }
-    else if (russian_prob < 1.0) {
-        *ray_color /= russian_prob;
-    }
+    ### if renderer.scene.min_russian_prob
+        else if (russian_prob < 1.0) {
+            *ray_color /= russian_prob;
+        }
+    ### endif
 }

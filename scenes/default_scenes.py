@@ -86,6 +86,7 @@ class DefaultBoxScene(Scene):
         self.samples_per_pixel = 10000
         self.min_bounces = 2
         self.max_bounces = 4
+        self.min_russian_prob = 0.15
         
         self.initialize_materials()
         

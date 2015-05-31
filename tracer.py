@@ -85,8 +85,8 @@ class Tracer:
         params = self.parameter_declarations()
         if self.has_data():
             params = [
-                    "__global const float4 *vector_data",
-                    "__global const int *integer_data"
+                    "TRACER_DATA const float4 *vector_data",
+                    "TRACER_DATA const int *integer_data"
                 ] + params
         return cl_parameter_string(params)
     

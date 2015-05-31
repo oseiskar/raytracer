@@ -73,7 +73,7 @@ class Accelerator:
         
         arg = []
         for x in buffer_args:
-            if x is not None:
+            if isinstance(x, cl_array.Array):
                 x = x.data
             arg.append(x)
         arg = tuple(arg) + value_args

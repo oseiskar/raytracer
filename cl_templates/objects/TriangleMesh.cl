@@ -89,7 +89,7 @@
         float3 normal = cross(e1, e2);
     
         ### if obj.shading != 'flat'
-            __global const float4 *normal_data = vector_data + n_vertices;
+            TRACER_DATA const float4 *normal_data = vector_data + n_vertices;
         
             // compute barycentric coordinates
             const float3 f1 = v1 - pos;

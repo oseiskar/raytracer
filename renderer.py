@@ -126,6 +126,7 @@ class Renderer:
         data_sizes = { k : 0 for k in data_items }
         
         object_data_pointer_buffer = []
+        const_data_buffers = True
         
         for obj in self.scene.objects:
             
@@ -194,9 +195,15 @@ class Renderer:
                     values = np.concatenate(values)
                     
                 if dtype == 'vector':
-                    values = self.acc.make_vec3_array(values)
+                    if const_data_buffers:
+                        values = self.acc.make_const_vec3_buffer(values)
+                    else:
+                        values = self.acc.make_vec3_array(values)
                 elif dtype == 'integer':
-                    values = self.acc.to_device(values.astype(np.int32))
+                    if const_data_buffers:
+                        values = self.acc.new_const_buffer(values, dtype=np.int32)
+                    else:
+                        values = self.acc.to_device(values.astype(np.int32))
                 elif dtype == 'param_float3':
                     values = self.acc.make_const_vec3_buffer(values)
                 elif dtype == 'param_float':

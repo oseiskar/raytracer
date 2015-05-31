@@ -3,6 +3,8 @@
 
 {% include 'shader.cl' %}
 
+#define TRACER_DATA __constant
+
 // Declarations
 ### for k in functions.declarations
 {{ k }}

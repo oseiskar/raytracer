@@ -48,7 +48,7 @@
     
         if (isec_begin > isec_end || isec_end < 0.0 || isec_begin > old_isec_dist) return;
         
-        __global const int *octree_data = integer_data + face_data_length;
+        TRACER_DATA const int *octree_data = integer_data + face_data_length;
         
         #ifndef MAX_OCTREE_DEPTH
         #define MAX_OCTREE_DEPTH {{obj.__class__.MAX_DEPTH + 1}}
