@@ -11,9 +11,9 @@ Requirements
 -------------
  * Python (2.7)
  * pyopencl (>= 2012), tested with 2012.1, 2013.2 and 2014.1
+ * jinja2
  * pygame (for visualization)
- * numpy
- * scipy
+ * numpy, scipy
  * sympy (for implicit surfaces)
 
-![showcase](http://olento.zapto.org/img/raytracer-showcase.png "Example output")
+![showcase](http://i.imgur.com/FWbXG91.png "Example output")
