@@ -412,7 +412,7 @@ __kernel void culler(
         
         if (local_idx == 0) {
             if (max_value > 0.0) {
-                russian_prob = clamp(max_value, {{renderer.scene.min_russian_prob}}, 1.0);
+                russian_prob = clamp(max_value, (float){{renderer.scene.min_russian_prob}}, (float)1.0);
                 if (russian_roulette_sample > russian_prob)
                     scratch[0] = 0.0;
             }
