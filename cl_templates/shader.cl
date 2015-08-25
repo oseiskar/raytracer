@@ -100,7 +100,7 @@ __kernel void shader_{{name}}(
     const float3 rvec = rvecs_cmask_and_light[0].xyz;
     float3 gauss_rvec = rvecs_cmask_and_light[1].xyz;
     
-    float cur_prob;
+    float cur_prob = 0.0;
     {{ shader.color_cl_type }} cur_col;
     
 ### if shader.rgb

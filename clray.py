@@ -7,7 +7,7 @@ line argument.
 
 The rendering process is facilitated by the Renderer class, which generates, 
 compiles and runs OpenCL code that renders the given scene. The resulting
-image is (also intermediate results) are written to PNG_OUTPUT_FILE and
+image and the intermediate results are written to PNG_OUTPUT_FILE and
 RAW_OUTPUT_FILE (as well as displayed on a preview window, unless otherwise
 specified by the command line arguments).
 """
@@ -90,6 +90,7 @@ if __name__ == '__main__':
             j < args.itr_per_refresh):
             
             imgdata = renderer.get_image()
+            print 'image mean:', np.mean(np.ravel(imgdata))
             
             if not args.no_window:
                 image.show( imgdata )
