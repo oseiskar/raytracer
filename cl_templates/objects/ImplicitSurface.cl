@@ -19,6 +19,8 @@
             ia_end(t) = old_isec_dist;
         ### endif
         
+        const float t_max = ia_end(t);
+        
         int i=0;
         const int MAX_ITER = {{ obj.max_itr }};
         const float TARGET_EPS = {{ obj.precision }};
@@ -46,8 +48,8 @@
 
         for( i=0; i < MAX_ITER; i++ )
         {
-            if (ia_begin(t) >= old_isec_dist) return;
-            if (ia_end(t) > old_isec_dist) ia_end(t) = old_isec_dist;
+            if (ia_begin(t) >= t_max) return;
+            if (ia_end(t) > t_max) ia_end(t) = t_max;
             
             x = ia_mul(ray_x,t) + origin_x;
             y = ia_mul(ray_y,t) + origin_y;
