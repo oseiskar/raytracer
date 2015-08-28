@@ -13,32 +13,21 @@ scene.materials['black'] = { 'diffuse': 0.2 }
 scene.materials['light']['diffuse'] = 0.0
 scene.objects.append( Object(HalfSpace( (-1,-1,-2), 5 ), 'sky') )
 
-import mesh_formats
-
 objR = .6
 objPos = (0,0,objR)
-objMat = 'glass'
+objMat = 'white'
 
-vertices,faces = mesh_formats.read_zipper('data/bun_zipper_res3.ply')
-faces = mesh_formats.remove_duplicate_faces(faces)
-vertices = [[x,-z,y] for x,y,z in vertices]
+distance_field = """
+    float th = z*z * 4.0;
+    float x1 = x * cos(th) - y * sin(th);
+    float y1 = x * sin(th) + y * cos(th);
+    
+    dist = max(fabs(x1) - 0.3, fabs(y1) - 0.4);
+    dist = max(dist, z - 0.85);
+"""
+obj = DistanceField( tracer_code=distance_field, center=objPos, self_intersection=False )
 
-print "%d vertices, %d faces" % (len(vertices),len(faces))
-
-#print faces
-obj = TriangleMesh( vertices, faces, center=objPos, scale=objR, \
-    auto_scale=True, auto_flip_normal=True, \
-    shading='smooth', auto_smooth_normals=True )
-
-do_octree = True
-
-if do_octree:
-    print 'computing octree'
-    octree = Octree(obj, max_depth=4, max_faces_per_leaf=10)
-    print 'done'
-    scene.objects.append( Object(octree, objMat) )
-else:
-    scene.objects.append( Object( obj, objMat ) )
+scene.objects.append( Object( obj, objMat ) )
 
 szmul = 120
 scene.image_size = (8*szmul,6*szmul)
