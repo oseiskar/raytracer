@@ -15,17 +15,18 @@ scene.objects.append( Object(HalfSpace( (-1,-1,-2), 5 ), 'sky') )
 
 objR = .6
 objPos = (0,0,objR)
-objMat = 'white'
+objMat = 'glass'
 
 distance_field = """
-    float th = z*z * 4.0;
+    float th = z*z * 6.0;
     float x1 = x * cos(th) - y * sin(th);
     float y1 = x * sin(th) + y * cos(th);
     
     dist = max(fabs(x1) - 0.3, fabs(y1) - 0.4);
     dist = max(dist, z - 0.85);
+    dist *= 0.5;
 """
-obj = DistanceField( tracer_code=distance_field, center=objPos, self_intersection=False )
+obj = DistanceField( tracer_code=distance_field, center=objPos )
 
 scene.objects.append( Object( obj, objMat ) )
 

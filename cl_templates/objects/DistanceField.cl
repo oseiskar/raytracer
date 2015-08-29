@@ -11,6 +11,8 @@
         ### endif
         
         float t, t_end;
+        float sign = 1.0;
+        if (inside) sign = -1.0;
         
         ### if obj.bndR
             {{ sphere_bounding_volume(obj.center, obj.bndR, 't', 't_end') }};
@@ -26,6 +28,9 @@
         int i;
         float x,y,z;
         
+        float last_dist;
+        float derivative = -1.0;
+        
         // basic ray marching
         for( i=0; i < MAX_ITER; i++ )
         {
@@ -40,13 +45,22 @@
             {
             {{ obj.tracer_code }};
             }
-            
-            t += dist;
+            dist *= sign;
                 
             if (dist < EPS) {
-                if (t < t_end) *p_new_isec_dist = t;
-                return;
+                if (origin_self) {
+                    if (i > 0) derivative = dist - last_dist;
+                    else derivative = 0.0;
+                }
+                
+                if (derivative < 0.0) {
+                    if (t < t_end) *p_new_isec_dist = t;
+                    return;
+                }
             }
+            
+            t += max(dist, EPS);
+            last_dist = dist;
         }
         
     ### endcall

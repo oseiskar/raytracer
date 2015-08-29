@@ -68,7 +68,8 @@ test_objects = [
         SphereComponent( (0,0,0), R*1.2, ),
         LayerComponent( (1,0,0), 0.4 ) ]),
     # Octree
-    load_triangle_mesh_in_octree
+    load_triangle_mesh_in_octree,
+    lambda p, R: DistanceField( tracer_code="dist = sqrt(x*x + y*y + z*z) - %g" % R, center=p )
 ]
 
 test_materials = [
