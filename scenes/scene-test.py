@@ -6,6 +6,7 @@ from scene import *
 import math
 import numpy
 import mesh_formats
+from transformations import Affine
 
 def load_triangle_mesh(p, R, **kwargs):
     from StringIO import StringIO
@@ -51,10 +52,10 @@ test_objects = [
     lambda p, R: ImplicitSurface('x**4 - 5*x**2 + y**4 - 5*y**2 + z**4 - 5*z**2 + 11.8', p, R*0.5, 4),
     lambda p, R: ConvexIntersection( p, [ \
         CylinderComponent( (0,1,0), R, ), \
-        ConeComponent( (0,-1,0), (0,1,0), R, ), \
+        ConeComponent( (0,-R/0.2,0), (0,1,0), R, ), \
         SphereComponent( (0,0,0), R*1.1, ),
-        HalfSpaceComponent( (1,1,0), 0.2 ),
-        LayerComponent( (1,0,0), 0.3 ) ]),
+        HalfSpaceComponent( (1,1,0), R ),
+        LayerComponent( (1,0,0), 0.3*R/0.2 ) ]),
     # TODO: does not have a scale argument
     #lambda p, R: QuaternionJuliaSet2( (-0.2,-0.4,-0.4,-0.4), 4, center=p, scale=R )
     load_triangle_mesh,
@@ -66,7 +67,7 @@ test_objects = [
     lambda p, R: ConvexIntersection( p, [ \
         CylinderComponent( (1,1,0), R, ), \
         SphereComponent( (0,0,0), R*1.2, ),
-        LayerComponent( (1,0,0), 0.4 ) ]),
+        LayerComponent( (1,0,0), 2.0*R ) ]),
     # Octree
     load_triangle_mesh_in_octree,
     lambda p, R: DistanceField( tracer_code="dist = sqrt(x*x + y*y + z*z) - %g" % R, center=p )
@@ -92,7 +93,11 @@ for i in range(len(test_objects)):
     z = scale*obj_scale
     x = index_to_coord(ix)
     y = index_to_coord(iy)
-    scene.objects.append( Object( test_objects[i](numpy.array((x,y,z)),scale*obj_scale), material ) )
+    pos = numpy.array((x,y,z))
+    #tracer = test_objects[i](pos,scale*obj_scale)
+    tracer = test_objects[i]((0,0,0),1.0)
+    tracer.coordinates = Affine(translation=pos, scaling=scale*obj_scale, rotation_axis='z', rotation_deg=-45)
+    scene.objects.append( Object( tracer, material ) )
 
 scene.max_bounces = 4
 scene.min_bounces = 2

@@ -63,6 +63,17 @@ ia_type ia_pow4(ia_type a)
 // TODO: write more of these dynamically
 
 
+float3 apply_linear_transform(constant const float4 *p_matrix, float3 vector) {
+    return (float3)(
+        dot(p_matrix[0].xyz, vector),
+        dot(p_matrix[1].xyz, vector),
+        dot(p_matrix[2].xyz, vector));
+}
+
+float3 apply_affine_transform(constant const float4 *p_mat_and_vec, float3 vector) {
+    return apply_linear_transform(p_mat_and_vec, vector) + p_mat_and_vec[3].xyz;
+}
+
 // quaternion multiplication routines from
 // http://users.cms.caltech.edu/~keenan/project_qjulia.html
 

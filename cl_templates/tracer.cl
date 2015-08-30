@@ -64,6 +64,12 @@ void {{ obj.tracer_function_name }}(
 
 ### endmacro
 
+### macro get_coordinate_system(obj)
+    ### set affine_params_index = obj.parameter_declarations()|length
+    constant const float4 *p_forward_affine = param_float3_data + data_offsets[DATA_PARAM_float3] + {{ obj.local_param_offsets[affine_params_index] }};
+    constant const float4 *p_inverse_affine = p_forward_affine + 4;
+### endmacro
+
 ### macro tracer_kernel(obj)
 
 __kernel void {{ obj.tracer_kernel_name }}(
@@ -104,18 +110,27 @@ __kernel void {{ obj.tracer_kernel_name }}(
 
         float new_isec_dist = 0;
         uint cur_subobject = old_subobject;
+        
+        {{ get_coordinate_system(obj) }}
+    
+        const float3 local_pos = apply_affine_transform(p_inverse_affine, p_pos[ray_idx]);
+        const float3 local_ray = apply_linear_transform(p_inverse_affine, p_ray[ray_idx]);
+        const float stretch = length(local_ray);
     
         {{ obj.tracer_function_name }}(
-            p_pos[ray_idx], p_ray[ray_idx], isec_dist, &new_isec_dist, &cur_subobject,
+            local_pos, local_ray/stretch, isec_dist*stretch, &new_isec_dist, &cur_subobject,
             inside_current, origin_self
             {{ tracer_params(obj) }}
         );
-                
-        if (new_isec_dist > 0 && new_isec_dist < isec_dist)
+        
+        if (new_isec_dist > 0)
         {
-            p_isec_dist[thread_idx] = new_isec_dist;
-            p_which_subobject[ray_idx] = cur_subobject;
-            p_whichobject[ray_idx] = object_id;
+            new_isec_dist /= stretch;
+            if (new_isec_dist < isec_dist) {
+                p_isec_dist[thread_idx] = new_isec_dist;
+                p_which_subobject[ray_idx] = cur_subobject;
+                p_whichobject[ray_idx] = object_id;
+            }
         }
     
     ### if obj.convex
@@ -183,14 +198,20 @@ __kernel void {{ obj.shadow_kernel_name }}(
     if (!origin_self || inside_current) {
     ### endif
     
-        {{ obj.tracer_function_name }}(
-            pos, ray, isec_dist, &new_isec_dist, &subobject, inside_current, origin_self
-            {{ tracer_params(obj) }}
-        );
+    {{ get_coordinate_system(obj) }}
     
-    if (new_isec_dist > 0 && new_isec_dist < isec_dist)
-    {
-        p_shadow_mask[thread_idx] = 0.0;
+    const float3 local_pos = apply_affine_transform(p_inverse_affine, p_pos[ray_idx]);
+    const float3 local_ray = apply_linear_transform(p_inverse_affine, ray);
+    const float stretch = length(local_ray);
+
+    {{ obj.tracer_function_name }}(
+        local_pos, local_ray/stretch, isec_dist*stretch, &new_isec_dist, &subobject, inside_current, origin_self
+        {{ tracer_params(obj) }}
+    );
+    
+    if (new_isec_dist > 0) {
+        new_isec_dist /= stretch;
+        if (new_isec_dist < isec_dist) p_shadow_mask[thread_idx] = 0.0;
     }
     
     ### if obj.convex
@@ -242,10 +263,15 @@ __kernel void {{ obj.normal_kernel_name }}(
         
         constant const int *data_offsets = param_int_data + DATA_N_TYPES*(whichobject-1) + DATA_POINTER_BUFFER_OFFSET;
         
+        {{ get_coordinate_system(obj) }}
+        const float3 local_pos = apply_affine_transform(p_inverse_affine, pos);
+        
         {{ obj.normal_function_name }}(
-            pos, subobject, p_normal
+            local_pos, subobject, p_normal
             {{ tracer_params(obj) }}
         );
+        
+        *p_normal = normalize(apply_linear_transform(p_forward_affine, *p_normal));
         
         {#/* TODO: move this to triangle mesh */#}
         ### if obj.auto_flip_normal
