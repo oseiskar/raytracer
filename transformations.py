@@ -66,6 +66,14 @@ class Affine:
         return "AffineTransformation(\n%s * x +\n%s)" \
             % (self._linear, self._translation)
 
+def normalize_vector(vec):
+    vec = np.ravel(vec)
+    s = np.linalg.norm(vec)
+    if s < EPSILON:
+        raise RuntimeError('normalizing near-zero vector')
+    
+    return vec * (1.0 / s)
+
 def axis_symbol_to_vector(letter):
     letter = letter.lower()
     if letter == 'x': return (1,0,0)
@@ -74,14 +82,18 @@ def axis_symbol_to_vector(letter):
     else:
         raise RuntimeError("invalid axis letter %s" % letter)
     
-def rotation_matrix(axis, angle_deg):
+def rotation_matrix(axis, angle_deg=None, angle_rad=None):
     
-    angle_rad = np.pi / 180.0 * angle_deg
+    if angle_rad is None:
+        angle_rad = np.pi / 180.0 * angle_deg
+    else:
+        if angle_deg is not None:
+            raise RuntimeError('cannot have both angle_rad and angle_deg')
+    
     if isinstance(axis, str):
         axis = axis_symbol_to_vector(axis)
     
-    axis = np.ravel(axis)
-    axis = axis * (1.0 / np.linalg.norm(axis))
+    axis = normalize_vector(axis)
     
     def rodrigues(vec):
         # Rodrigues rotation formula
@@ -98,5 +110,20 @@ def rotation_matrix(axis, angle_deg):
         rodrigues((0,0,1))
     ]).T
 
-
+def rotation_aligning_vectors(vec_to_rotate, vec_to_align_with):
+    vec_to_rotate = normalize_vector(vec_to_rotate)
+    vec_to_align_with = normalize_vector(vec_to_align_with)
+    
+    if np.linalg.norm(vec_to_rotate - vec_to_align_with) < EPSILON:
+        return np.eye(3)
+    elif np.linalg.norm(vec_to_rotate + vec_to_align_with) < EPSILON:
+        # TODO: mirroring might not be ok in all cases
+        return -np.eye(3)
+    
+    axis = np.cross(vec_to_rotate, vec_to_align_with)
+    angle_rad = np.arccos(np.dot(vec_to_rotate, vec_to_align_with))
+    
+    return rotation_matrix(axis, angle_rad=angle_rad)
+    
+    
 

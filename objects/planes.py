@@ -1,30 +1,35 @@
 from tracer import Tracer
 from objects import ConvexIntersection
 from utils import normalize_tuple, vec_norm
+from transformations import Affine, rotation_aligning_vectors
+import numpy
 
-class BasicHalfSpace(Tracer):
+class HalfSpace(Tracer):
     
     def __init__(self, normal, h):
         self.normal = normalize_tuple(normal)
         self.h = h
     
-    def parameter_declarations(self):
-        return ['float3 normal', 'float h']
+    def tracer_coordinate_system(self):
+        return Affine(
+            linear = rotation_aligning_vectors((1,0,0), self.normal),
+            translation = -numpy.ravel(self.normal)*self.h )
         
     @property
     def convex(self):
         return True
 
-class HalfSpace(BasicHalfSpace):
-    def __init__(self, normal, h):
-        BasicHalfSpace.__init__(self,normal,h)
-
-class HalfSpaceComponent(BasicHalfSpace, ConvexIntersection.Component):
+class HalfSpaceComponent(ConvexIntersection.Component):
     """Half-space"""
     
     def __init__(self, normal, h):
         ConvexIntersection.Component.__init__(self)
-        BasicHalfSpace.__init__(self, normal, h)
+        
+        self.normal = normalize_tuple(normal)
+        self.h = h
+        
+    def parameter_declarations(self):
+        return ['float3 normal', 'float h']
     
     n_subobjects = 1
 

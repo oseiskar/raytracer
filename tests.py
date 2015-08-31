@@ -3,6 +3,7 @@ import unittest
 import numpy
 import numpy.random
 
+import transformations
 from transformations import Affine
 
 EPSILON = 1e-9
@@ -68,6 +69,17 @@ class TestAffine(unittest.TestCase):
             rotation_deg=numpy.random.rand()*360).is_orthogonal() )
             
         self.assertFalse( Affine(scaling=2.0).is_orthogonal() )
+    
+    def test_rotation_aligning_vectors(self):
+        
+        vec1 = (2,0,0)
+        vec2 = (0,3,0)
+        
+        mat = transformations.rotation_aligning_vectors(vec1, vec2)
+        self.assertVecsEqual( numpy.dot(mat, vec1), (0,2,0) )
+        
+        mat0 = transformations.rotation_aligning_vectors(vec1, vec1)
+        self.assertTrue( Affine(linear=mat0).is_identity() )
     
 
 if __name__ == '__main__':
