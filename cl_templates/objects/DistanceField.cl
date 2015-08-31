@@ -15,7 +15,7 @@
         if (inside) sign = -1.0;
         
         ### if obj.bndR
-            {{ sphere_bounding_volume(obj.center, obj.bndR, 't', 't_end') }};
+            {{ sphere_bounding_volume(obj.bndR, 't', 't_end') }};
         ### else
             t = 0.0;
             t_end = old_isec_dist;
@@ -24,7 +24,7 @@
         const int MAX_ITER = {{ obj.max_itr }};
         const float EPS = {{ obj.precision }};
         
-        const float3 rel_origin = origin - {{ vec3(obj.center) }};
+        const float3 rel_origin = origin;
         int i;
         float x,y,z;
         
@@ -68,7 +68,7 @@
 
 ### macro normal_function(obj)
     ### call normal_function_base(obj)
-        const float3 rel_pos = pos - {{ vec3(obj.center) }};
+        const float3 rel_pos = pos;
         float3 normal;
         float x,y,z;
         

@@ -143,7 +143,7 @@ class Renderer:
             
             # two affine transformations -> (3+1)*2 3-vectors
             parameter_types += ['float3']*8
-            forward_affine = obj.tracer.tracer_coordinate_system()
+            forward_affine = obj.tracer.global_to_tracer_coordinate_transform()
             inverse_affine = forward_affine.inverse()
             for t in [forward_affine, inverse_affine]:
                 param_values += [

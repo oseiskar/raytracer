@@ -1,4 +1,5 @@
 from tracer import Tracer
+from transformations import Affine
 
 class DistanceField(Tracer):
     
@@ -14,3 +15,6 @@ class DistanceField(Tracer):
         self.normal_code = normal_code
         
         self.unique_tracer_id = str(id(self))
+
+    def tracer_coordinate_system(self):
+        return Affine(translation=self.center)

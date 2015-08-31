@@ -1,15 +1,13 @@
 ### from 'helpers.cl' import vec3
 
-### macro sphere_bounding_volume(center, R, minvar, maxvar)
+### macro sphere_bounding_volume(R, minvar, maxvar)
 
     {
         // Bounding sphere intersection
         
         const float R2 = {{ R*R }};
-        const float3 center = {{ vec3(center) }};
-        float3 rel = center - origin;
-        float dotp = dot(ray, rel);
-        float psq = dot(rel, rel);
+        float dotp = -dot(ray, origin);
+        float psq = dot(origin, origin);
         
         bool inside_bnd = psq < R2;
         

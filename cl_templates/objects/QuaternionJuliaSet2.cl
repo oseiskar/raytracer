@@ -9,7 +9,7 @@
 		if (origin_self) return; // ------------- remember to remove this
 		float trace_begin, trace_end;
         
-        {{ sphere_bounding_volume(obj.center, obj.bndR*obj.scale, 'trace_begin', 'trace_end') }}
+        {{ sphere_bounding_volume(obj.bndR, 'trace_begin', 'trace_end') }}
         
         int i=0;
 		const int MAX_ITER = {{ obj.max_itr }};
@@ -20,7 +20,7 @@
 		float step, dist;
 		const float4 c = {{ obj.c_as_float4 }};
 		dist = trace_begin;
-		float3 pos = trace_begin * ray + origin - {{vec3(obj.center)}};
+		float3 pos = trace_begin * ray + origin;
 		
 		for( i=0; i < MAX_ITER; i++ )
 		{
@@ -86,7 +86,7 @@
 ### macro normal_function(obj)
     ### call normal_function_base(obj)
         
-		float4 q = (float4)(pos - {{ vec3(obj.center) }},0);
+		float4 q = (float4)(pos,0);
 		const float4 c = {{ obj.c_as_float4 }}, q1;
 		
 		float3

@@ -2,6 +2,7 @@
 # Tracer objects: Implicit surfaces
 
 from tracer import Tracer
+from transformations import Affine
 
 class ImplicitSurface(Tracer):
 
@@ -32,18 +33,13 @@ class ImplicitSurface(Tracer):
         
         self.eq = sympy.sympify(eq)
         
-        self.scaled_and_shifted = self.eq.subs([
-            (xyz[i], (xyz[i] - self.center[i])/self.scale) \
-            for i in range(3) ])
-        
-        self.ray_paramd = self.scaled_and_shifted.subs([
+        self.ray_paramd = self.eq.subs([
             (xyz[i], ray[i]*t + origin[i]) \
             for i in range(3) ])
             
-        scaled_and_shifted_pos = \
-            self.scaled_and_shifted.subs([(xyz[i], pos[i]) for i in range(3)])
+        pos_eq = self.eq.subs([(xyz[i], pos[i]) for i in range(3)])
         
-        self.gradient = [sympy.diff(scaled_and_shifted_pos, pos[i]) for i in range(3)]
+        self.gradient = [sympy.diff(pos_eq, pos[i]) for i in range(3)]
         self.derivative = sympy.diff(self.ray_paramd, t)
         
         # Must replace some expressions to make them OpenCL
@@ -101,6 +97,9 @@ class ImplicitSurface(Tracer):
         
         #print self.tracer_code
     
+    def tracer_coordinate_system(self):
+        return Affine(translation=self.center, scaling=self.scale)
+    
     # freeze template name
     def template_name(self):
         return 'ImplicitSurface'
@@ -110,7 +109,7 @@ class ImplicitSurface(Tracer):
         
     def compute_f_code(self):
         return """
-            f = %s;""" % str(self.scaled_and_shifted)
+            f = %s;""" % str(self.eq)
     
     def compute_df_code(self):
         return """

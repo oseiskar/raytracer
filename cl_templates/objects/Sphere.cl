@@ -3,9 +3,8 @@
 ### macro tracer_function(obj)
     ### call tracer_function_base(obj)
         
-        float3 rel = center - origin;
-        float dotp = dot(ray, rel);
-        float psq = dot(rel, rel);
+        float dotp = -dot(ray, origin);
+        float psq = dot(origin, origin);
         
         float dist, discr, sqrdiscr;
         
@@ -16,7 +15,7 @@
             return;
         }
         
-        discr = dotp*dotp - psq + R*R;
+        discr = dotp*dotp - psq + 1.0;
         if(discr < 0) return;
         
         sqrdiscr = native_sqrt(discr);
@@ -33,7 +32,7 @@
 ### macro normal_function(obj)
     ### call normal_function_base(obj)
     
-        *p_normal = (pos - center) / R;
+        *p_normal = pos;
         
     ### endcall
 ### endmacro

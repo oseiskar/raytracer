@@ -3,7 +3,7 @@
 ### macro tracer_function(obj)
     ### call tracer_function_base(obj)
 		
-		float3 rel = origin - base;
+		float3 rel = origin;
 		float ibegin  = 0.0, iend = old_isec_dist;
 		float cur_ibegin, cur_iend;
 		uint subobj, cur_subobj, last_subobject = *p_subobject;
@@ -49,7 +49,7 @@
 ### macro normal_function(obj)
     ### call normal_function_base(obj)
     
-		const float3 p = pos - base;
+		const float3 p = pos;
 		
 		### set subobj_offset = 0
         ### for i in range(obj.components|length)

@@ -49,6 +49,7 @@ test_objects = [
     lambda p, R: Icosahedron( p, R ),
     lambda p, R: Parallelepiped( p - numpy.array((R*0.5,R*0.45,R)), (R,0,0), (0,R*0.9,0), (0,0,1.5*R) ),
     lambda p, R: QuaternionJuliaSet( (-0.2,-0.4,-0.4,-0.4), 4, center=p, scale=R ),
+    lambda p, R: QuaternionJuliaSet2( (-0.2,-0.4,-0.4,-0.4), 4, center=p, scale=R ),
     lambda p, R: ImplicitSurface('x**4 - 5*x**2 + y**4 - 5*y**2 + z**4 - 5*z**2 + 11.8', p, R*0.5, 4),
     lambda p, R: ConvexIntersection( p, [ \
         CylinderComponent( (0,1,0), R, ), \
@@ -56,8 +57,6 @@ test_objects = [
         SphereComponent( (0,0,0), R*1.1, ),
         HalfSpaceComponent( (1,1,0), R ),
         LayerComponent( (1,0,0), 0.3*R/0.2 ) ]),
-    # TODO: does not have a scale argument
-    #lambda p, R: QuaternionJuliaSet2( (-0.2,-0.4,-0.4,-0.4), 4, center=p, scale=R )
     load_triangle_mesh,
     lambda p,R: load_triangle_mesh(p,R, auto_flip_normal=True),
     lambda p,R: load_triangle_mesh(p,R, shading='smooth', auto_smooth_normals=True),
@@ -94,9 +93,9 @@ for i in range(len(test_objects)):
     x = index_to_coord(ix)
     y = index_to_coord(iy)
     pos = numpy.array((x,y,z))
-    #tracer = test_objects[i](pos,scale*obj_scale)
-    tracer = test_objects[i]((0,0,0),1.0)
-    tracer.coordinates = Affine(translation=pos, scaling=scale*obj_scale, rotation_axis='z', rotation_deg=-45)
+    tracer = test_objects[i](pos,scale*obj_scale)
+    #tracer = test_objects[i]((0,0,0),1.0)
+    #tracer.coordinates = Affine(translation=pos, scaling=scale*obj_scale, rotation_axis='z', rotation_deg=-45)
     scene.objects.append( Object( tracer, material ) )
 
 scene.max_bounces = 4

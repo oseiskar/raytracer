@@ -13,7 +13,7 @@
         ia_type t;
         
         ### if obj.bndR
-            {{ sphere_bounding_volume(obj.center, obj.bndR*obj.scale, 'ia_begin(t)', 'ia_end(t)') }};
+            {{ sphere_bounding_volume(obj.bndR, 'ia_begin(t)', 'ia_end(t)') }};
         ### else
             ia_begin(t) = 0.0;
             ia_end(t) = old_isec_dist;

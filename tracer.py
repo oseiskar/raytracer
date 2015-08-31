@@ -1,5 +1,5 @@
 import numpy
-import transformations
+from transformations import Affine
 
 class Tracer:
     """
@@ -13,7 +13,7 @@ class Tracer:
     # setting this to, e.g., id(obj), causes a tracer function to be
     # generated for each instance, instead of one per Tracer (sub)class
     unique_tracer_id = ""
-    coordinates = transformations.Affine.identity()
+    coordinates = Affine.identity()
     
     def _function_name_prefix(self):
         return self.__class__.__name__+self.unique_tracer_id
@@ -105,9 +105,12 @@ class Tracer:
 
     def has_data(self):
         return hasattr(self, 'get_data')
-        
+    
     def tracer_coordinate_system(self):
-        return self.coordinates
+        return Affine.identity()
+    
+    def global_to_tracer_coordinate_transform(self):
+        return self.coordinates(self.tracer_coordinate_system())
     
     @property
     def auto_flip_normal(self):

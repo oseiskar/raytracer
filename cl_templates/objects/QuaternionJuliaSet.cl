@@ -1,12 +1,9 @@
 
 ### macro f_code(obj)
     
-    ia_type qr = x - {{ obj.center[0] }};
-    ia_type qi = y - {{ obj.center[1] }};
-    ia_type qj = z - {{ obj.center[2] }};
-    qr /= {{ obj.scale }};
-    qi /= {{ obj.scale }};
-    qj /= {{ obj.scale }};
+    ia_type qr = x;
+    ia_type qi = y;
+    ia_type qj = z;
     ia_type qk = ia_new(0,0);
     
     const float cr = {{ obj.c_code[0] }},
