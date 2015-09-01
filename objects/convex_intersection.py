@@ -1,6 +1,5 @@
 
 from tracer import Tracer
-from transformations import Affine
 
 class ConvexIntersection(Tracer):
     """Intersection of convex objects represented by Components"""
@@ -8,7 +7,7 @@ class ConvexIntersection(Tracer):
     class Component(Tracer):
         
         def __init__( self, pos = (0, 0, 0) ):
-            self.pos = tuple(pos)
+            Tracer.__init__(self, position=pos)
     
     # freeze template name
     def template_name(self):
@@ -22,7 +21,7 @@ class ConvexIntersection(Tracer):
         return funcs
     
     def __init__(self, origin, components):
-        self.origin = origin
+        Tracer.__init__(self, position=origin)
         self.components = components
         
         self.unique_tracer_id = '_' + '_'.join([c.__class__.__name__ \
@@ -47,9 +46,6 @@ class ConvexIntersection(Tracer):
             params.append('%s_%d' % (name, component_idx))
         
         return ', '.join([''] + params)
-        
-    def tracer_coordinate_system(self):
-        return Affine(translation=self.origin)
 
     @property
     def convex(self):
@@ -66,6 +62,6 @@ class ConvexIntersection(Tracer):
     def parameter_values(self):
         params = []
         for c in self.components:
-            params.append(c.pos)
+            params.append(c.position)
             params += c.parameter_values()
         return params

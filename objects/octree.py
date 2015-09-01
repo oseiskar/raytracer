@@ -7,13 +7,29 @@ class Octree(Tracer):
     MAX_DEPTH=7
     
     def __init__(self, triangle_mesh, max_depth=3, max_faces_per_leaf=5):
+        
+        original_coordinates = triangle_mesh.coordinates
         self.triangle_mesh = triangle_mesh
-        self.auto_flip_normal = self.triangle_mesh.auto_flip_normal
+        Tracer.__init__(self)
+        self.coordinates = original_coordinates
+        
         self.max_depth = max_depth
         self.max_faces_per_leaf = max_faces_per_leaf
         if self.max_depth >= self.__class__.MAX_DEPTH:
             raise RuntimeError("max_depth >= MAX_DEPTH")
         self.build()
+    
+    @property
+    def auto_flip_normal(self):
+        return self.triangle_mesh.auto_flip_normal
+    
+    @property
+    def coordinates(self):
+        return self.triangle_mesh.coordinates
+    
+    @coordinates.setter
+    def coordinates(self, var):
+        self.triangle_mesh.coordinates = var
     
     class Node:
         

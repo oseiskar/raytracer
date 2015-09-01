@@ -95,7 +95,7 @@ for i in range(len(test_objects)):
     pos = numpy.array((x,y,z))
     tracer = test_objects[i](pos,scale*obj_scale)
     #tracer = test_objects[i]((0,0,0),1.0)
-    #tracer.coordinates = Affine(translation=pos, scaling=scale*obj_scale, rotation_axis='z', rotation_deg=-45)
+    tracer.rotate(axis='z', deg=-45)
     scene.objects.append( Object( tracer, material ) )
 
 scene.max_bounces = 4

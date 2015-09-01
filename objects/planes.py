@@ -7,6 +7,7 @@ import numpy
 class HalfSpace(Tracer):
     
     def __init__(self, normal, h):
+        Tracer.__init__(self)
         self.normal = normalize_tuple(normal)
         self.h = h
     

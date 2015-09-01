@@ -2,7 +2,6 @@
 # Tracer objects: Implicit surfaces
 
 from tracer import Tracer
-from transformations import Affine
 
 class ImplicitSurface(Tracer):
 
@@ -13,10 +12,10 @@ class ImplicitSurface(Tracer):
                 center=(0, 0, 0), scale=1.0, bndR=None,
                 max_itr=1500, precision=0.001, self_intersection=True):
         
+        Tracer.__init__(self, position=center, scaling=scale)
         self.unique_tracer_id = str(id(self))
         
         self.center = tuple(center)
-        self.scale = scale
         self.no_self_intersection = not self_intersection
         self.precision = precision
         self.max_itr = max_itr
@@ -96,9 +95,6 @@ class ImplicitSurface(Tracer):
         sympy.Basic.__str__ = old_ptr
         
         #print self.tracer_code
-    
-    def tracer_coordinate_system(self):
-        return Affine(translation=self.center, scaling=self.scale)
     
     # freeze template name
     def template_name(self):

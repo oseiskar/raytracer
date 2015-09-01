@@ -38,7 +38,7 @@ class SymmetricDualPolyhedron(ConvexIntersection):
         for unscaledV in vertices:
             v = tuple([R*x for x in unscaledV])
             layer = LayerComponent( tuple([-x for x in v]), vec_norm(v)*2.0 )
-            layer.pos = v
+            layer.position = v
             components.append(layer)
         
         ConvexIntersection.__init__(self, origin, components)

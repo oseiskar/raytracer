@@ -3,7 +3,6 @@
 
 from tracer import Tracer
 from objects import ImplicitSurface
-from transformations import Affine
 
 class QuaternionJuliaSet(ImplicitSurface):
     
@@ -25,21 +24,17 @@ class QuaternionJuliaSet(ImplicitSurface):
 
 class QuaternionJuliaSet2(Tracer):
     
-    def __init__(self, c, julia_itr, **kwargs):
+    def __init__(self, c, julia_itr, center=(0,0,0), scale=1.0, **kwargs):
+        Tracer.__init__(self, position=center, scaling=scale)
         self.c = c
         self.julia_itr = julia_itr
         self.bndR = 4.0
-        self.center = (0, 0, 0)
-        self.scale = 1.0
         self.max_itr = 100
         self.precision = 0.001
         self.max_step = 0.1
         
         for (k, v) in kwargs.items():
             setattr(self, k, v)
-    
-    def tracer_coordinate_system(self):
-        return Affine(translation=self.center, scaling=self.scale)
     
     @property
     def c_as_float4(self):

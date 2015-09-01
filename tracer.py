@@ -1,7 +1,7 @@
 import numpy
-from transformations import Affine
+from transformations import Affine, rotation_matrix
 
-class Tracer:
+class Tracer(object):
     """
     A Tracer instance represents the shape of a three-dimensional body.
     
@@ -9,11 +9,12 @@ class Tracer:
     to compute the intersection of a ray and this object and an exterior
     normal at that intersection.
     """
-
-    # setting this to, e.g., id(obj), causes a tracer function to be
-    # generated for each instance, instead of one per Tracer (sub)class
-    unique_tracer_id = ""
-    coordinates = Affine.identity()
+    
+    def __init__(self, position=(0,0,0), **affine_kwargs):
+        # setting this to, e.g., id(obj), causes a tracer function to be
+        # generated for each instance, instead of one per Tracer (sub)class
+        self.unique_tracer_id = ""
+        self.coordinates = Affine(translation=position, **affine_kwargs)
     
     def _function_name_prefix(self):
         return self.__class__.__name__+self.unique_tracer_id
@@ -122,6 +123,23 @@ class Tracer:
     @property
     def convex(self):
         return False
+        
+    def rotate(self, axis, deg=None, rad=None):
+        rotation = rotation_matrix(axis, angle_deg=deg, angle_rad=rad)
+        self.coordinates = Affine(
+            linear=numpy.dot(rotation, self.coordinates.linear),
+            translation=self.coordinates.translation)
+    
+    @property
+    def position(self):
+        return self.coordinates.translation
+    
+    @position.setter
+    def position(self, value):
+        self.coordinates = Affine(
+            linear=self.coordinates.linear,
+            translation=value
+        )
 
 def cl_parameter_string(params):
     if len(params) == 0: return ''

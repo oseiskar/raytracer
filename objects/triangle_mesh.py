@@ -21,9 +21,10 @@ class TriangleMesh(Tracer):
             if current_size > 0.0: scale = scale / float(current_size*0.5)
             
             print "auto-scaling to %.1f%%" % (scale*100)
+            
+        Tracer.__init__(self, position=center, scaling=scale)
         
-        self.vertices = self.vertices*scale + center
-        self.auto_flip_normal = auto_flip_normal
+        self._auto_flip_normal = auto_flip_normal
         self.shading = shading
         
         self.unique_tracer_id = '_' + self.shading + '_autoflip_%s' % self.auto_flip_normal
@@ -36,6 +37,10 @@ class TriangleMesh(Tracer):
         else:
             self.normals = None
             assert(normals is None)
+    
+    @property
+    def auto_flip_normal(self):
+        return self._auto_flip_normal
         
     def get_data(self):
         vector_data = [self.vertices]
