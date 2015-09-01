@@ -1,15 +1,26 @@
-from objects import ConvexIntersection, HalfSpaceComponent
+from objects import ConvexIntersection, HalfSpaceComponent, FixedConvexIntersection
 from utils import normalize_tuple
+from transformations import Affine, rotation_aligning_vectors
 
-class Cone(ConvexIntersection):
+class Cone(FixedConvexIntersection):
     
     def __init__(self, tip, axis, height, R):
+        self.axis = axis
+        self.height = height
+        self.R = R
+        
+        z = (0,0,1)
+        
         components = [
-            HalfSpaceComponent(axis, height),
-            ConeComponent( (0, 0, 0), axis, R / float(height))
+            HalfSpaceComponent(normal=z, h=1.0),
+            ConeComponent((0, 0, 0), axis=z, slope=1.0)
         ]
-        ConvexIntersection.__init__(self, tip, components)
-        self.unique_tracer_id = ''
+        FixedConvexIntersection.__init__(self, tip, components)
+        
+    def tracer_coordinate_system(self):
+        rotation = Affine(linear=rotation_aligning_vectors((0,0,1), self.axis))
+        scaling = Affine(scaling=(self.R, self.R, self.height))
+        return rotation(scaling)
 
 class ConeComponent(ConvexIntersection.Component):
     """Infinte cone"""

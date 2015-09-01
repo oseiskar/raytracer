@@ -1,12 +1,24 @@
-from objects import ConvexIntersection, LayerComponent
+from objects import ConvexIntersection, LayerComponent, FixedConvexIntersection
 from utils import normalize_tuple
+from transformations import Affine, rotation_aligning_vectors
 
-class Cylinder(ConvexIntersection):
+class Cylinder(FixedConvexIntersection):
     
     def __init__(self, bottom_center, axis, height, R):
-        components = [LayerComponent(axis, height), CylinderComponent(axis, R)]
-        ConvexIntersection.__init__(self, bottom_center, components)
-        self.unique_tracer_id = ''
+        
+        self.axis = axis
+        self.height = height
+        self.R = R
+        
+        z = (0,0,1)
+        
+        components = [LayerComponent(z, 1.0), CylinderComponent(z, 1.0)]
+        FixedConvexIntersection.__init__(self, bottom_center, components)
+
+    def tracer_coordinate_system(self):
+        rotation = Affine(linear=rotation_aligning_vectors((0,0,1), self.axis))
+        scaling = Affine(scaling=(self.R, self.R, self.height))
+        return rotation(scaling)
 
 class CylinderComponent(ConvexIntersection.Component):
     """Infinite cylinder"""
