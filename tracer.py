@@ -123,12 +123,20 @@ class Tracer(object):
     @property
     def convex(self):
         return False
+    
+    def linear_transform(self, linear=None, translation=None, **kwargs):
+        if translation is not None:
+            raise RuntimeError('translation not allowed')
         
-    def rotate(self, axis, deg=None, rad=None):
-        rotation = rotation_matrix(axis, angle_deg=deg, angle_rad=rad)
+        transform = Affine(linear=linear, **kwargs).linear
+        
         self.coordinates = Affine(
-            linear=numpy.dot(rotation, self.coordinates.linear),
+            linear=numpy.dot(transform, self.coordinates.linear),
             translation=self.coordinates.translation)
+        return self
+        
+    def rotate(self, axis, deg):
+        return self.linear_transform(rotation_axis=axis, rotation_deg=deg)
     
     @property
     def position(self):

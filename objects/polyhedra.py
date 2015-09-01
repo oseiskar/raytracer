@@ -1,4 +1,4 @@
-from objects import ConvexIntersection, HalfSpaceComponent, LayerComponent
+from objects import ConvexIntersection, HalfSpaceComponent, LayerComponent, FixedConvexIntersection
 import math
 from utils import vec_norm
 
@@ -9,21 +9,21 @@ class Parallelepiped(ConvexIntersection):
         ConvexIntersection.__init__(self, origin, components)
         self.unique_tracer_id = ''
 
-class HyperplaneRepresentation(ConvexIntersection):
+class HyperplaneRepresentation(FixedConvexIntersection):
     """Hyperplane representation of a polyhedron"""
     
     def __init__( self, origin, planes, R ):
         # TODO: rather add R as an attribute to Tracer...
         components = []
-        for unscaledP in planes:
-            p = tuple([R*x for x in unscaledP])
+        for p in planes:
             halfspace = HalfSpaceComponent( p, vec_norm(p) )
             components.append(halfspace)
         
-        ConvexIntersection.__init__(self, origin, components)
-        self.unique_tracer_id = ''
+        FixedConvexIntersection.__init__(self, origin, components)
+        self.linear_transform(scaling=R)
+    
 
-class SymmetricDualPolyhedron(ConvexIntersection):
+class SymmetricDualPolyhedron(FixedConvexIntersection):
     
     def __init__( self, origin, vertices, R ):
         """
@@ -35,14 +35,13 @@ class SymmetricDualPolyhedron(ConvexIntersection):
         """
         
         components = []
-        for unscaledV in vertices:
-            v = tuple([R*x for x in unscaledV])
+        for v in vertices:
             layer = LayerComponent( tuple([-x for x in v]), vec_norm(v)*2.0 )
             layer.position = v
             components.append(layer)
         
-        ConvexIntersection.__init__(self, origin, components)
-        self.unique_tracer_id = ''
+        FixedConvexIntersection.__init__(self, origin, components)
+        self.linear_transform(scaling=R)
 
 class Tetrahedron(HyperplaneRepresentation):
     def __init__(self, origin, R):

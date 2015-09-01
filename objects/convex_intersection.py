@@ -1,5 +1,6 @@
 
 from tracer import Tracer
+import numpy
 
 class ConvexIntersection(Tracer):
     """Intersection of convex objects represented by Components"""
@@ -65,3 +66,51 @@ class ConvexIntersection(Tracer):
             params.append(c.position)
             params += c.parameter_values()
         return params
+
+class UniqueConvexIntersection(ConvexIntersection):
+    
+    def __init__(self, origin, components):
+        ConvexIntersection.__init__(self, origin, components)
+        self.unique_tracer_id = str(id(self))
+        
+    def parameter_declarations(self):
+        return []
+    
+    def parameter_values(self):
+        return []
+    
+    # "view helpers"
+    
+    def _component_position_string(self, component_idx):
+        return self._vec_literal(self.components[component_idx].position)
+        
+    def _vec_literal(self, vec):
+        return "(float3)%s" % str(tuple(vec))
+    
+    def component_tracer_call_params(self, component_idx):
+        return ('rel - %s, ray, &cur_ibegin, &cur_iend, &cur_subobj, inside' \
+            % self._component_position_string(component_idx)) \
+            + self.component_parameter_string(component_idx)
+    
+    def component_normal_call_params(self, component_idx, subobject_offset):
+        component = self.components[component_idx]
+        return ('p - %s, subobject - %d, p_normal' \
+             % (self._component_position_string(component_idx), subobject_offset)) \
+             + self.component_parameter_string(component_idx)
+    
+    def component_parameter_string(self, component_idx):
+        params = []
+        
+        for val in self.components[component_idx].parameter_values():
+            if len(numpy.ravel(val)) > 1:
+                p = self._vec_literal(val)
+            else:
+                p = str(val)
+            params.append(p)
+        
+        return ', '.join([''] + params)
+
+class FixedConvexIntersection(UniqueConvexIntersection):
+    def __init__(self, *args, **kwargs):
+        UniqueConvexIntersection.__init__(self, *args, **kwargs)
+        self.unique_tracer_id = ''
