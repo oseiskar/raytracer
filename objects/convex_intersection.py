@@ -81,21 +81,25 @@ class UniqueConvexIntersection(ConvexIntersection):
     
     # "view helpers"
     
-    def _component_position_string(self, component_idx):
-        return self._vec_literal(self.components[component_idx].position)
+    def _minus_component_position_string(self, component_idx):
+        pos = self.components[component_idx].position
+        if numpy.linalg.norm(pos) < 1e-10:
+            return ''
+        else:
+            return " - " + self._vec_literal(pos)
         
     def _vec_literal(self, vec):
         return "(float3)%s" % str(tuple(vec))
     
     def component_tracer_call_params(self, component_idx):
-        return ('rel - %s, ray, &cur_ibegin, &cur_iend, &cur_subobj, inside' \
-            % self._component_position_string(component_idx)) \
+        return ('rel %s, ray, &cur_ibegin, &cur_iend, &cur_subobj, inside' \
+            % self._minus_component_position_string(component_idx)) \
             + self.component_parameter_string(component_idx)
     
     def component_normal_call_params(self, component_idx, subobject_offset):
         component = self.components[component_idx]
-        return ('p - %s, subobject - %d, p_normal' \
-             % (self._component_position_string(component_idx), subobject_offset)) \
+        return ('p %s, subobject - %d, p_normal' \
+             % (self._minus_component_position_string(component_idx), subobject_offset)) \
              + self.component_parameter_string(component_idx)
     
     def component_parameter_string(self, component_idx):

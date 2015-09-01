@@ -46,8 +46,12 @@ class LayerComponent(HalfSpaceComponent):
     
     n_subobjects = 2
 
+class ZLayerComponent(LayerComponent):
+    def __init__(self):
+        LayerComponent.__init__(self, (0,0,1), 1.0)
 
-
+    def parameter_declarations(self):
+        return []
 
 
 

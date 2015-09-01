@@ -1,4 +1,4 @@
-from objects import ConvexIntersection, LayerComponent, FixedConvexIntersection
+from objects import ConvexIntersection, ZLayerComponent, FixedConvexIntersection
 from utils import normalize_tuple
 from transformations import Affine, rotation_aligning_vectors
 
@@ -10,9 +10,7 @@ class Cylinder(FixedConvexIntersection):
         self.height = height
         self.R = R
         
-        z = (0,0,1)
-        
-        components = [LayerComponent(z, 1.0), CylinderComponent(z, 1.0)]
+        components = [ZLayerComponent(), ZCylinderComponent()]
         FixedConvexIntersection.__init__(self, bottom_center, components)
 
     def tracer_coordinate_system(self):
@@ -32,3 +30,10 @@ class CylinderComponent(ConvexIntersection.Component):
     
     def parameter_declarations(self):
         return ['float3 axis', 'float R']
+
+class ZCylinderComponent(CylinderComponent):
+    def __init__(self):
+        CylinderComponent.__init__(self, (0,0,1), 1.0)
+    
+    def parameter_declarations(self):
+        return []

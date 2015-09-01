@@ -13,7 +13,7 @@ class Cone(FixedConvexIntersection):
         
         components = [
             HalfSpaceComponent(normal=z, h=1.0),
-            ConeComponent((0, 0, 0), axis=z, slope=1.0)
+            ZConeComponent()
         ]
         FixedConvexIntersection.__init__(self, tip, components)
         
@@ -34,3 +34,10 @@ class ConeComponent(ConvexIntersection.Component):
 
     def parameter_declarations(self):
         return ['float3 axis', 'float slope']
+
+class ZConeComponent(ConeComponent):
+    def __init__(self):
+        ConeComponent.__init__(self, (0,0,0), (0,0,1), 1.0)
+    
+    def parameter_declarations(self):
+        return []
