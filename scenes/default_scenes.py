@@ -5,7 +5,7 @@ from spectrum import Spectrum
 from objects import HalfSpace, Sphere
 import shader
 
-def default_materials():
+def default_rgb_materials():
     # --- Materials
     return {\
         'default': # "Air" / initial / default material
@@ -48,50 +48,81 @@ def default_materials():
               'diffuse': 0.02
             }
         }
-    
 
-# Default scene
-class DefaultBoxScene(Scene):
+def default_spectrum_materials(spectrum):
+    
+    materials = default_rgb_materials()
+        
+    # Have to replace RGB colors by proper spectra...
+    overrides = {
+        'green':
+            { 'diffuse': spectrum.gaussian(540, 30)*0.65 + 0.3 },
+        'red':
+            { 'diffuse': spectrum.gaussian(670, 30)*0.6 + 0.2 },
+        'light': # warm yellow-orange-light
+            { 'diffuse': 1.0, 'emission': spectrum.black_body(3200)*7.0 },
+        'sky':
+            { 'diffuse': 1.0, 'emission': spectrum.black_body(10000) },
+    }
+    
+    for k, mat in overrides.items():
+        materials[k] = mat
+
+    materials['wax']['volume_absorption'] = \
+        (1.0 - spectrum.gaussian(670, 100)) * 4.0
+        
+    # Also make the glass dispersive
+    materials['glass']['ior'] = spectrum.linear_dispersion_ior(1.5, 60.0)
+    
+    return materials
+
+def default_settings(scene):
+
+    # --- Image settings
+    scene.image_size = (800, 600)
+    scene.brightness = 0.3
+    scene.gamma = 1.8
+    
+    # --- Raytracer settings
+    scene.tent_filter = True
+    scene.quasirandom = False
+    scene.samples_per_pixel = 10000
+    scene.min_bounces = 2
+    scene.max_bounces = 4
+    scene.min_russian_prob = 0.15
+
+def make_world_box(material, dims, center=(0, 0, 0) ):
+    return [\
+        Object(HalfSpace( ( 1, 0, 0), dims[0]-center[0] ), material, 'wall'), \
+        Object(HalfSpace( (-1, 0, 0), dims[0]+center[0] ), material, 'wall'), \
+        Object(HalfSpace( ( 0, 1, 0), dims[1]-center[1] ), material, 'wall'), \
+        Object(HalfSpace( ( 0,-1, 0), dims[1]+center[1] ), material, 'wall'), \
+        Object(HalfSpace( ( 0, 0, 1), dims[2]-center[2] ), material, 'floor'), \
+        Object(HalfSpace( ( 0, 0,-1), dims[2]+center[2] ), material, 'ceiling')]
+
+class DefaultScene(Scene):
+    
+    def __init__(self, shader_class = shader.RgbShader):
+        default_settings(self)
+        self.shader = shader_class
+        
+        if shader_class == shader.SpectrumShader:
+            self.spectrum = Spectrum()
+            self.materials = default_spectrum_materials(self.spectrum)
+        else:
+            self.materials = default_rgb_materials()
+        
+        self.set_up_objects_and_camera()
+
+class BoxScene(DefaultScene):
     """
     Default raytracer scene. Override attributes as required
     """
     
-    # helpers...
-    
-    @staticmethod
-    def make_world_box( material, dims, center=(0, 0, 0) ):
-        return [\
-            Object(HalfSpace( ( 1, 0, 0), dims[0]-center[0] ), material, 'wall'), \
-            Object(HalfSpace( (-1, 0, 0), dims[0]+center[0] ), material, 'wall'), \
-            Object(HalfSpace( ( 0, 1, 0), dims[1]-center[1] ), material, 'wall'), \
-            Object(HalfSpace( ( 0,-1, 0), dims[1]+center[1] ), material, 'wall'), \
-            Object(HalfSpace( ( 0, 0, 1), dims[2]-center[2] ), material, 'floor'), \
-            Object(HalfSpace( ( 0, 0,-1), dims[2]+center[2] ), material, 'ceiling')]
-    
-    
-    def initialize_materials(self):
-        self.materials = default_materials()
-    
-    def __init__(self):
-        """Initialize default scene"""
-        
-        # --- Image settings
-        self.image_size = (800, 600)
-        self.brightness = 0.3
-        self.gamma = 1.8
-        
-        # --- Raytracer settings
-        self.tent_filter = True
-        self.quasirandom = False
-        self.samples_per_pixel = 10000
-        self.min_bounces = 2
-        self.max_bounces = 4
-        self.min_russian_prob = 0.15
-        
-        self.initialize_materials()
+    def set_up_objects_and_camera(self):
         
         # --- Objects
-        self.objects = DefaultBoxScene.make_world_box( 'white', (3, 5, 2), (0, 0, 2) )
+        self.objects = make_world_box( 'white', (3, 5, 2), (0, 0, 2) )
         self.objects[-1].material = "sky" # world box ceiling
         self.objects[-2].material = "green" # world box floor
         self.root_object = None
@@ -108,38 +139,3 @@ class DefaultBoxScene(Scene):
         camera_target = (0, 2, 0.5)
         self.camera_dof_fstop = 0.0
         self.direct_camera_towards(camera_target)
-        
-        self.shader = shader.RgbShader
-
-class DefaultSpectrumBoxScene(DefaultBoxScene):
-    
-    def __init__(self):
-        self.spectrum = Spectrum()
-        DefaultBoxScene.__init__(self)
-        self.shader = shader.SpectrumShader
-    
-    def initialize_materials(self):
-        
-        s = self.spectrum
-        self.materials = default_materials()
-        
-        # Have to replace RGB colors by proper spectra...
-        overrides = {
-            'green':
-                { 'diffuse': s.gaussian(540, 30)*0.65 + 0.3 },
-            'red':
-                { 'diffuse': s.gaussian(670, 30)*0.6 + 0.2 },
-            'light': # warm yellow-orange-light
-                { 'diffuse': 1.0, 'emission': s.black_body(3200)*7.0 },
-            'sky':
-                { 'diffuse': 1.0, 'emission': s.black_body(10000) },
-        }
-        
-        for k, mat in overrides.items():
-            self.materials[k] = mat
-        
-        self.materials['wax']['volume_absorption'] = \
-            (1.0 - s.gaussian(670, 100)) * 4.0
-            
-        # Also make the glass dispersive
-        self.materials['glass']['ior'] = s.linear_dispersion_ior(1.5, 60.0)

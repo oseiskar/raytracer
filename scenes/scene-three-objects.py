@@ -1,10 +1,11 @@
 
-from scene import *
-from utils import normalize, vec_norm
-import math
+from scene import Object
+from objects import *
+from utils import vec_norm
+from scenes.default_scenes import BoxScene
+import numpy as np
 
-#scene = DefaultSpectrumBoxScene()
-scene = DefaultBoxScene()
+scene = BoxScene()
 	
 scene.materials['floor'] = {
 	'diffuse': 0.1,

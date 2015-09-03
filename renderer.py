@@ -1,6 +1,7 @@
 
 from accelerator import Accelerator
 import numpy as np
+import camera
 import utils
 import itertools
 import math
@@ -80,7 +81,7 @@ class Renderer:
         self.vec_param_buf = np.zeros((self.max_broadcast_vecs, 4), dtype=np.float32)
         
         # Randomization init
-        self.qdirs = utils.quasi_random_direction_sample(self.scene.samples_per_pixel)
+        self.qdirs = camera.quasi_random_direction_sample(self.scene.samples_per_pixel)
         self.qdirs = np.random.permutation(self.qdirs)
     
     def _init_camera_and_image(self):
@@ -273,13 +274,13 @@ class Renderer:
         thetax = (sx-0.5)*self.pixel_angle*(1.0+overlap)
         thetay = (sy-0.5)*self.pixel_angle*(1.0+overlap)
         
-        dofx, dofy = utils.random_dof_sample()
+        dofx, dofy = camera.random_dof_sample()
         
         dof_pos = (dofx * self.rotmat[:, 0] + dofy * self.rotmat[:, 1]) * scene.camera_dof_fstop
         
         sharp_distance = scene.camera_sharp_distance
         
-        tilt = utils.rotmat_tilt_camera(thetax, thetay)
+        tilt = camera.rotmat_tilt_camera(thetax, thetay)
         mat = np.dot(np.dot(self.rotmat, tilt), self.rotmat.transpose())
         mat4 = np.zeros((4, 4))
         mat4[0:3, 0:3] = mat

@@ -2,7 +2,9 @@
 Test scene: should contain all different objects
 """
 
-from scene import *
+from scene import Object
+from objects import *
+from scenes.default_scenes import BoxScene
 import math
 import numpy
 import mesh_formats
@@ -76,7 +78,7 @@ test_materials = [
     'white', 'mirror', 'glass', 'wax'
 ]
 
-scene = DefaultBoxScene()
+scene = BoxScene()
 scene.get_object('light').bidirectional_light = True
 
 grid_side = int(math.ceil(math.sqrt(len(test_objects))))

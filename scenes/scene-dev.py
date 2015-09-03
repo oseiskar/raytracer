@@ -1,8 +1,10 @@
-from scene import *
-from utils import normalize, vec_norm
+from scenes.default_scenes import BoxScene
+from scene import Object
+from objects import *
+#from shader import SpectrumShader
 
-scene = DefaultSpectrumBoxScene()
-#scene = DefaultBoxScene()
+#scene = BoxScene(SpectrumShader)
+scene = BoxScene()
 
 for obj in scene.get_objects('wall'): obj.material = 'red'
 scene.get_object('floor').material = 'white'

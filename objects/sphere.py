@@ -1,7 +1,6 @@
 from tracer import Tracer
 from objects import ConvexIntersection
 import numpy
-import math
 from transformations import Affine
 
 class Sphere(Tracer):
@@ -12,7 +11,7 @@ class Sphere(Tracer):
     
     def surface_area(self):
         self._check_no_distortion()
-        return 4.0 * math.pi * self.R**2
+        return 4.0 * numpy.pi * self.R**2
 
     def random_surface_point_and_normal(self):
         self._check_no_distortion()

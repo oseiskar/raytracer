@@ -1,6 +1,6 @@
 from objects import ConvexIntersection, HalfSpaceComponent, LayerComponent, FixedConvexIntersection
-import math
 from utils import vec_norm
+import math
 
 class Parallelepiped(ConvexIntersection):
     

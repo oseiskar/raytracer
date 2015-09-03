@@ -1,5 +1,4 @@
 from tracer import Tracer
-from utils import normalize
 import numpy
 
 class Octree(Tracer):

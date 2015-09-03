@@ -1,9 +1,5 @@
-
-from objects import *
-import utils
 import numpy as np
-import tracer
-from spectrum import Spectrum
+import camera
 
 class Object:
     """
@@ -25,7 +21,7 @@ class Scene:
     """
     
     def get_camera_rotmat(self):
-        return utils.camera_rotmat(self.camera_direction, self.camera_up)
+        return camera.camera_rotmat(self.camera_direction, self.camera_up)
     
     def get_objects(self, name):
         return [obj for obj in self.objects if obj.name == name]
@@ -46,7 +42,7 @@ class Scene:
         self.camera_sharp_distance = np.linalg.norm(self.camera_direction)
     
     def get_camera_rays(self):
-        return utils.camera_rays(self.image_size, self.camera_flat_ccd, \
+        return camera.camera_rays(self.image_size, self.camera_flat_ccd, \
             self.camera_fov, self.camera_direction, self.camera_up)
     
     def get_number_of_camera_rays(self):
@@ -54,5 +50,3 @@ class Scene:
     
     def add_object(self, tracer, material, name=None):
         self.objects.append(Object(tracer, material, name))
-
-from scenes.default_scenes import DefaultBoxScene, DefaultSpectrumBoxScene
