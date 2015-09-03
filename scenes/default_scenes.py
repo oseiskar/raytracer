@@ -90,6 +90,15 @@ def default_settings(scene):
     scene.min_bounces = 2
     scene.max_bounces = 4
     scene.min_russian_prob = 0.15
+    
+    # --- Default camera settings
+    scene.camera_up = (0, 0, 1)
+    scene.camera_fov = 55 # Field-of-view angle (horizontal)
+    scene.camera_flat_ccd = False
+    scene.camera_dof_fstop = 0.0
+    
+    scene.root_object = None
+    scene.max_ray_length = 1000
 
 def make_world_box(material, dims, center=(0, 0, 0) ):
     return [\
@@ -125,17 +134,13 @@ class BoxScene(DefaultScene):
         self.objects = make_world_box( 'white', (3, 5, 2), (0, 0, 2) )
         self.objects[-1].material = "sky" # world box ceiling
         self.objects[-2].material = "green" # world box floor
-        self.root_object = None
-        self.max_ray_length = 100
         
         # light bulb on the right wall
         self.objects.append(Object(Sphere( (-3, -1, 2), 0.5 ), 'light', 'light'))
         
         # --- Camera
-        self.camera_up = (0, 0, 1)
         self.camera_position = (1, -5, 2)
         self.camera_fov = 55 # Field-of-view angle (horizontal)
-        self.camera_flat_ccd = False
         camera_target = (0, 2, 0.5)
-        self.camera_dof_fstop = 0.0
         self.direct_camera_towards(camera_target)
+

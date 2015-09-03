@@ -46,6 +46,7 @@ test_objects = [
     lambda p, R: Cone(p-numpy.array([0,0,R]), (0,0,1), R, R ),
     lambda p, R: Cylinder(p-numpy.array([0,0,R]), (0,0,1), R, R ),
     lambda p, R: Tetrahedron( p, R ),
+    lambda p, R: Cube( p, R=R ),
     lambda p, R: Octahedron( p, R ),
     lambda p, R: Dodecahedron( p, R ),
     lambda p, R: Icosahedron( p, R ),
