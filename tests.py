@@ -42,6 +42,7 @@ class TestAffine(unittest.TestCase):
         r = t(vec)
         
         self.assertVecsEqual( r, (1,1,0) )
+        self.assertVecsEqual( t * vec, (1,1,0) )
     
     def test_inverse(self):
         
@@ -49,6 +50,7 @@ class TestAffine(unittest.TestCase):
         inv = t.inverse()
         
         self.assertTrue(inv(t).is_identity())
+        self.assertTrue((inv * t).is_identity())
     
     def test_roto_translation(self):
         t = Affine(rotation_axis='z', rotation_deg=90, translation=(2,0,0))

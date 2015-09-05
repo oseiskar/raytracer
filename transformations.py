@@ -33,6 +33,9 @@ class Affine:
                 np.dot(self._linear, other._translation) + self._translation )
         else:
             return np.dot(self._linear, np.ravel(other)) + self._translation
+    
+    def __mul__(self, other):
+        return self(other)
 
     def inverse(self):
         linear_inv = np.linalg.inv(self._linear)
