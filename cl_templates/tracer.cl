@@ -66,8 +66,7 @@ void {{ obj.tracer_function_name }}(
 
 ### macro get_coordinate_system(obj)
     ### set affine_params_index = obj.parameter_declarations()|length
-    constant const float4 *p_forward_affine = param_float3_data + data_offsets[DATA_PARAM_float3] + {{ obj.local_param_offsets[affine_params_index] }};
-    constant const float4 *p_inverse_affine = p_forward_affine + 4;
+    constant const float4 *p_inverse_affine = param_float3_data + data_offsets[DATA_PARAM_float3] + {{ obj.local_param_offsets[affine_params_index] }};
 ### endmacro
 
 ### macro tracer_kernel(obj)
@@ -271,7 +270,7 @@ __kernel void {{ obj.normal_kernel_name }}(
             {{ tracer_params(obj) }}
         );
         
-        *p_normal = normalize(apply_linear_transform(p_forward_affine, *p_normal));
+        *p_normal = normalize(apply_transposed_linear_transform(p_inverse_affine, *p_normal));
         
         {#/* TODO: move this to triangle mesh */#}
         ### if obj.auto_flip_normal

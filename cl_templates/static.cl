@@ -70,6 +70,13 @@ float3 apply_linear_transform(constant const float4 *p_matrix, float3 vector) {
         dot(p_matrix[2].xyz, vector));
 }
 
+float3 apply_transposed_linear_transform(constant const float4 *p_matrix, float3 vector) {
+    return (float3)(
+        dot((float3)(p_matrix[0].x, p_matrix[1].x, p_matrix[2].x), vector),
+        dot((float3)(p_matrix[0].y, p_matrix[1].y, p_matrix[2].y), vector),
+        dot((float3)(p_matrix[0].z, p_matrix[1].z, p_matrix[2].z), vector));
+}
+
 float3 apply_affine_transform(constant const float4 *p_mat_and_vec, float3 vector) {
     return apply_linear_transform(p_mat_and_vec, vector) + p_mat_and_vec[3].xyz;
 }
