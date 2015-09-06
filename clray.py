@@ -55,6 +55,7 @@ if __name__ == '__main__':
         img = Image( old_raw_file )
         img.gamma = scene.gamma
         img.brightness = scene.brightness
+        img.normalization = scene.brightness_reference
         return img
     image = init_image()
 

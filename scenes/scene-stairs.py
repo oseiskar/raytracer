@@ -1,5 +1,4 @@
 from objects import Sphere, Cube, HalfSpace
-from scene import Object
 from scenes.default_scenes import DefaultScene
 from shader import SpectrumShader
 import numpy as np
@@ -20,12 +19,10 @@ class DomeScene(DefaultScene):
         }
         
         sky_distance = 100
-        self.objects = [
-            Object(Sphere( (0, 0, 0), sky_distance ), 'dome', 'dome'),
-            Object(HalfSpace( (0, 0, -1), sky_distance*0.7 ), 'sky', 'sky'),
-            Object(HalfSpace( (0, 0, 1), 0.0 ), 'white', 'floor')
-        ]
-        self.root_object = self.get_object('dome')
+        dome = self.add_object(Sphere((0, 0, 0), sky_distance), 'dome', 'dome')
+        self.add_object(HalfSpace((0, 0, -1), sky_distance*0.7 ), 'sky', 'sky')
+        self.add_object(HalfSpace( (0, 0, 1), 0.0 ), 'white', 'floor')
+        self.root_object = dome
         
         self.camera_position = (1.5, -7.5, 1.5)
         camera_target = (-0.5, 0, 1.5)
@@ -53,11 +50,11 @@ for j in range(65):
         cube_mat = 'glass'
         
     cube.coordinates = T * Affine(scaling=(0.5, 0.2, 0.02))
-    scene.objects.append(Object(cube, cube_mat))
+    scene.add_object(cube, cube_mat)
     
     sphere = Sphere((0,0,0), 0.1)
     sphere.coordinates = T2
-    scene.objects.append(Object(sphere, 'red'))
+    scene.add_object(sphere, 'red')
     
     T = dt * T
     T2 = dt * T2

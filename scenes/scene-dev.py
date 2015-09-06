@@ -1,5 +1,4 @@
 from scenes.default_scenes import BoxScene
-from scene import Object
 from objects import *
 #from shader import SpectrumShader
 
@@ -13,11 +12,11 @@ scene.get_object('ceiling').material = 'green'
 scene.get_object('light').bidirectional_light = True
 scene.materials['black'] = { 'diffuse': 0.2 }
 scene.materials['light']['diffuse'] = 0.0
-scene.objects.append( Object(HalfSpace( (-1,-1,-2), 5 ), 'sky') )
+scene.add_object( HalfSpace( (-1,-1,-2), 5 ), 'sky' )
 
 obj = Sphere((0,0,0.6), 0.3)
 obj.linear_transform(scaling=(1,1,2))
-scene.objects.append( Object( obj, 'mirror' ) )
+scene.add_object( obj, 'mirror' )
 
 szmul = 120
 scene.image_size = (8*szmul,6*szmul)

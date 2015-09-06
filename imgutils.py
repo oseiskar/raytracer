@@ -12,6 +12,7 @@ class Image:
         
         self.gamma = 1.8
         self.brightness = 0.3
+        self.normalization = 'mean'
         self._pgwin = None
         self._shrink = 1
     
@@ -29,7 +30,7 @@ class Image:
     
     def _to_24bit( self, imgdata = None ):
         imgdata = np.nan_to_num(self._sum( imgdata ))
-        ref = np.mean(imgdata)
+        ref = getattr(np, self.normalization)(imgdata)
         imgdata = np.clip(imgdata/ref*self.brightness, 0, 1)
         imgdata = np.power(imgdata, 1.0/self.gamma)
         return (imgdata*255).astype(np.uint8)

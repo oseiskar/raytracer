@@ -2,7 +2,6 @@
 Test scene: should contain all different objects
 """
 
-from scene import Object
 from objects import *
 from scenes.default_scenes import BoxScene
 import math
@@ -99,7 +98,7 @@ for i in range(len(test_objects)):
     tracer = test_objects[i](pos,scale*obj_scale)
     #tracer = test_objects[i]((0,0,0),1.0)
     tracer.rotate(axis='z', deg=-45)
-    scene.objects.append( Object( tracer, material ) )
+    scene.add_object(tracer, material)
 
 scene.max_bounces = 4
 scene.min_bounces = 2

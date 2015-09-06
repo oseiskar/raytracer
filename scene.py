@@ -1,24 +1,24 @@
 import numpy as np
 import camera
 
-class Object:
-    """
-    An object consists of a Tracer that represents its shape and a material.
-    It is also defined here if the object is to be used as a light source
-    in bidirectional path tracing. If yes, this must be supported by the
-    Tracer.
-    """
-    def __init__(self, tracer, material, name=None):
-        self.tracer = tracer
-        self.material = material
-        self.name = name
-        self.bidirectional_light = False
-
 class Scene:
     """
     Defines a 3D scene consisting of a camera, objects, materials and
     some rendering settings such as image size
     """
+    
+    class Object:
+        """
+        An object consists of a Tracer that represents its shape and a material.
+        It is also defined here if the object is to be used as a light source
+        in bidirectional path tracing. If yes, this must be supported by the
+        Tracer.
+        """
+        def __init__(self, tracer, material, name=None):
+            self.tracer = tracer
+            self.material = material
+            self.name = name
+            self.bidirectional_light = False
     
     def get_camera_rotmat(self):
         return camera.camera_rotmat(self.camera_direction, self.camera_up)
@@ -49,4 +49,6 @@ class Scene:
         return self.get_camera_rays().size / 3
     
     def add_object(self, tracer, material, name=None):
-        self.objects.append(Object(tracer, material, name))
+        obj = Scene.Object(tracer, material, name)
+        self.objects.append(obj)
+        return obj

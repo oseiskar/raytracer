@@ -1,5 +1,4 @@
 
-from scene import Object
 from objects import *
 from utils import vec_norm
 from scenes.default_scenes import BoxScene
@@ -29,26 +28,26 @@ for obj in scene.get_objects('wall'): obj.material = 'white'
 #scene.materials['default']['volume_scattering'] = 0.15
 #scene.materials['default']['volume_scattering_blur'] = 0.03
 
-scene.objects.append( Object(HalfSpace( (-1,-1,-2), 5 ), 'sky') )
+scene.add_object(HalfSpace( (-1,-1,-2), 5 ), 'sky')
 
-scene.objects.append( Object(
+scene.add_object(
 	ConvexIntersection( (-0.2,2.5,1.0), [
 		CylinderComponent( (1,1,0), 1, ),
 		CylinderComponent( (0,1,0), 1, ),
 		CylinderComponent( (1,0,1), 1, )
-	] ), 'mirror') )
+	] ), 'mirror')
 	
 cylR = .4
-scene.objects.append( Object(
+scene.add_object(
 	ConvexIntersection( (-0.7,-0.8,cylR), [
 		CylinderComponent( (1,0,0), cylR, ),
 		CylinderComponent( (0,1,0), cylR, ),
 		CylinderComponent( (0,0,1), cylR, )
-	] ), 'wax') )
+	] ), 'wax')
 
-scene.objects.append( Object( Parallelepiped( (1.3,-0.5,0.0), (1,0,0), (0,1.3,0), (0,0,0.6) ), 'red' ) )
+scene.add_object(Parallelepiped( (1.3,-0.5,0.0), (1,0,0), (0,1.3,0), (0,0,0.6) ), 'red')
 
-scene.objects.append( Object( Dodecahedron( (1.8,0.2,.5+0.6), 0.5 ), 'glass' ) )
+scene.add_object(Dodecahedron( (1.8,0.2,.5+0.6), 0.5 ), 'glass')
 
 #scene.image_size = (1280,1024)
 scene.image_size = (1024,768)

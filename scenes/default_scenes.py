@@ -1,6 +1,6 @@
 
 import numpy as np
-from scene import Scene, Object
+from scene import Scene
 from spectrum import Spectrum
 from objects import HalfSpace, Sphere
 import shader
@@ -82,6 +82,7 @@ def default_settings(scene):
     scene.image_size = (800, 600)
     scene.brightness = 0.3
     scene.gamma = 1.8
+    scene.brightness_reference = 'mean'
     
     # --- Raytracer settings
     scene.tent_filter = True
@@ -100,14 +101,16 @@ def default_settings(scene):
     scene.root_object = None
     scene.max_ray_length = 1000
 
-def make_world_box(material, dims, center=(0, 0, 0) ):
-    return [\
-        Object(HalfSpace( ( 1, 0, 0), dims[0]-center[0] ), material, 'wall'), \
-        Object(HalfSpace( (-1, 0, 0), dims[0]+center[0] ), material, 'wall'), \
-        Object(HalfSpace( ( 0, 1, 0), dims[1]-center[1] ), material, 'wall'), \
-        Object(HalfSpace( ( 0,-1, 0), dims[1]+center[1] ), material, 'wall'), \
-        Object(HalfSpace( ( 0, 0, 1), dims[2]-center[2] ), material, 'floor'), \
-        Object(HalfSpace( ( 0, 0,-1), dims[2]+center[2] ), material, 'ceiling')]
+def make_world_box(scene, material, dims, center=(0, 0, 0) ):
+    
+    for (obj, name) in [\
+            (HalfSpace( ( 1, 0, 0), dims[0]-center[0] ), 'wall'), \
+            (HalfSpace( (-1, 0, 0), dims[0]+center[0] ), 'wall'), \
+            (HalfSpace( ( 0, 1, 0), dims[1]-center[1] ), 'wall'), \
+            (HalfSpace( ( 0,-1, 0), dims[1]+center[1] ), 'wall'), \
+            (HalfSpace( ( 0, 0, 1), dims[2]-center[2] ), 'floor'), \
+            (HalfSpace( ( 0, 0,-1), dims[2]+center[2] ), 'ceiling')]:
+        scene.add_object(obj, material, name)
 
 class DefaultScene(Scene):
     
@@ -121,6 +124,7 @@ class DefaultScene(Scene):
         else:
             self.materials = default_rgb_materials()
         
+        self.objects = []
         self.set_up_objects_and_camera()
 
 class BoxScene(DefaultScene):
@@ -131,12 +135,12 @@ class BoxScene(DefaultScene):
     def set_up_objects_and_camera(self):
         
         # --- Objects
-        self.objects = make_world_box( 'white', (3, 5, 2), (0, 0, 2) )
+        make_world_box(self, 'white', (3, 5, 2), (0, 0, 2))
         self.objects[-1].material = "sky" # world box ceiling
         self.objects[-2].material = "green" # world box floor
         
         # light bulb on the right wall
-        self.objects.append(Object(Sphere( (-3, -1, 2), 0.5 ), 'light', 'light'))
+        self.add_object(Sphere((-3, -1, 2), 0.5), 'light', name='light')
         
         # --- Camera
         self.camera_position = (1, -5, 2)
