@@ -56,6 +56,7 @@ if __name__ == '__main__':
         img.gamma = scene.gamma
         img.brightness = scene.brightness
         img.normalization = scene.brightness_reference
+        img.equalize = scene.equalize
         return img
     image = init_image()
 

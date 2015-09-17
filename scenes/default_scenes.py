@@ -83,6 +83,7 @@ def default_settings(scene):
     scene.brightness = 0.3
     scene.gamma = 1.8
     scene.brightness_reference = 'mean'
+    scene.equalize = True
     
     # --- Raytracer settings
     scene.tent_filter = True

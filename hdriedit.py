@@ -1,6 +1,7 @@
 
 import sys, numpy, pygame, time, scipy
 import scipy.ndimage
+from imgutils import Image
 from scipy.misc import toimage
 
 # pylint: disable-msg=C0103
@@ -21,65 +22,8 @@ for fn in fns:
     else:
         data += d
 
-mean = data.mean()
-data /= mean
-print "mean value %s (now normalized to 1.0)" % mean
-h, w = data.shape[:2]
-print "assuming an image of size %d x %d" % (w, h)
-    
-ref = 1.0
-gamma = 1.8
-pgwin = None
-
-def flares(imgdata):
-    visiblerange = numpy.clip(imgdata, 0, 1)
-    overexposure = imgdata - visiblerange
-    
-    sigma = 1.0
-    
-    for c in xrange(3):
-        overexposure[:, :, c] = \
-          scipy.ndimage.filters.gaussian_filter(overexposure[:, :, c], sigma)
-          
-    imgdata = visiblerange + overexposure
-    
-    visiblerange = numpy.clip(imgdata, 0, 2)
-    overexposure = imgdata - visiblerange
-    
-    l = 100
-    kernel = numpy.arange(0, l, dtype=numpy.float32)
-    kernel = numpy.exp(-kernel * 0.2)
-    kernel = numpy.concatenate((kernel[-1:1:-1], kernel))
-    kernel /= kernel.sum()
-    
-    overexposure = scipy.ndimage.filters.convolve1d(overexposure, kernel, 0, None, 'constant', 0, 0)
-    
-    imgdata = visiblerange + overexposure
-    return imgdata
-
-def show_img(data, ref, do_flares=False, do_save=True):
-    
-    imgdata = data*ref
-    imgdata = numpy.power(imgdata, 1.0/gamma)
-    if do_flares:
-        imgdata = flares(imgdata)
-    
-    imgdata = (numpy.clip(imgdata, 0, 1)*255).astype(numpy.uint8)
-    
-    global pgwin
-    if not pgwin:
-        pgwin = pygame.display.set_mode((w, h))
-        pygame.display.set_caption("HDR image")
-    
-    pgwin.blit(pygame.surfarray.make_surface(imgdata.transpose((1, 0, 2))), (0, 0))
-    pygame.display.update()
-    
-    if do_save:
-        toimage(imgdata).save('out-24bit.png')
-
-ref = 1.0
-do_flares = False
-show_img(data, ref, do_flares, False)
+image = Image(data = data)
+image.show()
 
 print """-----------
 Valid commans are:
@@ -103,7 +47,7 @@ Valid commans are:
 
 The first and second of the above output an image named 'out-24bit.png'
 -----------
-""" % gamma
+""" % image.gamma
 
 while True:
     
@@ -111,6 +55,9 @@ while True:
     cmd = line[0]
     
     if cmd == "sweep" or cmd == "s":
+        
+        bright0 = image.brightness
+        
         Nsteps = 200
         log_min = -5
         log_max = 2
@@ -119,18 +66,20 @@ while True:
         
         for v in vals:
             print v
-            show_img(data, v, False, False)
+            image.brightness = v
+            image.show(data)
             time.sleep(0.01)
+        
+        image.brightness = bright0
     else:
         if cmd == "flares" or cmd == "f":
-            do_flares = do_flares == False
-            print "flares %s" % do_flares
+            image.flares = image.flares == False
+            print "flares %s" % image.flares
         elif cmd == "gamma" or cmd == "g":
-            gamma = float(line[1])
+            image.gamma = float(line[1])
         elif cmd == "brightness" or cmd == "b":
-            ref = float(line[1])
+            image.brightness = float(line[1])
         else:
-            ref = float(cmd)
-        show_img(data, ref, do_flares, True)
-
-#print mat
+            image.brightness = float(cmd)
+        image.show(data)
+        image.save_png('hdriedit-out.png')
