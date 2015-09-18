@@ -49,9 +49,9 @@ scene.add_object(Parallelepiped( (1.3,-0.5,0.0), (1,0,0), (0,1.3,0), (0,0,0.6) )
 
 scene.add_object(Dodecahedron( (1.8,0.2,.5+0.6), 0.5 ), 'glass')
 
-#scene.image_size = (1280,1024)
-scene.image_size = (1024,768)
-#scene.image_size = (640,400)
+#scene.image.size = (1280,1024)
+scene.image.size = (1024,768)
+#scene.image.size = (640,400)
 scene.samples_per_pixel = 10000
 scene.quasirandom = False
 scene.gamma = 1.6

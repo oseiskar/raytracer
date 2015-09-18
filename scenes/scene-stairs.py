@@ -31,7 +31,7 @@ class DomeScene(DefaultScene):
 scene = DomeScene(SpectrumShader)
 scene.camera_dof_fstop = 0.05
 
-scene.image_size = (1920/2, 1080/2)
+scene.image.size = (1920/2, 1080/2)
 scene.samples_per_pixel = 100000
 
 T = Affine(translation=(1,0,0))

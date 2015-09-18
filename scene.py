@@ -1,5 +1,6 @@
 import numpy as np
 import camera
+from imgutils import EncodingSettings
 
 class Scene:
     """
@@ -19,6 +20,9 @@ class Scene:
             self.material = material
             self.name = name
             self.bidirectional_light = False
+    
+    class ImageSettings(EncodingSettings):
+        pass
     
     def get_camera_rotmat(self):
         return camera.camera_rotmat(self.camera_direction, self.camera_up)
@@ -42,7 +46,7 @@ class Scene:
         self.camera_sharp_distance = np.linalg.norm(self.camera_direction)
     
     def get_camera_rays(self):
-        return camera.camera_rays(self.image_size, self.camera_flat_ccd, \
+        return camera.camera_rays(self.image.size, self.camera_flat_ccd, \
             self.camera_fov, self.camera_direction, self.camera_up)
     
     def get_number_of_camera_rays(self):

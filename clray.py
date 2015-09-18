@@ -52,11 +52,7 @@ if __name__ == '__main__':
         if args.append:
             old_raw_file = RAW_OUTPUT_FILE
         else: old_raw_file = None
-        img = Image( old_raw_file )
-        img.gamma = scene.gamma
-        img.brightness = scene.brightness
-        img.normalization = scene.brightness_reference
-        img.equalize = scene.equalize
+        img = Image( old_raw_file, settings=scene.image )
         return img
     image = init_image()
 

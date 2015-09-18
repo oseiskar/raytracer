@@ -5,6 +5,7 @@ from spectrum import Spectrum
 from objects import HalfSpace, Sphere
 import shader
 
+
 def default_rgb_materials():
     # --- Materials
     return {\
@@ -79,11 +80,12 @@ def default_spectrum_materials(spectrum):
 def default_settings(scene):
 
     # --- Image settings
-    scene.image_size = (800, 600)
-    scene.brightness = 0.3
-    scene.gamma = 1.8
-    scene.brightness_reference = 'mean'
-    scene.equalize = True
+    scene.image = Scene.ImageSettings()
+    scene.image.size = (800, 600)
+    scene.image.brightness = 0.3
+    scene.image.gamma = 1.8
+    scene.image.brightness_reference = 'mean'
+    scene.image.equalize = True
     
     # --- Raytracer settings
     scene.tent_filter = True

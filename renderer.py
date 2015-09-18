@@ -90,9 +90,9 @@ class Renderer:
         cam = self.scene.get_camera_rays()
         self.rotmat = scene.get_camera_rotmat()
         fovx_rad = scene.camera_fov / 180.0 * np.pi
-        self.pixel_angle = fovx_rad / scene.image_size[0]
+        self.pixel_angle = fovx_rad / scene.image.size[0]
         
-        self.img_shape = scene.image_size[::-1]
+        self.img_shape = scene.image.size[::-1]
         self.n_pixels = self.img_shape[0] * self.img_shape[1]
         
         self.image_order = self.get_image_order()

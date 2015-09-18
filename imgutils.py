@@ -3,18 +3,25 @@
 
 import numpy as np
 
-class Image:
-    def __init__( self, npy_filename = None, data = None ):
-        if npy_filename == None:
-            self.data = data
-        else:
-            self.data = np.load( npy_filename )
-        
+class EncodingSettings:
+    def __init__(self):
         self.gamma = 1.8
         self.brightness = 0.3
         self.normalization = 'mean'
         self.equalize = True
         self.flares = False
+
+class Image:
+    
+    def __init__( self, npy_filename = None, data = None, settings = None ):
+        if npy_filename == None:
+            self.data = data
+        else:
+            self.data = np.load( npy_filename )
+        
+        if settings is None: settings = EncodingSettings()
+        self.settings = settings
+        
         self._pgwin = None
     
     def save_raw( self, filename, imgdata = None ):
@@ -34,14 +41,14 @@ class Image:
     
     def _to_24bit( self, imgdata = None ):
         imgdata = np.nan_to_num(self._sum( imgdata ))
-        ref = getattr(np, self.normalization)(imgdata)
+        ref = getattr(np, self.settings.normalization)(imgdata)
         
-        imgdata = np.clip(imgdata/ref*self.brightness, 0, None)
-        imgdata = np.power(imgdata, 1.0/self.gamma)
-        if self.flares:
+        imgdata = np.clip(imgdata/ref*self.settings.brightness, 0, None)
+        imgdata = np.power(imgdata, 1.0/self.settings.gamma)
+        if self.settings.flares:
             imgdata = flares(imgdata)
         imgdata = np.clip(imgdata, 0, 1.0)
-        if self.equalize:
+        if self.settings.equalize:
             lightness = np.mean(imgdata, 2)
             min_l = np.min(lightness)
             max_l = np.max(lightness)
@@ -88,9 +95,8 @@ def shrink_to_fit_screen(img):
     shrink = 1
     w, h = img.shape[:2]
     
-    while (h/shrink > screen_info.current_h * 0.7 or
+    while (h/shrink > screen_info.current_h - 100 or
            w/shrink > screen_info.current_w):
-        print h/shrink, screen_info.current_h * 0.7
         shrink += 1
 
     img = shrink_image(img, shrink)
