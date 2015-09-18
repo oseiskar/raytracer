@@ -3,13 +3,28 @@
 
 import numpy as np
 
-class EncodingSettings:
+class ColorEncodingSettings:
     def __init__(self):
+        
+        ## Color endcoding pipeline
+        
+        # First the intensity values are shifted downwards so that this
+        # reference point has zero brightness = (r+g+b)/3
+        self.low_normalization = np.min
+        
+        # Then the values are scaled linearly so that this reference
+        # point becomes equal to the below brightness value
+        self.brightness_reference = np.mean
+        self.brightness = 0.4
+        
+        # Then gamma correction x -> x^(1/gamma) is applied
         self.gamma = 1.8
-        self.brightness = 0.3
-        self.normalization = 'mean'
-        self.equalize = True
+        
+        # If set, over-exposed values are blurred with a flare effect
         self.flares = False
+        
+        # Finally, all color values are clamped to range [0,1] and
+        # encoded using 8-bit
 
 class Image:
     
@@ -19,7 +34,7 @@ class Image:
         else:
             self.data = np.load( npy_filename )
         
-        if settings is None: settings = EncodingSettings()
+        if settings is None: settings = ColorEncodingSettings()
         self.settings = settings
         
         self._pgwin = None
@@ -41,21 +56,23 @@ class Image:
     
     def _to_24bit( self, imgdata = None ):
         imgdata = np.nan_to_num(self._sum( imgdata ))
-        ref = getattr(np, self.settings.normalization)(imgdata)
+        lightness = np.ravel(np.mean(imgdata, 2))
+        
+        lo_norm = self.settings.low_normalization
+        if lo_norm is not None and lo_norm is not 0:
+            min_l = lo_norm(lightness)
+            imgdata -= min_l
+            lightness -= min_l
+        
+        ref = self.settings.brightness_reference(lightness)
         
         imgdata = np.clip(imgdata/ref*self.settings.brightness, 0, None)
         imgdata = np.power(imgdata, 1.0/self.settings.gamma)
+        
         if self.settings.flares:
             imgdata = flares(imgdata)
+        
         imgdata = np.clip(imgdata, 0, 1.0)
-        if self.settings.equalize:
-            lightness = np.mean(imgdata, 2)
-            min_l = np.min(lightness)
-            max_l = np.max(lightness)
-            
-            if min_l != max_l:
-                imgdata = (imgdata - min_l) / (max_l - min_l)
-                imgdata = np.clip(imgdata, 0, 1.0)
         
         return (imgdata*255).astype(np.uint8)
     

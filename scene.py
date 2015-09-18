@@ -1,6 +1,6 @@
 import numpy as np
 import camera
-from imgutils import EncodingSettings
+from imgutils import ColorEncodingSettings
 
 class Scene:
     """
@@ -21,7 +21,7 @@ class Scene:
             self.name = name
             self.bidirectional_light = False
     
-    class ImageSettings(EncodingSettings):
+    class ImageSettings(ColorEncodingSettings):
         pass
     
     def get_camera_rotmat(self):

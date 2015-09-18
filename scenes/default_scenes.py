@@ -82,10 +82,6 @@ def default_settings(scene):
     # --- Image settings
     scene.image = Scene.ImageSettings()
     scene.image.size = (800, 600)
-    scene.image.brightness = 0.3
-    scene.image.gamma = 1.8
-    scene.image.brightness_reference = 'mean'
-    scene.image.equalize = True
     
     # --- Raytracer settings
     scene.tent_filter = True

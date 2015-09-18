@@ -103,4 +103,7 @@ for i in range(len(test_objects)):
 scene.max_bounces = 4
 scene.min_bounces = 2
 
+scene.image.brighness_reference = numpy.max
+scene.brightness = 1.0
+
 scene.direct_camera_towards((0,0,0.0))
