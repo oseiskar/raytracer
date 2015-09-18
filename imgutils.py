@@ -6,7 +6,7 @@ import numpy as np
 class ColorEncodingSettings:
     def __init__(self):
         
-        ## Color endcoding pipeline
+        ## Color encoding pipeline
         
         # First the intensity values are shifted downwards so that this
         # reference point has zero brightness = (r+g+b)/3

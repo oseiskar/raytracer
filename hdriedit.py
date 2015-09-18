@@ -47,7 +47,7 @@ Valid commans are:
 
 The first and second of the above output an image named 'out-24bit.png'
 -----------
-""" % image.gamma
+""" % image.settings.gamma
 
 while True:
     
@@ -56,7 +56,7 @@ while True:
     
     if cmd == "sweep" or cmd == "s":
         
-        bright0 = image.brightness
+        bright0 = image.settings.brightness
         
         Nsteps = 200
         log_min = -5
@@ -66,20 +66,20 @@ while True:
         
         for v in vals:
             print v
-            image.brightness = v
+            image.settings.brightness = v
             image.show(data)
             time.sleep(0.01)
         
-        image.brightness = bright0
+        image.settings.brightness = bright0
     else:
         if cmd == "flares" or cmd == "f":
-            image.flares = image.flares == False
-            print "flares %s" % image.flares
+            image.settings.flares = image.settings.flares == False
+            print "flares %s" % image.settings.flares
         elif cmd == "gamma" or cmd == "g":
-            image.gamma = float(line[1])
+            image.settings.gamma = float(line[1])
         elif cmd == "brightness" or cmd == "b":
-            image.brightness = float(line[1])
+            image.settings.brightness = float(line[1])
         else:
-            image.brightness = float(cmd)
+            image.settings.brightness = float(cmd)
         image.show(data)
         image.save_png('hdriedit-out.png')
