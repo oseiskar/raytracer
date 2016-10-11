@@ -5,11 +5,11 @@
 
 ### if shader.rgb
     #define COLOR(prop, id) material_colors[prop + id].xyz
-    #define WHITE (float3)(1.0,1.0,1.0)
-    #define COLOR2PROB(color) dot(color,WHITE)/3.0
+    #define WHITE (float3)(1.0f,1.0f,1.0f)
+    #define COLOR2PROB(color) dot(color,WHITE)/3.0f
 ### else
     #define COLOR(prop, id) material_scalars[prop + id]
-    #define WHITE 1.0
+    #define WHITE 1.0f
     #define COLOR2PROB(color) color
 ### endif
 
@@ -78,7 +78,7 @@ __kernel void shader_{{name}}(
     
     // the random sample [0,1) that decides what to do
     float p = *p_p;
-    if (p < 0.0) return;
+    if (p < 0.0f) return;
         
     ray += ray_idx;
     normal += thread_idx;
@@ -100,11 +100,11 @@ __kernel void shader_{{name}}(
     const float3 rvec = rvecs_cmask_and_light[0].xyz;
     float3 gauss_rvec = rvecs_cmask_and_light[1].xyz;
     
-    float cur_prob = 0.0;
+    float cur_prob = 0.0f;
     {{ shader.color_cl_type }} cur_col;
     
 ### if shader.rgb
-    const float cmask = 1.0;
+    const float cmask = 1.0f;
 ### else
     const float3 cmask = rvecs_cmask_and_light[2].xyz;
 ### endif
@@ -127,7 +127,7 @@ __kernel void shader_{{name}}(
 
     float last_dist = *last_distance;
     const float alpha = SCALAR(MAT_VOLUME_SCATTERING,*inside);
-    if (alpha > 0) cur_prob = 1.0-exp(-alpha*last_dist);
+    if (alpha > 0) cur_prob = 1.0f-exp(-alpha*last_dist);
     
     if (p < cur_prob)
     {
@@ -139,15 +139,15 @@ __kernel void shader_{{name}}(
         //   log(1-p) > -alpha*dist
         //   -log(1-p) < alpha*dist
         //   dist > -log(1-p)/alpha
-        float d = -log(1.0 - p) / alpha;
+        float d = -log(1.0f - p) / alpha;
       
         *pos -= (last_dist-d) * r;
         last_dist = d;
         *surface_object_id = 0; // not on any surface
         
         const float blur = SCALAR(MAT_VOLUME_SCATTERING_BLUR,*inside);
-        if (blur < 1.0) {
-            r = normalize(gauss_rvec + r * tan(M_PI*0.5*(1.0 - blur)));
+        if (blur < 1.0f) {
+            r = normalize(gauss_rvec + r * tan((float)M_PI*0.5f*(1.0f - blur)));
         }
         else r = rvec;
         
@@ -155,7 +155,7 @@ __kernel void shader_{{name}}(
             *suppress_emission = 0;
         ### endif
         
-        p = -1.0;
+        p = -1.0f;
     }
     else p -= cur_prob;
     
@@ -204,13 +204,13 @@ __kernel void shader_{{name}}(
         const float blur = SCALAR(MAT_REFLECTION_BLUR, *surface_object_id);
         if (blur > 0) {
             if (dot(n,gauss_rvec) < 0) gauss_rvec = -gauss_rvec;
-            r = normalize(gauss_rvec * blur + r * (1.0-blur));
+            r = normalize(gauss_rvec * blur + r * (1.0f-blur));
         }
         
         ### if renderer.bidirectional
             *suppress_emission = 0;
         ### endif
-        p = -1.0;
+        p = -1.0f;
     }
     else p -= cur_prob;
     
@@ -275,13 +275,13 @@ __kernel void shader_{{name}}(
         const float blur = SCALAR(MAT_TRANSPARENCY_BLUR, *surface_object_id);
         if (blur > 0) {
             if (dot(n,gauss_rvec) < 0) gauss_rvec = -gauss_rvec;
-            r = normalize(gauss_rvec * blur + r * (1.0-blur));
+            r = normalize(gauss_rvec * blur + r * (1.0f-blur));
         }
         
         ### if renderer.bidirectional
             *suppress_emission = 0;
         ### endif
-        p = -1.0;
+        p = -1.0f;
     }
     else p -= cur_prob;
 
@@ -320,7 +320,7 @@ __kernel void shader_{{name}}(
                         const float shadow_dist = length(shadow_ray);
                         shadow_ray = fast_normalize(shadow_ray);
                         
-                        *img += dot(n,shadow_ray) / M_PI
+                        *img += dot(n,shadow_ray) / (float)M_PI
                             * dot(-shadow_ray,light_normal) / (shadow_dist*shadow_dist)
                             * (*ray_color) * (*pipeline_color) * cmask
                             * COLOR(MAT_EMISSION,light_id)
@@ -344,11 +344,11 @@ __kernel void shader_{{name}}(
         if (dot(n,r) < 0) r = -r;
         
         // Lambert's law
-        *pipeline_color *= 2.0 * dot(n,r);
+        *pipeline_color *= 2.0f * dot(n,r);
     }
-    else *pipeline_color *= 0.0;
+    else *pipeline_color *= 0.0f;
     
-    p = -1.0;
+    p = -1.0f;
 
 ### endcall
 
@@ -361,10 +361,10 @@ __kernel void init_shadow_mask(
     const int ray_idx = pixel[thread_idx];
     
     if (diffusions_left[ray_idx] < 1) {
-        shadow_mask[thread_idx] = 0.0;
+        shadow_mask[thread_idx] = 0.0f;
     }
     else {
-        shadow_mask[thread_idx] = 1.0;
+        shadow_mask[thread_idx] = 1.0f;
     }
 }
 
@@ -411,23 +411,23 @@ __kernel void culler(
         local float russian_prob;
         
         if (local_idx == 0) {
-            if (max_value > 0.0) {
-                russian_prob = clamp(max_value, (float){{renderer.scene.min_russian_prob}}, (float)1.0);
+            if (max_value > 0.0f) {
+                russian_prob = clamp(max_value, (float){{renderer.scene.min_russian_prob}}, 1.0f);
                 if (russian_roulette_sample > russian_prob)
-                    scratch[0] = 0.0;
+                    scratch[0] = 0.0f;
             }
-            else russian_prob = 1.0;
+            else russian_prob = 1.0f;
         }
     ### endif
     
     barrier(CLK_LOCAL_MEM_FENCE);
     max_value = scratch[0];
     
-    if (max_value == 0.0) {
+    if (max_value == 0.0f) {
         *pixel = -1;
     }
     ### if renderer.scene.min_russian_prob
-        else if (russian_prob < 1.0) {
+        else if (russian_prob < 1.0f) {
             *ray_color /= russian_prob;
         }
     ### endif

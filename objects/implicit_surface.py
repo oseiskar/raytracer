@@ -53,6 +53,9 @@ class ImplicitSurface(Tracer):
         # Print as an interval arithmetic macro expression
         class IAPrinter(sympy.printing.str.StrPrinter):
             
+            def _print_Float(self, expr):
+                return "%gf" % expr
+            
             def _print_Pow(self, expr):
                 base = expr.args[0]
                 exponent = expr.args[1]

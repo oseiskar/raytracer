@@ -24,7 +24,7 @@
         qr = qr1;
     }
     
-    f = ia_pow2(qr)+ia_pow2(qi)+ia_pow2(qj)+ia_pow2(qk) - 4.0;
+    f = ia_pow2(qr)+ia_pow2(qi)+ia_pow2(qj)+ia_pow2(qk) - 4.0f;
     
 ### endmacro
 

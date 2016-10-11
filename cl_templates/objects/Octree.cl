@@ -33,7 +33,7 @@
     ### call tracer_function_base(obj)
     
         // intersection with cube
-        const float3 slopes = 1.0 / ray;
+        const float3 slopes = 1.0f / ray;
         int3 walls1;
         {{vec_less_than('walls1', 'slopes', '0.0') }}
         const int3 walls2 = 1 - walls1;
