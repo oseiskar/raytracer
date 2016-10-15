@@ -37,7 +37,7 @@ class Image:
         if settings is None: settings = ColorEncodingSettings()
         self.settings = settings
         
-        self._pgwin = None
+        self._sdlwin = None
     
     def save_raw( self, filename, imgdata = None ):
         np.save(filename, self._sum(imgdata) )
@@ -81,39 +81,43 @@ class Image:
         
         img = imgdata.transpose((1, 0, 2))
         
-        if not self._pgwin:
-            self._pgwin, self._shrink = init_pygame_window_from_image(img)
+        if not self._sdlwin:
+            self._sdlwin, self._shrink = init_sdl_window_from_image(img)
         else:
             img = shrink_image(img, self._shrink)
-            update_pygame_window_to_image(self._pgwin, img)
+            update_sdl_window_to_image(self._sdlwin, img)
         
-def init_pygame_window_from_image(img):
-    import pygame
-    pygame.display.init()
+def init_sdl_window_from_image(img):
+    import sdl2, sdl2.ext
+    sdl2.ext.init()
     
     img, shrink = shrink_to_fit_screen(img)
     w, h = img.shape[:2]
+    shrink = 1
 
-    pgwin = pygame.display.set_mode((w, h))
-    pygame.display.set_caption("Image 1:%d" % shrink)
+    window = sdl2.ext.Window("Image 1:%d" % shrink, size=(w, h))
+    window.show()
     
-    update_pygame_window_to_image(pgwin, img)
+    update_sdl_window_to_image(window, img)
     
-    return (pgwin, shrink)
+    return (window, shrink)
     
-def update_pygame_window_to_image(pgwin, img):
-    import pygame
-    pgwin.blit(pygame.surfarray.make_surface(img), (0, 0))
-    pygame.display.update()
+def update_sdl_window_to_image(sdlwin, img):
+    import sdl2, sdl2.ext
+    view = sdl2.ext.pixels3d(sdlwin.get_surface())
+    view[:,:,:3] = img[:,:,::-1]
+    sdlwin.refresh()
     
 def shrink_to_fit_screen(img):
-    import pygame
-    screen_info = pygame.display.Info()
+    import sdl2
+    dm = sdl2.SDL_DisplayMode()
+    assert(sdl2.SDL_GetCurrentDisplayMode(0, dm) == 0)
+
     shrink = 1
     w, h = img.shape[:2]
     
-    while (h/shrink > screen_info.current_h - 100 or
-           w/shrink > screen_info.current_w):
+    while (h/shrink > dm.h - 100 or
+           w/shrink > dm.w):
         shrink += 1
 
     img = shrink_image(img, shrink)

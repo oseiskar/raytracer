@@ -13,7 +13,7 @@ Requirements
  * pyopencl (>= 2012), tested with 2012.1, 2013.2, 2014.1, 2016.2
  * Mako (for pyopencl)
  * jinja2
- * pygame (for visualization)
+ * pysdl2 (for visualization), needs the `libsdl2-dev`
  * numpy, scipy
  * sympy (for implicit surfaces)
 
@@ -43,9 +43,9 @@ Jessie in October 2016 (less likely to break things):
  2. Then install PyOpenCL, Mako etc. with pip (which itself is [often broken](http://stackoverflow.com/questions/39882200/pip-error-after-upgrading-pip-scrapy-by-pip-install-upgrade/40056431#40056431))
 
         export LC_ALL=C # can fix problems with pip
-        sudo pip install pyopencl Mako sympy jinja2
+        sudo pip install pyopencl Mako sympy jinja2 sdl2
          
- 3. Install pygame, numpy and scipy using the package manager
+ 3. Install numpy, scipy and SDL using the package manager
 
-        sudo aptitude install python-numpy python-scipy python-pygame
+        sudo aptitude install python-numpy python-scipy libsdl2-dev
 
